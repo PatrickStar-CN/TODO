@@ -23,7 +23,7 @@ TODO Tools 是一个轻量级待办事项管理应用，使用原生 JavaScript 
 
 ```
 todoTools/
-├── index.html                  # 主 HTML 入口
+├── index.html                  # 主 HTML 入口（含迷你面板结构）
 ├── package.json                # 项目配置
 ├── neutralino.config.json      # Neutralino 桌面应用配置
 ├── vite.config.js              # Vite 构建配置（含自定义插件）
@@ -32,8 +32,8 @@ todoTools/
 ├── data.json                   # 持久化数据文件（开发环境）
 ├── src/
 │   ├── main.js                 # 应用入口（Neutralino 初始化 + 系统托盘）
-│   ├── app.js                  # 核心业务逻辑（~940 行）
-│   └── style.css               # 全局样式 + 动画系统（~1200 行）
+│   ├── app.js                  # 核心业务逻辑（~1150 行）
+│   └── style.css               # 全局样式 + 动画 + 迷你面板（~1430 行）
 ├── public/
 │   ├── neutralino.js           # Neutralino 客户端库
 │   └── icon.png                # 应用图标
@@ -84,6 +84,18 @@ todoTools/
 - 优先级选择（高/中/低/无）
 - 标签选择（已有标签列表/清除）
 - 弹窗自动调整位置（防止溢出视口）
+
+### 迷你模式
+- 侧边栏标题旁 `⊟` 按钮进入迷你模式
+- 窗口缩小为 280×320 小卡片，置顶显示、无边框
+- 显示待办/已完成计数统计
+- 展示前 8 条待办任务（按优先级排序）
+- 优先级彩色圆点标识
+- 点击圆形 checkbox 直接完成任务
+- 点击 `+` 按钮展开输入框快速添加任务（Enter 提交）
+- 鼠标悬停任务 400ms 后弹出 tooltip 显示详情（标题、描述、优先级、标签、时间）
+- 点击 `⊞` 按钮退出迷你模式，恢复正常窗口
+- 标题文字区域可拖动窗口位置（通过 `setDraggableRegion`）
 
 ### 桌面应用特性
 - 系统托盘菜单（显示窗口/退出）
@@ -144,12 +156,14 @@ todoTools/
 │  ├── 事件处理: 事件委托 + DOM 操作                    │
 │  ├── 弹窗系统: createOverlay / closeOverlay         │
 │  ├── 动画控制: entering/removing/checking 类切换     │
-│  └── 日历模块: renderCalendar / getTodosForDate     │
+│  ├── 日历模块: renderCalendar / getTodosForDate     │
+│  └── 迷你模式: enterMiniMode / exitMiniMode         │
 ├─────────────────────────────────────────────────────┤
 │  style.css                                          │
 │  ├── 暗色主题样式                                    │
 │  ├── 响应式布局（flex）                              │
-│  └── 动画系统（@keyframes + transition）             │
+│  ├── 动画系统（@keyframes + transition）             │
+│  └── 迷你面板样式 + tooltip                          │
 └─────────────────────────────────────────────────────┘
          │                        │
     [Neutralino 环境]        [浏览器/开发环境]
@@ -207,6 +221,7 @@ todoTools/
 - 构建时通过 Vite 插件自动注入 `neutralino.js`，开发时不加载
 - Toast 通知用于操作反馈（`showToast` 函数）
 - 动画遵循 `requestAnimationFrame` + `animationend` 事件模式
+- 迷你模式通过 Neutralino `window.*` API 控制窗口状态（setBorderless、setAlwaysOnTop、setSize、setDraggableRegion）
 
 ---
 
@@ -226,9 +241,10 @@ todo_data.json    # 桌面环境用户数据
 
 ## 已知限制
 
-- Neutralinojs 不支持托盘图标双击事件，只能通过右键菜单"显示窗口"恢复界面
+- Neutralinojs 6.7.0 不支持托盘图标单击/双击事件（`trayIconClicked` 未实现），单击托盘图标会弹出菜单，只能通过菜单项"显示窗口"恢复界面
 - 列表渲染使用 `innerHTML` 整体替换，大量任务时可能有性能瓶颈
 - 无离线 PWA 支持（Web 模式下）
+- 迷你模式的窗口拖动依赖 `setDraggableRegion` API，仅在桌面环境生效
 
 ---
 
