@@ -1,46 +1,29 @@
-# 待办事项管理工具（Todo Tools）
+# 待办事项管理工具（TODO Tools）
 
-一个基于原生前端技术构建的轻量级 Todo 任务管理小工具，使用 Vite 作为开发与构建工具，无框架依赖。
+一个基于原生前端技术构建的轻量级待办事项管理应用，支持 Web 浏览器和 Windows 桌面应用两种运行模式。使用 Vite 构建，Neutralinojs 打包桌面应用，无前端框架依赖。
 
-## 项目结构
+## 功能特性
 
-```
-todoTools/
-├── src/
-│   ├── main.js          # 应用入口，加载样式并初始化应用
-│   ├── app.js           # 核心业务逻辑（数据加载、渲染、交互）
-│   └── style.css        # 全部界面样式
-├── data.json            # 本地持久化数据文件（todos + tags）
-├── index.html           # 页面骨架（侧边栏、任务列表、日历、详情面板）
-├── server-plugin.js     # Vite 开发服务器数据接口插件（/api/data）
-├── vite.config.js       # Vite 配置与插件挂载
-├── package.json         # 项目元信息与脚本
-└── package-lock.json    # 依赖锁定文件
-```
-
-## 核心功能
-
-- **任务管理**：新增、编辑、删除任务，标记完成 / 取消完成
-- **重要标记**：将任务标记为重要，支持按重要程度筛选
-- **视图筛选**：支持「我的一天」「重要」「所有」三种内置视图
-- **标签分类**：支持自定义标签，按标签筛选任务
-- **日历视图**：按月展示任务分布，点击日期查看当天任务
-- **详情面板**：编辑任务标题、备注、截止日期等详细信息
-- **已完成折叠**：已完成任务区域可折叠 / 展开
-- **清空已完成**：一键清除所有已完成任务
-
-## 数据持久化
-
-采用"服务端文件 + 前端兜底"双重机制：
-
-1. **优先**：通过 `/api/data` 接口读写 `data.json`（开发模式下由 Vite 插件提供）
-2. **兜底**：接口不可用时自动回退到浏览器 `localStorage`
+- **任务管理**：快速添加、编辑、删除任务，标记完成/取消完成，按优先级排序
+- **重要标记**：将任务标记为重要（星标），支持重要视图筛选
+- **视图分类**：TODO（默认）、重要、所有任务、日历视图
+- **标签系统**：自定义标签，按标签筛选，标签管理面板
+- **日历视图**：紧凑月历网格，日期任务指示点，点击查看当天任务
+- **详情面板**：编辑标题、备注、优先级、标签、开始/截止时间
+- **迷你模式**：窗口缩小为置顶小卡片，显示待办列表，支持快速添加和完成任务
+- **快速添加预设**：日期、优先级、标签预设弹窗
+- **动画系统**：完整的入场/退场/微交互动画
+- **桌面特性**：系统托盘、关闭隐藏到托盘、本地文件持久化
 
 ## 技术栈
 
-- 原生 HTML / CSS / JavaScript（无框架依赖）
-- Vite 6.x（开发服务器 + 构建工具）
-- Vite 自定义插件（开发时数据接口）
+| 层面 | 技术 |
+|------|------|
+| 前端构建 | Vite 6.x |
+| 桌面框架 | Neutralinojs 6.7.0 |
+| 语言 | 原生 JavaScript (ES Module) |
+| 样式 | 原生 CSS（暗色主题） |
+| 数据存储 | JSON 文件 + localStorage 降级 |
 
 ## 快速开始
 
@@ -48,19 +31,51 @@ todoTools/
 # 安装依赖
 npm install
 
-# 启动开发服务器
+# 启动开发服务器（浏览器模式）
 npm run dev
 
 # 构建生产版本
 npm run build
 
-# 预览构建产物
-npm run preview
+# 以桌面窗口运行
+npm run neu:run
+
+# 打包为桌面应用
+npm run neu:build
 ```
 
-## 数据模型
+## 项目结构
 
-`data.json` 结构示例：
+```
+todoTools/
+├── index.html                  # 主 HTML 入口
+├── package.json                # 项目配置
+├── neutralino.config.json      # 桌面应用配置
+├── vite.config.js              # Vite 构建配置
+├── server-plugin.js            # 开发服务器数据 API 插件
+├── .gitignore                  # Git 忽略规则
+├── src/
+│   ├── main.js                 # 应用入口（Neutralino 初始化 + 托盘）
+│   ├── app.js                  # 核心业务逻辑
+│   └── style.css               # 全局样式 + 动画系统
+├── public/
+│   ├── neutralino.js           # Neutralino 客户端库
+│   └── icon.png                # 应用图标
+└── dist/                       # 构建产物
+    └── todo-tools/
+        ├── todo-tools-win_x64.exe
+        └── resources.neu
+```
+
+## 数据持久化
+
+三层降级机制：
+
+1. **桌面环境**：通过 Neutralino filesystem API 读写本地 `todo_data.json`
+2. **开发环境**：通过 Vite 插件 `/api/data` 接口读写 `data.json`
+3. **降级方案**：浏览器 `localStorage`
+
+## 数据模型
 
 ```json
 {
@@ -68,22 +83,31 @@ npm run preview
     {
       "id": "唯一标识",
       "title": "任务标题",
-      "done": false,
-      "important": false,
-      "myday": true,
+      "desc": "任务描述",
+      "priority": "high | medium | low | none",
       "tag": "标签名",
-      "date": "截止日期",
-      "note": "备注",
-      "createdAt": "创建时间"
+      "startTime": "开始时间",
+      "endTime": "截止时间",
+      "myday": true,
+      "important": false,
+      "done": false,
+      "doneAt": null,
+      "createdAt": 1700000000000
     }
   ],
-  "tags": ["计划内"]
+  "tags": ["工作", "学习"]
 }
 ```
 
-## 工作流程
+## 分发
 
-1. 页面加载 → `main.js` 初始化 → 调用 `app.js` 中的 `initApp()`
-2. `loadData()` 从接口或本地存储加载数据
-3. `render()` 根据当前视图和筛选条件渲染界面
-4. 用户操作 → 更新内存数据 → `saveData()` 持久化 → 重新渲染
+打包后将 `dist/todo-tools/` 目录整体复制即可运行：
+- `todo-tools-win_x64.exe` — 可执行文件（约 1.7MB）
+- `resources.neu` — 应用资源包
+- 数据保存在 exe 同目录下的 `todo_data.json`
+
+## 已知限制
+
+- Neutralinojs 不支持托盘图标单击事件，需通过菜单项恢复窗口
+- 迷你模式窗口拖动仅在桌面环境生效
+- 无离线 PWA 支持（Web 模式下）
