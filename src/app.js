@@ -938,6 +938,10 @@ export async function initApp() {
     if (e.key === 'Escape') closeDetail();
   });
 
+  document.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+  });
+
   // --- Mini Mode ---
   let isMiniMode = false;
   const miniPanel = document.getElementById('mini-panel');
