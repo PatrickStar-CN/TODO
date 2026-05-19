@@ -29,11 +29,31 @@ body {
 
 .sidebar-header {
   padding: 20px 20px 16px;
+  position: relative;
 }
 
 .sidebar-header h2 {
   font-size: 16px;
   font-weight: 700;
+  color: #7eb8f7;
+}
+
+.btn-mini-mode {
+  position: absolute;
+  top: 20px;
+  right: 16px;
+  background: none;
+  border: none;
+  color: #64748b;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 4px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.btn-mini-mode:hover {
+  background: #1e2330;
   color: #7eb8f7;
 }
 
@@ -1206,4 +1226,205 @@ body {
 
 .todo-item.checking {
   animation: todoCheck 0.3s ease;
+}
+
+/* Mini Panel */
+.mini-panel {
+  position: fixed;
+  inset: 0;
+  background: #12151a;
+  display: flex;
+  flex-direction: column;
+  z-index: 2000;
+  overflow: hidden;
+}
+
+.mini-panel.hidden {
+  display: none !important;
+}
+
+.mini-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: #1a1d23;
+  border-bottom: 1px solid #2a2f38;
+}
+
+.mini-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #7eb8f7;
+  cursor: move;
+  flex: 1;
+  padding: 4px 0;
+}
+
+.mini-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.mini-btn {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.mini-btn:hover {
+  background: #1e2330;
+  color: #7eb8f7;
+}
+
+.mini-stats {
+  display: flex;
+  gap: 12px;
+  padding: 8px 14px;
+  border-bottom: 1px solid #2a2f38;
+}
+
+.mini-stat-item {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.mini-stat-item span {
+  color: #7eb8f7;
+  font-weight: 600;
+}
+
+.mini-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 8px;
+}
+
+.mini-todo-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #e2e8f0;
+  cursor: default;
+  transition: background 0.12s;
+  position: relative;
+}
+
+.mini-todo-item:hover {
+  background: #1e2330;
+}
+
+.mini-todo-item .mini-checkbox {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1.5px solid #4a5568;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.mini-todo-item .mini-checkbox:hover {
+  border-color: #4f46e5;
+}
+
+.mini-todo-item .mini-checkbox.checked {
+  background: #22c55e;
+  border-color: #22c55e;
+}
+
+.mini-todo-item .mini-todo-title {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mini-todo-item.done .mini-todo-title {
+  text-decoration: line-through;
+  color: #64748b;
+}
+
+.mini-todo-item .mini-priority-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.mini-priority-dot.p-high { background: #f87171; }
+.mini-priority-dot.p-medium { background: #fbbf24; }
+.mini-priority-dot.p-low { background: #4ade80; }
+
+.mini-input-row {
+  padding: 8px;
+  border-top: 1px solid #2a2f38;
+}
+
+.mini-input-row.hidden {
+  display: none;
+}
+
+.mini-input-row input {
+  width: 100%;
+  background: #1e2330;
+  border: 1px solid #2a3548;
+  border-radius: 6px;
+  color: #e2e8f0;
+  padding: 6px 10px;
+  font-size: 12px;
+  outline: none;
+}
+
+.mini-input-row input:focus {
+  border-color: #4f46e5;
+}
+
+.mini-tooltip {
+  position: fixed;
+  background: #1e2330;
+  border: 1px solid #2a3548;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 12px;
+  color: #cbd5e1;
+  max-width: 220px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  z-index: 3000;
+  pointer-events: none;
+  animation: popupFadeIn 0.15s ease;
+}
+
+.mini-tooltip.hidden {
+  display: none;
+}
+
+.mini-tooltip-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #f1f5f9;
+  margin-bottom: 6px;
+}
+
+.mini-tooltip-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 4px;
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.mini-tooltip-row .badge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 3px;
 }

@@ -12,6 +12,7 @@
       <div class="sidebar-header">
         <h2>待办事项</h2>
         <span class="date" id="today-date"></span>
+        <button class="btn-mini-mode" id="btn-mini-mode" title="迷你模式">⊟</button>
       </div>
       <nav class="sidebar-nav">
         <a href="#" class="nav-item active" data-list="myday">
@@ -175,6 +176,25 @@
         </div>
       </form>
     </div>
+  </div>
+
+  <div id="mini-panel" class="mini-panel hidden">
+    <div class="mini-header">
+      <span class="mini-title" id="mini-drag-region">待办事项</span>
+      <div class="mini-actions">
+        <button class="mini-btn" id="btn-mini-add" title="快速添加">+</button>
+        <button class="mini-btn" id="btn-exit-mini" title="恢复窗口">⊞</button>
+      </div>
+    </div>
+    <div class="mini-stats">
+      <span class="mini-stat-item"><span id="mini-pending-count">0</span> 待办</span>
+      <span class="mini-stat-item"><span id="mini-done-count">0</span> 已完成</span>
+    </div>
+    <div class="mini-list" id="mini-list"></div>
+    <div class="mini-input-row hidden" id="mini-input-row">
+      <input type="text" id="mini-quick-add" placeholder="添加任务...">
+    </div>
+    <div class="mini-tooltip hidden" id="mini-tooltip"></div>
   </div>
 
   <script type="module" src="/src/main.js"></script>
