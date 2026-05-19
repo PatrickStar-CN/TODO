@@ -10,7 +10,7 @@ TODO Tools 是一个轻量级待办事项管理应用，使用原生 JavaScript 
 
 | 层面 | 技术 |
 |------|------|
-| 前端构建 | Vite 6.x |
+| 前端构建 | Vite 6.3.5 |
 | 桌面框架 | Neutralinojs 6.7.0 |
 | 语言 | 原生 JavaScript (ES Module) |
 | 样式 | 原生 CSS（暗色主题） |
@@ -28,11 +28,12 @@ todoTools/
 ├── neutralino.config.json      # Neutralino 桌面应用配置
 ├── vite.config.js              # Vite 构建配置（含自定义插件）
 ├── server-plugin.js            # Vite 开发服务器数据 API 插件
-├── data.json                   # 持久化数据文件
+├── .gitignore                  # Git 忽略规则
+├── data.json                   # 持久化数据文件（开发环境）
 ├── src/
 │   ├── main.js                 # 应用入口（Neutralino 初始化 + 系统托盘）
-│   ├── app.js                  # 核心业务逻辑
-│   └── style.css               # 全局样式
+│   ├── app.js                  # 核心业务逻辑（~940 行）
+│   └── style.css               # 全局样式 + 动画系统（~1200 行）
 ├── public/
 │   ├── neutralino.js           # Neutralino 客户端库
 │   └── icon.png                # 应用图标
@@ -49,33 +50,68 @@ todoTools/
 ## 功能特性
 
 ### 任务管理
-- 快速添加任务（支持预设截止日期、优先级、标签）
-- 任务编辑（标题、备注、优先级、标签、开始/截止时间）
-- 标记完成/取消完成
+- 快速添加任务（Enter 键提交，支持预设截止日期、优先级、标签）
+- 任务详情编辑面板（标题、备注、优先级、标签、开始/截止时间、TODO/重要标记）
+- 标记完成/取消完成（带动画反馈）
 - 标记为重要（星标）
-- 删除任务（带确认对话框）
+- 删除任务（带自定义确认对话框 + 退出动画）
 - 批量清空已完成任务
+- 待办列表按优先级排序（高 > 中 > 低 > 无）
 
 ### 视图分类
 - TODO（默认视图）
 - 重要
 - 所有任务
-- 日历视图（月历 + 日期详情）
+- 日历视图（紧凑月历 + 日期任务详情）
 
 ### 标签系统
-- 新建/删除标签
+- 新建标签（弹窗输入，重复检测）
+- 删除标签（带关联任务数量提示）
+- 标签管理面板（查看所有标签及任务数）
 - 按标签筛选任务
-- 标签管理面板
+- 数据规范化处理（去重、修剪空白、自动收集任务中的标签）
 
 ### 日历视图
-- 月历导航
-- 日期任务指示
-- 点击日期查看当天任务
+- 紧凑月历网格（缩小格子尺寸，为任务详情留出更多空间）
+- 月历导航（上/下月切换）
+- 日期任务指示点（每天最多 3 个点）
+- 今天高亮 + 选中日期高亮
+- 点击日期查看当天任务详情（flex 布局自动占满剩余空间）
+- 智能任务匹配（支持时间范围、单日期、创建日期）
+
+### 快速添加预设弹窗
+- 日期选择（今天/明天/下周/自定义日期/清除）
+- 优先级选择（高/中/低/无）
+- 标签选择（已有标签列表/清除）
+- 弹窗自动调整位置（防止溢出视口）
 
 ### 桌面应用特性
-- 系统托盘（显示窗口/退出）
+- 系统托盘菜单（显示窗口/退出）
 - 关闭窗口时隐藏到托盘而非退出
 - 本地文件系统数据持久化
+
+---
+
+## 动画系统
+
+项目实现了一套完整的 CSS 动画系统，覆盖所有交互场景：
+
+| 动画名称 | 时长 | 用途 |
+|----------|------|------|
+| `todoSlideIn` | 0.25s | 新增任务入场（从上方淡入滑入） |
+| `todoSlideOut` | 0.3s | 删除任务退场（向右淡出 + 高度收缩） |
+| `todoCheck` | 0.3s | 勾选/取消完成反馈（缩放脉冲） |
+| `overlayFadeIn/Out` | 0.2s/0.15s | 弹窗遮罩层出入 |
+| `dialogScaleIn/Out` | 0.25s/0.15s | 弹窗内容框缩放出入 |
+| `detailSlideIn/Out` | 0.25s/0.2s | 详情面板从右侧滑入/滑出 |
+| `popupFadeIn` | 0.15s | 快速添加预设弹窗淡入 |
+| `viewFadeIn` | 0.2s | 视图切换淡入 |
+| `doneListExpand/Collapse` | 0.3s/0.25s | 已完成列表折叠/展开 |
+
+动画实现模式：
+- 入场动画：通过添加 CSS 类触发 `@keyframes` 动画
+- 退场动画：添加退场类 → 监听 `animationend` 事件 → 移除 DOM 或隐藏元素
+- 微交互：按钮 `:active` 缩放、导航项/标签项 color 过渡、任务项 border-color 过渡
 
 ---
 
@@ -106,9 +142,14 @@ todoTools/
 │  ├── 状态管理: data, currentList, currentTag        │
 │  ├── 渲染层: render() → renderSidebar/TodoList/...  │
 │  ├── 事件处理: 事件委托 + DOM 操作                    │
+│  ├── 弹窗系统: createOverlay / closeOverlay         │
+│  ├── 动画控制: entering/removing/checking 类切换     │
 │  └── 日历模块: renderCalendar / getTodosForDate     │
 ├─────────────────────────────────────────────────────┤
-│  style.css (全局暗色主题样式)                         │
+│  style.css                                          │
+│  ├── 暗色主题样式                                    │
+│  ├── 响应式布局（flex）                              │
+│  └── 动画系统（@keyframes + transition）             │
 └─────────────────────────────────────────────────────┘
          │                        │
     [Neutralino 环境]        [浏览器/开发环境]
@@ -137,21 +178,21 @@ todoTools/
 {
   todos: [
     {
-      id: string,
-      title: string,
-      desc: string,
-      priority: 'high' | 'medium' | 'low' | '',
-      tag: string,
-      startTime: string,
-      endTime: string,
-      myday: boolean,
-      important: boolean,
-      done: boolean,
-      doneAt: string | null,
-      createdAt: string
+      id: string,           // 唯一标识（时间戳 + 随机字符串）
+      title: string,        // 任务标题
+      desc: string,         // 任务描述
+      priority: 'high' | 'medium' | 'low' | 'none',  // 优先级
+      tag: string,          // 标签名称
+      startTime: string | null,   // 开始时间（ISO 格式）
+      endTime: string | null,     // 截止时间（ISO 格式）
+      myday: boolean,       // 是否加入 TODO 视图
+      important: boolean,   // 是否标记为重要
+      done: boolean,        // 是否已完成
+      doneAt: string | null,      // 完成时间
+      createdAt: number     // 创建时间戳
     }
   ],
-  tags: string[]
+  tags: string[]            // 标签列表
 }
 ```
 
@@ -161,9 +202,33 @@ todoTools/
 
 - 无前端框架，使用命令式 DOM 操作
 - 事件委托模式：通过 `data-action` 和 `data-id` 属性统一处理
-- 弹窗系统：`createOverlay()` 创建遮罩弹窗，支持键盘操作（Enter 确认、Escape 取消）
-- 所有确认性操作使用应用内弹窗，不使用浏览器原生 `confirm()`
+- 弹窗系统：`createOverlay()` 创建遮罩弹窗，支持键盘操作（Enter 确认、Escape 取消、点击遮罩关闭）
+- 所有确认性操作使用应用内弹窗（`showConfirmDialog`），不使用浏览器原生 `confirm()`
 - 构建时通过 Vite 插件自动注入 `neutralino.js`，开发时不加载
+- Toast 通知用于操作反馈（`showToast` 函数）
+- 动画遵循 `requestAnimationFrame` + `animationend` 事件模式
+
+---
+
+## .gitignore 规则
+
+```
+node_modules/     # npm 依赖
+dist/             # 构建产物
+.tmp/             # Neutralino 临时文件
+bin/              # Neutralino 运行时二进制
+*.log             # 日志文件
+data.json         # 开发环境用户数据
+todo_data.json    # 桌面环境用户数据
+```
+
+---
+
+## 已知限制
+
+- Neutralinojs 不支持托盘图标双击事件，只能通过右键菜单"显示窗口"恢复界面
+- 列表渲染使用 `innerHTML` 整体替换，大量任务时可能有性能瓶颈
+- 无离线 PWA 支持（Web 模式下）
 
 ---
 
