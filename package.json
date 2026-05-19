@@ -1,0 +1,17 @@
+{
+  "name": "todo-tools",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "neu:run": "npm run build && npx @neutralinojs/neu run",
+    "neu:build": "npm run build && npx @neutralinojs/neu build"
+  },
+  "devDependencies": {
+    "@neutralinojs/neu": "^11.7.1",
+    "vite": "^6.3.5"
+  }
+}

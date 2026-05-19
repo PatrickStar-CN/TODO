@@ -1,0 +1,35 @@
+{
+  "applicationId": "app.todotools",
+  "version": "1.0.0",
+  "defaultMode": "window",
+  "documentRoot": "/dist/",
+  "url": "/",
+  "enableServer": true,
+  "enableNativeAPI": true,
+  "nativeAllowList": [
+    "app.*",
+    "filesystem.*",
+    "os.*",
+    "window.*"
+  ],
+  "modes": {
+    "window": {
+      "title": "TODO",
+      "width": 1100,
+      "height": 700,
+      "minWidth": 800,
+      "minHeight": 500,
+      "center": true,
+      "icon": "/dist/icon.png",
+      "exitProcessOnClose": false
+    }
+  },
+  "cli": {
+    "binaryName": "todo-tools",
+    "resourcesPath": "/dist/",
+    "extensionsPath": "/extensions/",
+    "clientLibrary": "/dist/neutralino.js",
+    "binaryVersion": "6.7.0",
+    "clientVersion": "6.7.0"
+  }
+}

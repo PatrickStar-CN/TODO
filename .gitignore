@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.tmp/
+bin/
+*.log
+data.json
+todo_data.json
