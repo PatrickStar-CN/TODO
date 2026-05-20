@@ -952,6 +952,9 @@ export async function initApp() {
   // Keyboard
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeDetail();
+    if (e.key === 'F5' || (e.ctrlKey && e.key === 'r') || (e.ctrlKey && e.shiftKey && e.key === 'R')) {
+      e.preventDefault();
+    }
   });
 
   document.addEventListener('contextmenu', (e) => {
@@ -1046,6 +1049,11 @@ export async function initApp() {
           minWidth: 200,
           minHeight: 150
         });
+        const displays = await Neutralino.computer.getDisplays();
+        const primary = displays[0];
+        const x = primary.resolution.width - 280 - 20;
+        const y = 20;
+        await Neutralino.window.move(x, y);
         await Neutralino.window.setDraggableRegion('mini-drag-region');
       } catch (e) { console.warn('enterMiniMode error:', e); }
     }
