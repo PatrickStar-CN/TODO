@@ -1,5 +1,21 @@
+const TAG_COLORS = ['#4f46e5', '#06b6d4', '#f59e0b', '#ef4444', '#10b981', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#6366f1'];
 const STORAGE_KEY = 'todo_app_data';
 const DATA_FILE = 'todo_data.json';
+
+function getTagColor(tag) {
+  if (!tag) return TAG_COLORS[0];
+  const index = data.tags.indexOf(tag);
+  return TAG_COLORS[(index >= 0 ? index : 0) % TAG_COLORS.length];
+}
+
+function getTagBadgeStyle(tag) {
+  const color = getTagColor(tag);
+  return `style="background:${color}22;color:${color};"`;
+}
+
+function getTagDotStyle(tag) {
+  return `style="background:${getTagColor(tag)}"`;
+}
 
 function isNeutralinoEnv() {
   return typeof Neutralino !== 'undefined' && typeof NL_PORT !== 'undefined';
@@ -292,7 +308,7 @@ function openCreateTagDialog() {
 function renderManageTagItems() {
   return data.tags.map(tag => `
     <div class="tag-manage-item" data-tag="${escapeHtml(tag)}">
-      <span class="tag-dot"></span>
+      <span class="tag-dot" ${getTagDotStyle(tag)}></span>
       <span class="tag-manage-name">${escapeHtml(tag)}</span>
       <span class="tag-manage-count">${getTagTaskCount(tag)}</span>
       <button class="tag-delete-btn" data-role="delete-tag" data-tag="${escapeHtml(tag)}" title="删除标签">✕</button>
@@ -374,7 +390,7 @@ function renderSidebar() {
   const tagListEl = document.getElementById('tag-list');
   tagListEl.innerHTML = data.tags.map(tag => `
     <a href="#" class="tag-item ${currentTag === tag ? 'active' : ''}" data-tag="${escapeHtml(tag)}">
-      <span class="tag-dot"></span>
+      <span class="tag-dot" ${getTagDotStyle(tag)}></span>
       <span class="tag-label">${escapeHtml(tag)}</span>
       <span class="nav-count">${data.todos.filter(t => t.tag === tag && !t.done).length}</span>
     </a>
@@ -427,7 +443,7 @@ function renderTodoItem(t) {
     badges.push(`<span class="badge badge-date">📅 ${dateText}</span>`);
   }
   if (t.tag) {
-    badges.push(`<span class="badge badge-tag">${escapeHtml(t.tag)}</span>`);
+    badges.push(`<span class="badge badge-tag" ${getTagBadgeStyle(t.tag)}>${escapeHtml(t.tag)}</span>`);
   }
   if (t.priority && t.priority !== 'none') {
     const cls = `badge-priority-${t.priority}`;
@@ -715,7 +731,7 @@ export async function initApp() {
     const popup = document.createElement('div');
     popup.className = 'quick-popup';
     const tagOptions = data.tags.map(tag =>
-      `<div class="popup-option ${quickAddPreset.tag === tag ? 'selected' : ''}" data-tag="${escapeHtml(tag)}"><span class="tag-dot"></span>${escapeHtml(tag)}</div>`
+      `<div class="popup-option ${quickAddPreset.tag === tag ? 'selected' : ''}" data-tag="${escapeHtml(tag)}"><span class="tag-dot" ${getTagDotStyle(tag)}></span>${escapeHtml(tag)}</div>`
     ).join('');
     popup.innerHTML = `
       <div class="popup-title">标签</div>
@@ -990,7 +1006,7 @@ export async function initApp() {
       html += `<div class="mini-tooltip-row">${label}</div>`;
     }
     if (todo.tag) {
-      html += `<div class="mini-tooltip-row">🏷️ ${escapeHtml(todo.tag)}</div>`;
+      html += `<div class="mini-tooltip-row"><span class="tag-dot" ${getTagDotStyle(todo.tag)}></span>${escapeHtml(todo.tag)}</div>`;
     }
     if (todo.endTime) {
       html += `<div class="mini-tooltip-row">📅 ${formatDate(todo.endTime)}</div>`;

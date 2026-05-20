@@ -198,7 +198,18 @@ body {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #4f46e5;
+  flex-shrink: 0;
+}
+
+.badge-tag {
+  color: #fff;
+}
+
+.mini-tooltip-row .tag-dot,
+.popup-option .tag-dot,
+.tag-manage-item .tag-dot,
+.tag-item .tag-dot {
+  margin-right: 6px;
 }
 
 .add-tag {
