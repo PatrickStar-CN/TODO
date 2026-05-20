@@ -529,12 +529,14 @@ function getTodosForDate(date) {
   return data.todos.filter(t => {
     const start = t.startTime ? new Date(t.startTime) : null;
     const end = t.endTime ? new Date(t.endTime) : null;
+    const doneAt = t.doneAt ? new Date(t.doneAt) : null;
 
     if (start && end) {
       return start < dayEnd && end >= dayStart;
     }
     if (start) return isSameDay(start, date);
     if (end) return isSameDay(end, date);
+    if (doneAt) return isSameDay(doneAt, date);
     return isSameDay(new Date(t.createdAt), date);
   });
 }
@@ -573,6 +575,16 @@ function openDetail(id) {
   document.getElementById('detail-end').value = todo.endTime ? todo.endTime.slice(0, 16) : '';
   document.getElementById('detail-myday').checked = !!todo.myday;
   document.getElementById('detail-important').checked = !!todo.important;
+  const doneRow = document.getElementById('detail-done-row');
+  const doneTimeEl = document.getElementById('detail-done-time');
+  if (todo.done && todo.doneAt) {
+    doneRow.classList.remove('hidden');
+    doneTimeEl.textContent = formatDateTime(todo.doneAt);
+  } else {
+    doneRow.classList.add('hidden');
+    doneTimeEl.textContent = '';
+  }
+  document.getElementById('detail-created-time').textContent = formatDateTime(new Date(todo.createdAt).toISOString());
 }
 
 function closeDetail() {
