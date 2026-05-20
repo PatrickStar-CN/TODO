@@ -26,7 +26,7 @@
           <span class="nav-count" id="count-important">0</span>
         </a>
         <a href="#" class="nav-item" data-list="all">
-          <span class="nav-icon">🏠</span>
+          <span class="nav-icon">📦</span>
           <span class="nav-text">所有</span>
           <span class="nav-count" id="count-all">0</span>
         </a>
@@ -95,6 +95,7 @@
           <div>
             <h1>日历</h1>
           </div>
+          <button class="icon-btn" id="btn-open-summary" title="AI 总结">📝</button>
         </div>
         <div class="calendar-container">
           <div class="calendar-nav">
@@ -183,6 +184,34 @@
           <button type="button" class="btn-danger" id="btn-delete-task">删除</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- AI 总结面板 -->
+  <div id="summary-panel" class="summary-panel hidden">
+    <div class="summary-header">
+      <h3>AI 总结</h3>
+      <div class="summary-header-actions">
+        <button class="icon-btn" id="btn-ai-config" title="API 配置">⚙</button>
+        <button class="icon-btn" id="close-summary">✕</button>
+      </div>
+    </div>
+    <div class="summary-controls">
+      <div class="summary-type-tabs">
+        <button class="summary-tab active" data-type="daily">日报</button>
+        <button class="summary-tab" data-type="weekly">周报</button>
+      </div>
+      <div class="summary-date-row">
+        <label>日期</label>
+        <input type="date" id="summary-date">
+      </div>
+      <button class="btn-primary" id="btn-generate-report">生成报告</button>
+    </div>
+    <div class="summary-output" id="summary-output">
+      <div class="summary-placeholder">选择日期并点击"生成报告"</div>
+    </div>
+    <div class="summary-footer hidden" id="summary-footer">
+      <button class="btn-copy" id="btn-copy-report">复制内容</button>
     </div>
   </div>
 

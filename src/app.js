@@ -56,7 +56,7 @@ function saveData() {
   });
 }
 
-let data = { todos: [], tags: ['计划内'] };
+let data = { todos: [], tags: ['计划内'], aiConfig: { apiUrl: '', apiKey: '', model: '', customPrompt: '' } };
 let currentList = 'myday';
 let currentTag = null;
 let selectedDate = null;
@@ -143,6 +143,13 @@ function normalizeData() {
   });
 
   data.tags = normalizedTags;
+
+  if (!data.aiConfig || typeof data.aiConfig !== 'object') {
+    data.aiConfig = { apiUrl: '', apiKey: '', model: '', customPrompt: '' };
+  }
+  if (typeof data.aiConfig.customPrompt !== 'string') {
+    data.aiConfig.customPrompt = '';
+  }
 }
 
 function getTagTaskCount(tag) {
@@ -1170,6 +1177,200 @@ export async function initApp() {
   });
 
   miniPanel.addEventListener('mouseleave', hideMiniTooltip);
+
+  // --- Summary Panel ---
+  let summaryType = 'daily';
+  const summaryPanel = document.getElementById('summary-panel');
+  const summaryOutput = document.getElementById('summary-output');
+  const summaryFooter = document.getElementById('summary-footer');
+  const summaryDateInput = document.getElementById('summary-date');
+
+  const nowDate = new Date();
+  summaryDateInput.value = `${nowDate.getFullYear()}-${String(nowDate.getMonth() + 1).padStart(2, '0')}-${String(nowDate.getDate()).padStart(2, '0')}`;
+
+  document.getElementById('btn-open-summary').addEventListener('click', () => {
+    summaryPanel.classList.remove('hidden', 'hiding');
+    summaryPanel.style.animation = 'none';
+    summaryPanel.offsetHeight;
+    summaryPanel.style.animation = '';
+  });
+
+  document.getElementById('close-summary').addEventListener('click', () => {
+    summaryPanel.classList.add('hiding');
+    summaryPanel.addEventListener('animationend', () => {
+      summaryPanel.classList.add('hidden');
+      summaryPanel.classList.remove('hiding');
+    }, { once: true });
+  });
+
+  document.querySelectorAll('.summary-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.summary-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      summaryType = tab.dataset.type;
+    });
+  });
+
+  document.getElementById('btn-ai-config').addEventListener('click', () => {
+    const overlay = createOverlay(
+      'API 配置',
+      `<div class="detail-row"><label>API 地址</label><input type="text" id="cfg-api-url" value="${escapeHtml(data.aiConfig.apiUrl)}" placeholder="https://api.openai.com/v1/chat/completions"></div>
+       <div class="detail-row"><label>API Key</label><input type="password" id="cfg-api-key" value="${escapeHtml(data.aiConfig.apiKey)}" placeholder="sk-..."></div>
+       <div class="detail-row"><label>模型</label><input type="text" id="cfg-model" value="${escapeHtml(data.aiConfig.model)}" placeholder="gpt-4o-mini"></div>
+       <div class="detail-row"><label>自定义提示词</label><textarea id="cfg-prompt" rows="6" placeholder="可用变量：{type}=日报/周报, {range}=日期范围, {doneList}=已完成任务, {pendingList}=进行中任务, {plan}=明日计划/下周计划&#10;&#10;留空则使用默认提示词">${escapeHtml(data.aiConfig.customPrompt)}</textarea></div>`,
+      '<button class="btn-primary" id="cfg-save">保存</button><button class="btn-cancel" style="margin-left:8px;">取消</button>'
+    );
+    const close = () => closeOverlay(overlay);
+    overlay.querySelector('.btn-cancel').addEventListener('click', close);
+    overlay.addEventListener('click', (ev) => { if (ev.target === overlay) close(); });
+    overlay.querySelector('#cfg-save').addEventListener('click', () => {
+      data.aiConfig.apiUrl = overlay.querySelector('#cfg-api-url').value.trim();
+      data.aiConfig.apiKey = overlay.querySelector('#cfg-api-key').value.trim();
+      data.aiConfig.model = overlay.querySelector('#cfg-model').value.trim();
+      data.aiConfig.customPrompt = overlay.querySelector('#cfg-prompt').value.trim();
+      saveData();
+      showToast('API 配置已保存');
+      close();
+    });
+    overlay.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Escape') close();
+    });
+  });
+
+  document.getElementById('btn-generate-report').addEventListener('click', async () => {
+    if (!data.aiConfig.apiUrl || !data.aiConfig.apiKey || !data.aiConfig.model) {
+      showToast('请先配置 API');
+      return;
+    }
+    const dateStr = summaryDateInput.value;
+    if (!dateStr) {
+      showToast('请选择日期');
+      return;
+    }
+
+    const baseDate = new Date(dateStr);
+    let startDate, endDate, rangeLabel;
+
+    if (summaryType === 'daily') {
+      startDate = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate());
+      endDate = new Date(startDate);
+      endDate.setDate(endDate.getDate() + 1);
+      rangeLabel = `${startDate.getMonth() + 1}/${startDate.getDate()}`;
+    } else {
+      const day = baseDate.getDay();
+      startDate = new Date(baseDate);
+      startDate.setDate(startDate.getDate() - (day === 0 ? 6 : day - 1));
+      startDate.setHours(0, 0, 0, 0);
+      endDate = new Date(startDate);
+      endDate.setDate(endDate.getDate() + 7);
+      rangeLabel = `${startDate.getMonth() + 1}/${startDate.getDate()} ~ ${endDate.getMonth() + 1}/${endDate.getDate() - 1}`;
+    }
+
+    const doneTodos = data.todos.filter(t => {
+      if (!t.done || !t.doneAt) return false;
+      const d = new Date(t.doneAt);
+      return d >= startDate && d < endDate;
+    });
+    const pendingTodos = data.todos.filter(t => {
+      if (t.done) return false;
+      const created = new Date(t.createdAt);
+      const end = t.endTime ? new Date(t.endTime) : null;
+      return created < endDate && (!end || end >= startDate);
+    });
+
+    const typeLabel = summaryType === 'daily' ? '日报' : '周报';
+    const planLabel = summaryType === 'daily' ? '明日计划' : '下周计划';
+    const doneList = doneTodos.length > 0
+      ? doneTodos.map(t => `- ${t.title}${t.priority !== 'none' ? `（优先级：${{high:'高',medium:'中',low:'低'}[t.priority]}）` : ''}${t.tag ? `（标签：${t.tag}）` : ''}`).join('\n')
+      : '- 无';
+    const pendingList = pendingTodos.length > 0
+      ? pendingTodos.map(t => `- ${t.title}${t.priority !== 'none' ? `（优先级：${{high:'高',medium:'中',low:'低'}[t.priority]}）` : ''}${t.tag ? `（标签：${t.tag}）` : ''}`).join('\n')
+      : '- 无';
+
+    let prompt;
+    if (data.aiConfig.customPrompt) {
+      prompt = data.aiConfig.customPrompt
+        .replace(/\{type\}/g, typeLabel)
+        .replace(/\{range\}/g, rangeLabel)
+        .replace(/\{doneList\}/g, doneList)
+        .replace(/\{pendingList\}/g, pendingList)
+        .replace(/\{plan\}/g, planLabel);
+    } else {
+      prompt = `请根据以下任务列表生成一份${typeLabel}：
+日期范围：${rangeLabel}
+
+已完成任务：
+${doneList}
+
+进行中任务：
+${pendingList}
+
+请用简洁的中文输出，包含：工作总结、完成情况、${planLabel}。`;
+    }
+
+    summaryOutput.textContent = '';
+    summaryFooter.classList.add('hidden');
+    summaryOutput.innerHTML = '<div class="summary-loading">正在生成...</div>';
+
+    try {
+      const response = await fetch(data.aiConfig.apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${data.aiConfig.apiKey}`
+        },
+        body: JSON.stringify({
+          model: data.aiConfig.model,
+          messages: [{ role: 'user', content: prompt }],
+          stream: true
+        })
+      });
+
+      if (!response.ok) {
+        const err = await response.text();
+        summaryOutput.textContent = `请求失败: ${response.status}\n${err}`;
+        return;
+      }
+
+      summaryOutput.textContent = '';
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const payload = line.slice(6).trim();
+          if (payload === '[DONE]') break;
+          try {
+            const json = JSON.parse(payload);
+            const content = json.choices?.[0]?.delta?.content;
+            if (content) {
+              summaryOutput.textContent += content;
+            }
+          } catch {}
+        }
+      }
+      summaryFooter.classList.remove('hidden');
+    } catch (err) {
+      summaryOutput.textContent = `请求出错: ${err.message}`;
+    }
+  });
+
+  document.getElementById('btn-copy-report').addEventListener('click', () => {
+    const text = summaryOutput.textContent;
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+      showToast('已复制到剪贴板');
+    }).catch(() => {
+      showToast('复制失败');
+    });
+  });
 
   // Init render
   render();
