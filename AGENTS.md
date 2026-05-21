@@ -32,8 +32,8 @@ todoTools/
 ├── data.json                   # 持久化数据文件（开发环境）
 ├── src/
 │   ├── main.js                 # 应用入口（Neutralino 初始化 + 系统托盘）
-│   ├── app.js                  # 核心业务逻辑（~1150 行）
-│   └── style.css               # 全局样式 + 动画 + 迷你面板（~1430 行）
+│   ├── app.js                  # 核心业务逻辑（~1200 行）
+│   └── style.css               # 全局样式 + 动画 + 迷你面板（~1560 行）
 ├── public/
 │   ├── neutralino.js           # Neutralino 客户端库
 │   └── icon.png                # 应用图标
@@ -63,6 +63,13 @@ todoTools/
 - 重要
 - 所有任务
 - 日历视图（紧凑月历 + 日期任务详情）
+
+### 侧边栏
+- 默认宽度 220px，可折叠为迷你侧边栏（56px，仅图标）
+- 折叠/展开按钮位于侧边栏底部，带图标文本分离结构
+- 迷你模式下隐藏文字，仅显示图标，悬浮显示 title 提示
+- 折叠状态持久化到数据中
+- 带 0.2s 宽度过渡动画
 
 ### 标签系统
 - 新建标签（弹窗输入，重复检测）
@@ -118,7 +125,7 @@ todoTools/
 | `detailSlideIn/Out` | 0.25s/0.2s | 详情面板从右侧滑入/滑出 |
 | `popupFadeIn` | 0.15s | 快速添加预设弹窗淡入 |
 | `viewFadeIn` | 0.2s | 视图切换淡入 |
-| `doneListExpand/Collapse` | 0.3s/0.25s | 已完成列表折叠/展开 |
+| `doneListExpand/Collapse` | 0.3s/0.25s | 已完成列表折叠/展开（带高度上限滚动） |
 
 动画实现模式：
 - 入场动画：通过添加 CSS 类触发 `@keyframes` 动画
@@ -157,11 +164,14 @@ todoTools/
 │  ├── 弹窗系统: createOverlay / closeOverlay         │
 │  ├── 动画控制: entering/removing/checking 类切换     │
 │  ├── 日历模块: renderCalendar / getTodosForDate     │
+│  ├── 侧边栏折叠: applySidebarState / sidebarMini   │
+│  ├── 主题切换: applyTheme / updateThemeButton       │
 │  └── 迷你模式: enterMiniMode / exitMiniMode         │
 ├─────────────────────────────────────────────────────┤
 │  style.css                                          │
-│  ├── 暗色主题样式                                    │
+│  ├── 亮色/暗色主题样式（CSS 变量）                    │
 │  ├── 响应式布局（flex）                              │
+│  ├── 侧边栏折叠样式（.sidebar.mini）                 │
 │  ├── 动画系统（@keyframes + transition）             │
 │  └── 迷你面板样式 + tooltip                          │
 └─────────────────────────────────────────────────────┘
@@ -199,14 +209,22 @@ todoTools/
       tag: string,          // 标签名称
       startTime: string | null,   // 开始时间（ISO 格式）
       endTime: string | null,     // 截止时间（ISO 格式）
-      myday: boolean,       // 是否加入 TODO 视图
+      todo: boolean,        // 是否加入 TODO 视图
       important: boolean,   // 是否标记为重要
       done: boolean,        // 是否已完成
       doneAt: string | null,      // 完成时间
       createdAt: number     // 创建时间戳
     }
   ],
-  tags: string[]            // 标签列表
+  tags: string[],           // 标签列表
+  aiConfig: {               // AI 总结配置
+    apiUrl: string,
+    apiKey: string,
+    model: string,
+    customPrompt: string
+  },
+  theme: 'auto' | 'light' | 'dark',  // 主题设置
+  sidebarMini: boolean      // 侧边栏折叠状态
 }
 ```
 

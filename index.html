@@ -12,25 +12,26 @@
       <div class="sidebar-header">
         <h2>待办事项</h2>
         <span class="date" id="today-date"></span>
-        <button class="btn-mini-mode" id="btn-mini-mode" title="迷你模式">⊟</button>
+        <button class="btn-mini-mode" id="btn-mini-mode" title="迷你模式">📌</button>
+        <button class="btn-theme-toggle" id="btn-theme-toggle" title="切换主题">🌗</button>
       </div>
       <nav class="sidebar-nav">
-        <a href="#" class="nav-item active" data-list="myday">
+        <a href="#" class="nav-item active" data-list="todo" title="TODO">
           <span class="nav-icon">☀️</span>
           <span class="nav-text">TODO</span>
-          <span class="nav-count" id="count-myday">0</span>
+          <span class="nav-count" id="count-todo">0</span>
         </a>
-        <a href="#" class="nav-item" data-list="important">
+        <a href="#" class="nav-item" data-list="important" title="重要">
           <span class="nav-icon">⭐</span>
           <span class="nav-text">重要</span>
           <span class="nav-count" id="count-important">0</span>
         </a>
-        <a href="#" class="nav-item" data-list="all">
+        <a href="#" class="nav-item" data-list="all" title="所有">
           <span class="nav-icon">📦</span>
           <span class="nav-text">所有</span>
           <span class="nav-count" id="count-all">0</span>
         </a>
-        <a href="#" class="nav-item" data-list="calendar">
+        <a href="#" class="nav-item" data-list="calendar" title="日历">
           <span class="nav-icon">📅</span>
           <span class="nav-text">日历</span>
           <span class="nav-count"></span>
@@ -51,7 +52,8 @@
         </div>
       </div>
       <div class="sidebar-footer">
-        <button id="btn-clear-done">🗑️ 清空已完成</button>
+        <button id="btn-toggle-sidebar" class="btn-toggle-sidebar" title="折叠侧边栏"><span class="btn-icon">◀️</span><span class="btn-text"> 折叠侧边栏</span></button>
+        <button id="btn-clear-done" title="清空已完成"><span class="btn-icon">🗑️</span><span class="btn-text"> 清空已完成</span></button>
       </div>
     </aside>
 
@@ -99,9 +101,9 @@
         </div>
         <div class="calendar-container">
           <div class="calendar-nav">
-            <button class="icon-btn" id="prev-month">◀</button>
+            <button class="icon-btn" id="prev-month">◀️</button>
             <span id="calendar-title"></span>
-            <button class="icon-btn" id="next-month">▶</button>
+            <button class="icon-btn" id="next-month">▶️</button>
           </div>
           <div class="calendar-grid">
             <div class="calendar-weekdays">
@@ -163,7 +165,7 @@
         </div>
         <div class="detail-row checkbox-row">
           <label>
-            <input type="checkbox" id="detail-myday"> 添加到"TODO"
+            <input type="checkbox" id="detail-todo"> 添加到"TODO"
           </label>
         </div>
         <div class="detail-row checkbox-row">
@@ -219,8 +221,8 @@
     <div class="mini-header">
       <span class="mini-title" id="mini-drag-region">待办事项</span>
       <div class="mini-actions">
-        <button class="mini-btn" id="btn-mini-add" title="快速添加">+</button>
-        <button class="mini-btn" id="btn-exit-mini" title="恢复窗口">⊞</button>
+        <button class="mini-btn" id="btn-mini-add" title="快速添加">➕</button>
+        <button class="mini-btn" id="btn-exit-mini" title="恢复窗口">🪟</button>
       </div>
     </div>
     <div class="mini-stats">

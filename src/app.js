@@ -56,12 +56,12 @@ function saveData() {
   });
 }
 
-let data = { todos: [], tags: ['计划内'], aiConfig: { apiUrl: '', apiKey: '', model: '', customPrompt: '' } };
-let currentList = 'myday';
+let data = { todos: [], tags: ['计划内'], aiConfig: { apiUrl: '', apiKey: '', model: '', customPrompt: '' }, theme: 'auto', sidebarMini: false };
+let currentList = 'todo';
 let currentTag = null;
 let selectedDate = null;
 let currentMonth = new Date();
-let doneCollapsed = false;
+let doneCollapsed = true;
 
 // --- Helpers ---
 function genId() {
@@ -140,6 +140,10 @@ function normalizeData() {
     } else {
       todo.tag = '';
     }
+    if ('myday' in todo) {
+      todo.todo = todo.myday;
+      delete todo.myday;
+    }
   });
 
   data.tags = normalizedTags;
@@ -149,6 +153,12 @@ function normalizeData() {
   }
   if (typeof data.aiConfig.customPrompt !== 'string') {
     data.aiConfig.customPrompt = '';
+  }
+  if (!['auto', 'light', 'dark'].includes(data.theme)) {
+    data.theme = 'auto';
+  }
+  if (typeof data.sidebarMini !== 'boolean') {
+    data.sidebarMini = false;
   }
 }
 
@@ -371,8 +381,8 @@ function getFilteredTodos() {
     return data.todos.filter(t => t.tag === currentTag);
   }
   switch (currentList) {
-    case 'myday':
-      return data.todos.filter(t => t.myday);
+    case 'todo':
+      return data.todos.filter(t => t.todo);
     case 'important':
       return data.todos.filter(t => t.important);
     case 'all':
@@ -390,7 +400,7 @@ function render() {
 }
 
 function renderSidebar() {
-  document.getElementById('count-myday').textContent = data.todos.filter(t => t.myday && !t.done).length;
+  document.getElementById('count-todo').textContent = data.todos.filter(t => t.todo && !t.done).length;
   document.getElementById('count-important').textContent = data.todos.filter(t => t.important && !t.done).length;
   document.getElementById('count-all').textContent = data.todos.filter(t => !t.done).length;
 
@@ -416,6 +426,7 @@ function renderTodoList() {
   const doneListEl = document.getElementById('done-list');
   const doneCountEl = document.getElementById('done-count');
   const doneSection = document.getElementById('done-section');
+  const doneToggleEl = document.getElementById('done-toggle');
   const taskSummary = document.getElementById('task-summary');
   const statusText = document.getElementById('status-text');
 
@@ -437,6 +448,7 @@ function renderTodoList() {
 
   doneCountEl.textContent = done.length;
   doneSection.style.display = done.length > 0 ? 'block' : 'none';
+  doneToggleEl.classList.toggle('collapsed', doneCollapsed);
   doneListEl.innerHTML = doneCollapsed ? '' : done.map(renderTodoItem).join('');
 
   taskSummary.textContent = `${pending.length} 个任务`;
@@ -457,8 +469,8 @@ function renderTodoItem(t) {
     const label = { high: '🔴 高', medium: '🟡 中', low: '🟢 低' }[t.priority];
     badges.push(`<span class="badge ${cls}">${label}</span>`);
   }
-  if (t.myday && currentList !== 'myday') {
-    badges.push(`<span class="badge badge-myday">☀️ TODO</span>`);
+  if (t.todo && currentList !== 'todo') {
+    badges.push(`<span class="badge badge-todo">☀️ TODO</span>`);
   }
 
   return `
@@ -481,7 +493,7 @@ function renderStatus() {
   if (currentTag) {
     listTitle.textContent = currentTag;
   } else {
-    const titles = { myday: 'TODO', important: '重要', all: '所有' };
+    const titles = { todo: 'TODO', important: '重要', all: '所有' };
     listTitle.textContent = titles[currentList] || '所有';
   }
 }
@@ -580,7 +592,7 @@ function openDetail(id) {
   document.getElementById('detail-tag').value = todo.tag || '';
   document.getElementById('detail-start').value = todo.startTime ? todo.startTime.slice(0, 16) : '';
   document.getElementById('detail-end').value = todo.endTime ? todo.endTime.slice(0, 16) : '';
-  document.getElementById('detail-myday').checked = !!todo.myday;
+  document.getElementById('detail-todo').checked = !!todo.todo;
   document.getElementById('detail-important').checked = !!todo.important;
   const doneRow = document.getElementById('detail-done-row');
   const doneTimeEl = document.getElementById('detail-done-time');
@@ -608,6 +620,60 @@ function closeDetail() {
 export async function initApp() {
   data = await loadData();
   normalizeData();
+
+  function applyTheme() {
+    const theme = data.theme || 'auto';
+    if (theme === 'auto') {
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
+    } else {
+      document.documentElement.setAttribute('data-theme', theme);
+    }
+  }
+
+  function updateThemeButton() {
+    const icons = { auto: '🌗', light: '☀️', dark: '🌙' };
+    const titles = { auto: '跟随系统', light: '白天模式', dark: '夜间模式' };
+    const btn = document.getElementById('btn-theme-toggle');
+    btn.textContent = icons[data.theme] || icons.auto;
+    btn.title = titles[data.theme] || titles.auto;
+  }
+
+  applyTheme();
+
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    if (data.theme === 'auto') applyTheme();
+  });
+
+  document.getElementById('btn-theme-toggle').addEventListener('click', () => {
+    const order = ['auto', 'light', 'dark'];
+    const idx = order.indexOf(data.theme);
+    data.theme = order[(idx + 1) % 3];
+    saveData();
+    applyTheme();
+    updateThemeButton();
+  });
+  updateThemeButton();
+
+  const sidebar = document.querySelector('.sidebar');
+  const toggleSidebarBtn = document.getElementById('btn-toggle-sidebar');
+
+  function applySidebarState() {
+    sidebar.classList.toggle('mini', data.sidebarMini);
+    const icon = toggleSidebarBtn.querySelector('.btn-icon');
+    const text = toggleSidebarBtn.querySelector('.btn-text');
+    icon.textContent = data.sidebarMini ? '▶️' : '◀️';
+    text.textContent = data.sidebarMini ? ' 展开侧边栏' : ' 折叠侧边栏';
+    toggleSidebarBtn.title = data.sidebarMini ? '展开侧边栏' : '折叠侧边栏';
+  }
+
+  toggleSidebarBtn.addEventListener('click', () => {
+    data.sidebarMini = !data.sidebarMini;
+    saveData();
+    applySidebarState();
+  });
+
+  applySidebarState();
 
   const quickAdd = document.getElementById('quick-add');
   const doneToggle = document.getElementById('done-toggle');
@@ -787,7 +853,7 @@ export async function initApp() {
         tag: quickAddPreset.tag || currentTag || '',
         startTime: null,
         endTime: quickAddPreset.endTime ? quickAddPreset.endTime + 'T23:59' : null,
-        myday: currentList === 'myday' || false,
+        todo: currentList === 'todo' || false,
         important: currentList === 'important' || false,
         done: false,
         doneAt: null,
@@ -897,7 +963,7 @@ export async function initApp() {
     todo.tag = document.getElementById('detail-tag').value.trim();
     todo.startTime = document.getElementById('detail-start').value || null;
     todo.endTime = document.getElementById('detail-end').value || null;
-    todo.myday = document.getElementById('detail-myday').checked;
+    todo.todo = document.getElementById('detail-todo').checked;
     todo.important = document.getElementById('detail-important').checked;
 
     if (todo.tag && !data.tags.includes(todo.tag)) {
@@ -1129,7 +1195,7 @@ export async function initApp() {
         tag: '',
         startTime: null,
         endTime: null,
-        myday: true,
+        todo: true,
         important: false,
         done: false,
         doneAt: null,
