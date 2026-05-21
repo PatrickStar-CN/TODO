@@ -68,6 +68,15 @@ function genId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
 
+function toLocalDatetime(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  const h = String(date.getHours()).padStart(2, '0');
+  const min = String(date.getMinutes()).padStart(2, '0');
+  return `${y}-${m}-${d}T${h}:${min}`;
+}
+
 function escapeHtml(str) {
   const div = document.createElement('div');
   div.textContent = str;
@@ -144,6 +153,8 @@ function normalizeData() {
       todo.todo = todo.myday;
       delete todo.myday;
     }
+    if (typeof todo.reminder === 'undefined') todo.reminder = null;
+    if (typeof todo.reminderRepeat === 'undefined') todo.reminderRepeat = 'none';
   });
 
   data.tags = normalizedTags;
@@ -472,6 +483,9 @@ function renderTodoItem(t) {
   if (t.todo && currentList !== 'todo') {
     badges.push(`<span class="badge badge-todo">☀️ TODO</span>`);
   }
+  if (t.reminder && !t.done) {
+    badges.push(`<span class="badge badge-reminder">🔔</span>`);
+  }
 
   return `
     <div class="todo-item ${t.done ? 'done' : ''}" data-id="${t.id}">
@@ -592,6 +606,8 @@ function openDetail(id) {
   document.getElementById('detail-tag').value = todo.tag || '';
   document.getElementById('detail-start').value = todo.startTime ? todo.startTime.slice(0, 16) : '';
   document.getElementById('detail-end').value = todo.endTime ? todo.endTime.slice(0, 16) : '';
+  document.getElementById('detail-reminder').value = todo.reminder ? todo.reminder.slice(0, 16) : '';
+  document.getElementById('detail-reminder-repeat').value = todo.reminderRepeat || 'none';
   document.getElementById('detail-todo').checked = !!todo.todo;
   document.getElementById('detail-important').checked = !!todo.important;
   const doneRow = document.getElementById('detail-done-row');
@@ -857,6 +873,8 @@ export async function initApp() {
         important: currentList === 'important' || false,
         done: false,
         doneAt: null,
+        reminder: null,
+        reminderRepeat: 'none',
         createdAt: Date.now()
       };
       data.todos.push(todo);
@@ -886,6 +904,9 @@ export async function initApp() {
         const itemEl = target.closest('.todo-item');
         todo.done = !todo.done;
         todo.doneAt = todo.done ? new Date().toISOString() : null;
+        if (todo.done && todo.reminderRepeat === 'none') {
+          todo.reminder = null;
+        }
         saveData();
         if (itemEl) {
           itemEl.classList.add('checking');
@@ -963,6 +984,8 @@ export async function initApp() {
     todo.tag = document.getElementById('detail-tag').value.trim();
     todo.startTime = document.getElementById('detail-start').value || null;
     todo.endTime = document.getElementById('detail-end').value || null;
+    todo.reminder = document.getElementById('detail-reminder').value || null;
+    todo.reminderRepeat = document.getElementById('detail-reminder-repeat').value || 'none';
     todo.todo = document.getElementById('detail-todo').checked;
     todo.important = document.getElementById('detail-important').checked;
 
@@ -1042,12 +1065,243 @@ export async function initApp() {
     }
   });
 
+  let isMiniMode = false;
+
   document.addEventListener('contextmenu', (e) => {
     e.preventDefault();
+    closeContextMenu();
+
+    if (isMiniMode) {
+      showContextMenu(e.clientX, e.clientY, [
+        { icon: '🪟', label: '退出迷你模式', action: () => exitMiniMode() },
+        { separator: true },
+        { icon: '❌', label: '关闭窗口', className: 'danger', action: () => closeWindow() }
+      ]);
+      return;
+    }
+
+    const todoItem = e.target.closest('.todo-item');
+    const tagItem = e.target.closest('.tag-item[data-tag]');
+    const navItem = e.target.closest('.nav-item[data-list]');
+    const todoListArea = e.target.closest('.todo-list');
+
+    if (todoItem) {
+      const id = todoItem.dataset.id;
+      const todo = data.todos.find(t => t.id === id);
+      if (!todo) return;
+      const items = [];
+      if (todo.done) {
+        items.push({ icon: '↩️', label: '取消完成', action: () => { todo.done = false; todo.doneAt = null; saveData(); render(); } });
+      } else {
+        items.push({ icon: '✅', label: '标记完成', action: () => { todo.done = true; todo.doneAt = new Date().toISOString(); saveData(); render(); } });
+        items.push({ icon: todo.important ? '☆' : '⭐', label: todo.important ? '取消重要' : '标记重要', action: () => { todo.important = !todo.important; saveData(); render(); } });
+        items.push({ icon: todo.todo ? '☀️' : '☀️', label: todo.todo ? '从 TODO 移除' : '添加到 TODO', action: () => { todo.todo = !todo.todo; saveData(); render(); } });
+        items.push({ separator: true });
+        items.push({ icon: '🚩', label: '优先级', submenu: [
+          { label: '🔴 高', action: () => { todo.priority = 'high'; saveData(); render(); } },
+          { label: '🟡 中', action: () => { todo.priority = 'medium'; saveData(); render(); } },
+          { label: '🔵 低', action: () => { todo.priority = 'low'; saveData(); render(); } },
+          { label: '⚪ 无', action: () => { todo.priority = 'none'; saveData(); render(); } }
+        ]});
+        if (data.tags.length > 0) {
+          items.push({ icon: '🏷️', label: '标签', submenu: data.tags.map(tag => ({
+            label: (todo.tag === tag ? '✓ ' : '') + tag,
+            action: () => { todo.tag = todo.tag === tag ? '' : tag; saveData(); render(); }
+          }))});
+        }
+        const reminderItems = [
+          { label: '10 分钟后', action: () => { todo.reminder = toLocalDatetime(new Date(Date.now() + 10 * 60000)); todo.reminderRepeat = 'none'; saveData(); render(); } },
+          { label: '1 小时后', action: () => { todo.reminder = toLocalDatetime(new Date(Date.now() + 60 * 60000)); todo.reminderRepeat = 'none'; saveData(); render(); } },
+          { label: '明天 9:00', action: () => { const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(9, 0, 0, 0); todo.reminder = toLocalDatetime(d); todo.reminderRepeat = 'none'; saveData(); render(); } },
+          { label: '每天提醒', action: () => { const d = new Date(); d.setHours(9, 0, 0, 0); if (d <= new Date()) d.setDate(d.getDate() + 1); todo.reminder = toLocalDatetime(d); todo.reminderRepeat = 'daily'; saveData(); render(); } }
+        ];
+        if (todo.reminder) {
+          reminderItems.push({ label: '❌ 清除提醒', action: () => { todo.reminder = null; todo.reminderRepeat = 'none'; saveData(); render(); } });
+        }
+        items.push({ icon: '🔔', label: '设置提醒', submenu: reminderItems });
+        items.push({ separator: true });
+        items.push({ icon: '✏️', label: '编辑详情', action: () => openDetail(id) });
+      }
+      items.push({ separator: true });
+      items.push({ icon: '🗑️', label: '删除', className: 'danger', action: () => deleteTodoById(id) });
+      showContextMenu(e.clientX, e.clientY, items);
+    } else if (tagItem) {
+      const tag = tagItem.dataset.tag;
+      showContextMenu(e.clientX, e.clientY, [
+        { icon: '📋', label: '查看该标签任务', action: () => { currentTag = tag; currentList = null; render(); } },
+        { separator: true },
+        { icon: '🗑️', label: '删除标签', className: 'danger', action: () => deleteTag(tag) }
+      ]);
+    } else if (navItem) {
+      showContextMenu(e.clientX, e.clientY, [
+        { icon: '🗑️', label: '清空已完成', className: 'danger', action: () => clearDoneTasks() }
+      ]);
+    } else if (todoListArea) {
+      showContextMenu(e.clientX, e.clientY, [
+        { icon: '➕', label: '新建任务', action: () => document.getElementById('quick-add').focus() },
+        { separator: true },
+        { icon: '🗑️', label: '清空已完成', className: 'danger', action: () => clearDoneTasks() }
+      ]);
+    }
   });
 
+  function showContextMenu(x, y, items) {
+    const menu = document.createElement('div');
+    menu.className = 'context-menu';
+    items.forEach(item => {
+      if (item.separator) {
+        const sep = document.createElement('div');
+        sep.className = 'context-menu-separator';
+        menu.appendChild(sep);
+        return;
+      }
+      if (item.submenu) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'context-menu-item context-menu-submenu';
+        wrapper.innerHTML = `<span class="menu-icon">${item.icon || ''}</span>${item.label}`;
+        const sub = document.createElement('div');
+        sub.className = 'context-menu';
+        item.submenu.forEach(subItem => {
+          const subEl = document.createElement('div');
+          subEl.className = 'context-menu-item';
+          subEl.textContent = subItem.label;
+          subEl.addEventListener('click', () => { closeContextMenu(); subItem.action(); });
+          sub.appendChild(subEl);
+        });
+        wrapper.appendChild(sub);
+        menu.appendChild(wrapper);
+        return;
+      }
+      const el = document.createElement('div');
+      el.className = 'context-menu-item' + (item.className ? ' ' + item.className : '');
+      el.innerHTML = `<span class="menu-icon">${item.icon || ''}</span>${item.label}`;
+      el.addEventListener('click', () => { closeContextMenu(); item.action(); });
+      menu.appendChild(el);
+    });
+    document.body.appendChild(menu);
+    const rect = menu.getBoundingClientRect();
+    if (x + rect.width > window.innerWidth) x = window.innerWidth - rect.width - 4;
+    if (y + rect.height > window.innerHeight) y = window.innerHeight - rect.height - 4;
+    menu.style.left = x + 'px';
+    menu.style.top = y + 'px';
+    setTimeout(() => {
+      document.addEventListener('click', closeContextMenu, { once: true });
+      document.addEventListener('contextmenu', closeContextMenu, { once: true, capture: true });
+    }, 0);
+  }
+
+  function closeContextMenu() {
+    const existing = document.querySelector('.context-menu');
+    if (existing) existing.remove();
+  }
+
+  function closeWindow() {
+    if (typeof Neutralino !== 'undefined' && typeof NL_PORT !== 'undefined') {
+      Neutralino.window.hide();
+    } else {
+      window.close();
+    }
+  }
+
+  function deleteTodoById(id) {
+    showConfirmDialog('确定要删除这个任务吗？', () => {
+      const idx = data.todos.findIndex(t => t.id === id);
+      if (idx !== -1) {
+        data.todos.splice(idx, 1);
+        saveData();
+        render();
+      }
+    });
+  }
+
+  function deleteTag(tag) {
+    const count = data.todos.filter(t => t.tag === tag).length;
+    showConfirmDialog(`删除标签"${tag}"？（关联 ${count} 个任务的标签将被清除）`, () => {
+      data.tags = data.tags.filter(t => t !== tag);
+      data.todos.forEach(t => { if (t.tag === tag) t.tag = ''; });
+      if (currentTag === tag) { currentTag = null; currentList = 'todo'; }
+      saveData();
+      render();
+    });
+  }
+
+  function clearDoneTasks() {
+    const doneTodos = getFilteredTodos().filter(t => t.done);
+    if (doneTodos.length === 0) { showToast('没有已完成的任务'); return; }
+    showConfirmDialog(`确定清空 ${doneTodos.length} 个已完成任务？`, () => {
+      const ids = doneTodos.map(t => t.id);
+      data.todos = data.todos.filter(t => !ids.includes(t.id));
+      saveData();
+      render();
+    });
+  }
+
+  // --- Reminder System ---
+  function checkReminders() {
+    const now = new Date();
+    let changed = false;
+    data.todos.forEach(todo => {
+      if (!todo.reminder || todo.done) return;
+      const reminderTime = new Date(todo.reminder);
+      if (reminderTime <= now) {
+        triggerReminder(todo);
+        if (todo.reminderRepeat === 'daily') {
+          const next = new Date(reminderTime);
+          next.setDate(next.getDate() + 1);
+          todo.reminder = toLocalDatetime(next);
+        } else if (todo.reminderRepeat === 'weekly') {
+          const next = new Date(reminderTime);
+          next.setDate(next.getDate() + 7);
+          todo.reminder = toLocalDatetime(next);
+        } else if (todo.reminderRepeat === 'monthly') {
+          const next = new Date(reminderTime);
+          next.setMonth(next.getMonth() + 1);
+          todo.reminder = toLocalDatetime(next);
+        } else {
+          todo.reminder = null;
+        }
+        changed = true;
+      }
+    });
+    if (changed) {
+      saveData();
+      render();
+    }
+  }
+
+  async function triggerReminder(todo) {
+    showToast(`🔔 提醒：${todo.title}`);
+    if (typeof Neutralino !== 'undefined' && typeof NL_PORT !== 'undefined') {
+      try {
+        const title = todo.title.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[c]));
+        const xml = `<toast duration="short"><visual><binding template="ToastGeneric"><text>TODO 提醒</text><text>${title}</text></binding></visual></toast>`;
+        const psScript = [
+          '[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null',
+          '[Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom, ContentType = WindowsRuntime] | Out-Null',
+          '$x = New-Object Windows.Data.Xml.Dom.XmlDocument',
+          `$x.LoadXml('${xml}')`,
+          '$t = [Windows.UI.Notifications.ToastNotification]::new($x)',
+          '$t.ExpirationTime = [DateTimeOffset]::Now.AddSeconds(8)',
+          "$notifier = [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\\WindowsPowerShell\\v1.0\\powershell.exe')",
+          '$notifier.Show($t)'
+        ].join('\r\n');
+        const scriptPath = NL_PATH + '/.tmp_notify.ps1';
+        const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
+        const content = new TextEncoder().encode(psScript);
+        const buf = new Uint8Array(bom.length + content.length);
+        buf.set(bom);
+        buf.set(content, bom.length);
+        await Neutralino.filesystem.writeBinaryFile(scriptPath, buf.buffer);
+        await Neutralino.os.execCommand(`powershell -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}"`);
+        await Neutralino.filesystem.remove(scriptPath);
+      } catch (e) {}
+    }
+  }
+
+  setInterval(checkReminders, 30000);
+  setTimeout(checkReminders, 2000);
+
   // --- Mini Mode ---
-  let isMiniMode = false;
   const miniPanel = document.getElementById('mini-panel');
   const miniList = document.getElementById('mini-list');
   const miniTooltip = document.getElementById('mini-tooltip');
@@ -1199,6 +1453,8 @@ export async function initApp() {
         important: false,
         done: false,
         doneAt: null,
+        reminder: null,
+        reminderRepeat: 'none',
         createdAt: Date.now()
       };
       data.todos.push(todo);
@@ -1218,6 +1474,9 @@ export async function initApp() {
       if (todo) {
         todo.done = !todo.done;
         todo.doneAt = todo.done ? new Date().toISOString() : null;
+        if (todo.done && todo.reminderRepeat === 'none') {
+          todo.reminder = null;
+        }
         saveData();
         renderMiniPanel();
       }

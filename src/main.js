@@ -32,6 +32,7 @@ document.addEventListener('DOMContentLoaded', () => {
     Neutralino.init();
     Neutralino.events.on('ready', () => {
       setupTray();
+      Neutralino.window.center();
     });
   }
   initApp();

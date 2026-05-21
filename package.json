@@ -7,11 +7,12 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "neu:run": "npm run build && npx @neutralinojs/neu run",
-    "neu:build": "npm run build && npx @neutralinojs/neu build"
+    "neu:run": "node scripts/sync-config.js && npm run build && npx @neutralinojs/neu run",
+    "neu:build": "node scripts/sync-config.js && npm run build && npx @neutralinojs/neu build && node scripts/patch-exe.js"
   },
   "devDependencies": {
     "@neutralinojs/neu": "^11.7.1",
+    "rcedit": "^5.0.2",
     "vite": "^6.3.5"
   }
 }

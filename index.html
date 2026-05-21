@@ -163,6 +163,21 @@
             <input type="datetime-local" id="detail-end">
           </div>
         </div>
+        <div class="detail-row-inline">
+          <div class="detail-row">
+            <label>提醒时间</label>
+            <input type="datetime-local" id="detail-reminder">
+          </div>
+          <div class="detail-row">
+            <label>重复提醒</label>
+            <select id="detail-reminder-repeat">
+              <option value="none">不重复</option>
+              <option value="daily">每天</option>
+              <option value="weekly">每周</option>
+              <option value="monthly">每月</option>
+            </select>
+          </div>
+        </div>
         <div class="detail-row checkbox-row">
           <label>
             <input type="checkbox" id="detail-todo"> 添加到"TODO"
