@@ -713,6 +713,10 @@ body {
   color: var(--accent);
   font-size: 18px;
   font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
 }
 
 .add-task-bar input {
@@ -722,6 +726,7 @@ body {
   color: var(--text-primary);
   font-size: 14px;
   outline: none;
+  line-height: 1;
 }
 
 .add-task-bar input::placeholder {

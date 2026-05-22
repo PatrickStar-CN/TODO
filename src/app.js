@@ -534,7 +534,9 @@ export async function initApp() {
   let quickAddPreset = { endTime: null, priority: 'none', tag: '' };
 
   function resetQuickAddPreset() {
-    quickAddPreset = { endTime: null, priority: 'none', tag: '' };
+    quickAddPreset.endTime = null;
+    quickAddPreset.priority = 'none';
+    quickAddPreset.tag = '';
     updateQuickAddIndicators();
   }
 
