@@ -1734,6 +1734,10 @@ ${pendingList}
       summaryFooter.classList.remove('hidden');
     } catch (err) {
       summaryOutput.textContent = `请求出错: ${err.message}`;
+    } finally {
+      isGeneratingReport = false;
+      generateReportBtn.disabled = false;
+      generateReportBtn.textContent = '生成报告';
     }
   });
 
