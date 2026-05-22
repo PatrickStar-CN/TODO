@@ -1,3 +1,8 @@
+import { escapeHtml } from './utils/html.js';
+import { toLocalDatetime, toLocalDateInput, parseLocalDateInput, formatMonthDay, isSameDay, isToday, getWeekday, formatDate, formatDateTime } from './utils/date.js';
+import { genId } from './utils/id.js';
+import { sortByPriority, getFilteredTodos as _getFilteredTodos, countByList, countTagUndone, splitPendingDone } from './selectors.js';
+
 const TAG_COLORS = ['#4f46e5', '#06b6d4', '#f59e0b', '#ef4444', '#10b981', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#6366f1'];
 const STORAGE_KEY = 'todo_app_data';
 const DATA_FILE = 'todo_data.json';
@@ -63,60 +68,6 @@ let selectedDate = null;
 let currentMonth = new Date();
 let doneCollapsed = true;
 
-// --- Helpers ---
-function genId() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-}
-
-function toLocalDatetime(date) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  const h = String(date.getHours()).padStart(2, '0');
-  const min = String(date.getMinutes()).padStart(2, '0');
-  return `${y}-${m}-${d}T${h}:${min}`;
-}
-
-function toLocalDateInput(date) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
-
-function parseLocalDateInput(value) {
-  const parts = String(value || '').split('-').map(Number);
-  if (parts.length !== 3 || parts.some(Number.isNaN)) return null;
-  return new Date(parts[0], parts[1] - 1, parts[2]);
-}
-
-function formatMonthDay(date) {
-  return `${date.getMonth() + 1}/${date.getDate()}`;
-}
-
-function escapeHtml(str) {
-  const div = document.createElement('div');
-  div.textContent = str;
-  return div.innerHTML;
-}
-
-function formatDate(str) {
-  if (!str) return '';
-  const d = new Date(str);
-  const now = new Date();
-  if (isSameDay(d, now)) return '今天';
-  const tomorrow = new Date(now);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  if (isSameDay(d, tomorrow)) return '明天';
-  return `${d.getMonth() + 1}/${d.getDate()}`;
-}
-
-function formatDateTime(str) {
-  if (!str) return '';
-  const d = new Date(str);
-  return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-}
-
 function showToast(msg) {
   const toast = document.createElement('div');
   toast.className = 'toast-msg';
@@ -127,21 +78,6 @@ function showToast(msg) {
     toast.classList.remove('show');
     toast.addEventListener('transitionend', () => toast.remove());
   }, 1800);
-}
-
-function isSameDay(d1, d2) {
-  return d1.getFullYear() === d2.getFullYear() &&
-    d1.getMonth() === d2.getMonth() &&
-    d1.getDate() === d2.getDate();
-}
-
-function isToday(dateStr) {
-  if (!dateStr) return false;
-  return isSameDay(new Date(dateStr), new Date());
-}
-
-function getWeekday(date) {
-  return ['日', '一', '二', '三', '四', '五', '六'][date.getDay()];
 }
 
 function normalizeData() {
@@ -218,7 +154,7 @@ function closeOverlay(overlay) {
 function showConfirmDialog(message, onConfirm) {
   const overlay = createOverlay(
     '确认操作',
-    `<p style="color:#cbd5e1;font-size:14px;margin-top:8px;">${escapeHtml(message)}</p>`,
+    `<p class="overlay-message">${escapeHtml(message)}</p>`,
     '<button class="btn-cancel">取消</button><button class="btn-danger">确定</button>'
   );
 
@@ -257,7 +193,7 @@ function deleteTag(tag, onDeleted) {
 
   const overlay = createOverlay(
     '删除标签',
-    `<p style="color:#cbd5e1;font-size:14px;margin-top:8px;">${escapeHtml(message)}</p>`,
+    `<p class="overlay-message">${escapeHtml(message)}</p>`,
     '<button class="btn-cancel">取消</button><button class="btn-danger">删除</button>'
   );
 
@@ -405,19 +341,7 @@ function openManageTagsDialog() {
 
 // --- Filtering ---
 function getFilteredTodos() {
-  if (currentTag) {
-    return data.todos.filter(t => t.tag === currentTag);
-  }
-  switch (currentList) {
-    case 'todo':
-      return data.todos.filter(t => t.todo);
-    case 'important':
-      return data.todos.filter(t => t.important);
-    case 'all':
-      return data.todos;
-    default:
-      return data.todos;
-  }
+  return _getFilteredTodos(data, currentList, currentTag);
 }
 
 // --- Render ---
@@ -428,16 +352,17 @@ function render() {
 }
 
 function renderSidebar() {
-  document.getElementById('count-todo').textContent = data.todos.filter(t => t.todo && !t.done).length;
-  document.getElementById('count-important').textContent = data.todos.filter(t => t.important && !t.done).length;
-  document.getElementById('count-all').textContent = data.todos.filter(t => !t.done).length;
+  const counts = countByList(data.todos);
+  document.getElementById('count-todo').textContent = counts.todo;
+  document.getElementById('count-important').textContent = counts.important;
+  document.getElementById('count-all').textContent = counts.all;
 
   const tagListEl = document.getElementById('tag-list');
   tagListEl.innerHTML = data.tags.map(tag => `
     <a href="#" class="tag-item ${currentTag === tag ? 'active' : ''}" data-tag="${escapeHtml(tag)}">
       <span class="tag-dot" ${getTagDotStyle(tag)}></span>
       <span class="tag-label">${escapeHtml(tag)}</span>
-      <span class="nav-count">${data.todos.filter(t => t.tag === tag && !t.done).length}</span>
+      <span class="nav-count">${countTagUndone(data.todos, tag)}</span>
     </a>
   `).join('');
 
@@ -459,27 +384,19 @@ function renderTodoList() {
   const statusText = document.getElementById('status-text');
 
   const filtered = getFilteredTodos();
-  const pending = filtered.filter(t => !t.done);
-  const done = filtered.filter(t => t.done);
+  const { pending, done } = splitPendingDone(filtered);
+  const sorted = sortByPriority(pending);
 
-  const priorityOrder = { high: 0, medium: 1, low: 2, none: 3 };
-  pending.sort((a, b) => {
-    const pa = priorityOrder[a.priority || 'none'];
-    const pb = priorityOrder[b.priority || 'none'];
-    if (pa !== pb) return pa - pb;
-    return b.createdAt - a.createdAt;
-  });
-
-  todoListEl.innerHTML = pending.length === 0
-    ? '<div style="text-align:center;padding:40px;color:#64748b;font-size:14px;">暂无待办事项</div>'
-    : pending.map(renderTodoItem).join('');
+  todoListEl.innerHTML = sorted.length === 0
+    ? '<div class="empty-state">暂无待办事项</div>'
+    : sorted.map(renderTodoItem).join('');
 
   doneCountEl.textContent = done.length;
   doneSection.style.display = done.length > 0 ? 'block' : 'none';
   doneToggleEl.classList.toggle('collapsed', doneCollapsed);
   doneListEl.innerHTML = doneCollapsed ? '' : done.map(renderTodoItem).join('');
 
-  taskSummary.textContent = `${pending.length} 个任务`;
+  taskSummary.textContent = `${sorted.length} 个任务`;
   statusText.textContent = `共 ${filtered.length} 项任务 · ${done.length} 已完成`;
 }
 
@@ -594,13 +511,13 @@ function getTodosForDate(date) {
 function renderCalendarDetail() {
   const calendarDetail = document.getElementById('calendar-detail');
   if (!selectedDate) {
-    calendarDetail.innerHTML = '<p style="color:#64748b;font-size:13px;">点击日期查看事项</p>';
+    calendarDetail.innerHTML = '<p class="empty-state-hint">点击日期查看事项</p>';
     return;
   }
   const dayTodos = getTodosForDate(selectedDate);
   const dateStr = `${selectedDate.getMonth() + 1}月${selectedDate.getDate()}日`;
   if (dayTodos.length === 0) {
-    calendarDetail.innerHTML = `<h3>${dateStr}</h3><p style="color:#64748b;font-size:13px;">当天无事项</p>`;
+    calendarDetail.innerHTML = `<h3>${dateStr}</h3><p class="empty-state-hint">当天无事项</p>`;
     return;
   }
   calendarDetail.innerHTML = `<h3>${dateStr} (${dayTodos.length}项)</h3>` +
@@ -1134,6 +1051,17 @@ export async function initApp() {
     }
   });
 
+  function createMenuItemContent(icon, label) {
+    const iconSpan = document.createElement('span');
+    iconSpan.className = 'menu-icon';
+    iconSpan.textContent = icon || '';
+    const textNode = document.createTextNode(label);
+    const frag = document.createDocumentFragment();
+    frag.appendChild(iconSpan);
+    frag.appendChild(textNode);
+    return frag;
+  }
+
   function showContextMenu(x, y, items) {
     const menu = document.createElement('div');
     menu.className = 'context-menu';
@@ -1147,7 +1075,7 @@ export async function initApp() {
       if (item.submenu) {
         const wrapper = document.createElement('div');
         wrapper.className = 'context-menu-item context-menu-submenu';
-        wrapper.innerHTML = `<span class="menu-icon">${item.icon || ''}</span>${item.label}`;
+        wrapper.appendChild(createMenuItemContent(item.icon, item.label));
         const sub = document.createElement('div');
         sub.className = 'context-menu';
         item.submenu.forEach(subItem => {
@@ -1163,7 +1091,7 @@ export async function initApp() {
       }
       const el = document.createElement('div');
       el.className = 'context-menu-item' + (item.className ? ' ' + item.className : '');
-      el.innerHTML = `<span class="menu-icon">${item.icon || ''}</span>${item.label}`;
+      el.appendChild(createMenuItemContent(item.icon, item.label));
       el.addEventListener('click', () => { closeContextMenu(); item.action(); });
       menu.appendChild(el);
     });
@@ -1299,22 +1227,14 @@ export async function initApp() {
   const miniQuickAdd = document.getElementById('mini-quick-add');
 
   function renderMiniPanel() {
-    const pending = data.todos.filter(t => !t.done);
-    const done = data.todos.filter(t => t.done);
+    const { pending, done } = splitPendingDone(data.todos);
     document.getElementById('mini-pending-count').textContent = pending.length;
     document.getElementById('mini-done-count').textContent = done.length;
 
-    const priorityOrder = { high: 0, medium: 1, low: 2, none: 3 };
-    pending.sort((a, b) => {
-      const pa = priorityOrder[a.priority || 'none'];
-      const pb = priorityOrder[b.priority || 'none'];
-      if (pa !== pb) return pa - pb;
-      return b.createdAt - a.createdAt;
-    });
-
-    const items = pending.slice(0, 8);
+    const sorted = sortByPriority(pending);
+    const items = sorted.slice(0, 8);
     miniList.innerHTML = items.length === 0
-      ? '<div style="text-align:center;padding:16px;color:#64748b;font-size:12px;">暂无待办</div>'
+      ? '<div class="empty-state-sm">暂无待办</div>'
       : items.map(t => {
         const prioCls = t.priority && t.priority !== 'none' ? `p-${t.priority}` : '';
         return `<div class="mini-todo-item" data-id="${t.id}">

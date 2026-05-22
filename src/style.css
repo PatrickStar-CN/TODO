@@ -1853,3 +1853,28 @@ body {
 [data-theme="light"] .popup-date-input::-webkit-calendar-picker-indicator {
   filter: none;
 }
+
+.empty-state {
+  text-align: center;
+  padding: 40px;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.empty-state-sm {
+  text-align: center;
+  padding: 16px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.empty-state-hint {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.overlay-message {
+  color: var(--text-nav);
+  font-size: 14px;
+  margin-top: 8px;
+}
