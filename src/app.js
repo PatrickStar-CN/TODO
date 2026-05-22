@@ -744,11 +744,12 @@ export async function initApp() {
 
   document.addEventListener('contextmenu', (e) => {
     e.preventDefault();
-    closeContextMenu();
 
     if (mini.isMiniMode()) {
       return;
     }
+
+    closeContextMenu();
 
     const todoItem = e.target.closest('.todo-item');
     const tagItem = e.target.closest('.tag-item[data-tag]');
