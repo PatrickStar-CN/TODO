@@ -7,7 +7,7 @@ import { buildTodoContextMenu, buildTagContextMenu, buildNavContextMenu, buildLi
 import { createTodoItemEl } from './renderTodoItem.js';
 import { renderCalendar as _renderCalendar, getTodosForDate as _getTodosForDate, renderCalendarDetail as _renderCalendarDetail } from './calendar.js';
 import { openDetail as _openDetail, closeDetail } from './detail.js';
-import { createOverlay, closeOverlay, showConfirmDialog } from './overlay.js';
+import { createOverlay, closeOverlay, createManagedOverlay, showConfirmDialog } from './overlay.js';
 import { applyTheme, updateThemeButton } from './theme.js';
 import { initAiSummary } from './aiSummary.js';
 import { initReminders } from './reminder.js';
@@ -254,8 +254,8 @@ function renderManageTagItems() {
   return data.tags.map(tag => `
     <div class="tag-manage-item" data-tag="${escapeHtml(tag)}">
       <span class="tag-dot" ${getTagDotStyle(tag)}></span>
-      <span class="tag-manage-name">${escapeHtml(tag)}</span>
-      <span class="tag-manage-count">${getTagTaskCount(tag)}</span>
+      <span class="tag-manage-name" data-role="rename-tag" title="双击重命名">${escapeHtml(tag)}</span>
+      <span class="tag-manage-count">${getTagTaskCount(tag)} 个任务</span>
       <button class="tag-delete-btn" data-role="delete-tag" data-tag="${escapeHtml(tag)}" title="删除标签">✕</button>
     </div>
   `).join('');
@@ -265,42 +265,87 @@ function renderManageTagContent() {
   const items = renderManageTagItems();
   return items
     ? `<div class="tag-manage-list">${items}</div>`
-    : '<div class="tag-manage-empty">暂无标签</div>';
+    : '<div class="tag-manage-empty"><span class="empty-icon">🏷️</span><p>还没有标签</p><p class="empty-hint">点击侧边栏「新建标签」添加</p></div>';
 }
 
 function openManageTagsDialog() {
-  const overlay = createOverlay(
+  const { overlay, close } = createManagedOverlay(
     '管理标签',
     renderManageTagContent(),
     '<button class="btn-cancel">关闭</button>'
   );
 
-  const close = () => closeOverlay(overlay);
-  overlay.querySelector('.btn-cancel').addEventListener('click', close);
+  const refreshContent = () => {
+    const box = overlay.querySelector('.tag-input-box');
+    const h4 = box.querySelector('h4');
+    const btnRow = box.querySelector('.btn-row');
+    box.innerHTML = '';
+    box.appendChild(h4);
+    box.insertAdjacentHTML('beforeend', renderManageTagContent());
+    box.appendChild(btnRow);
+  };
+
   overlay.addEventListener('click', (ev) => {
-    if (ev.target === overlay) {
-      close();
-      return;
-    }
+    if (ev.target === overlay) { close(); return; }
+
     const deleteBtn = ev.target.closest('[data-role="delete-tag"]');
-    if (!deleteBtn) {
+    if (deleteBtn) {
+      const tag = deleteBtn.dataset.tag;
+      const item = deleteBtn.closest('.tag-manage-item');
+      item.classList.add('removing');
+      item.addEventListener('animationend', () => {
+        data.tags = data.tags.filter(t => t !== tag);
+        data.todos.forEach(todo => { if (todo.tag === tag) todo.tag = ''; });
+        if (currentTag === tag) { currentTag = null; currentList = 'all'; }
+        saveData();
+        render();
+        refreshContent();
+        showToast('标签已删除');
+      }, { once: true });
       return;
     }
-    const tag = deleteBtn.dataset.tag;
-    deleteTag(tag, () => {
-      const content = overlay.querySelector('.tag-input-box > .tag-manage-list, .tag-input-box > .tag-manage-empty');
-      if (content) {
-        content.outerHTML = renderManageTagContent();
+  });
+
+  overlay.addEventListener('dblclick', (ev) => {
+    const nameEl = ev.target.closest('[data-role="rename-tag"]');
+    if (!nameEl) return;
+    const item = nameEl.closest('.tag-manage-item');
+    const oldTag = item.dataset.tag;
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'tag-rename-input';
+    input.value = oldTag;
+    nameEl.replaceWith(input);
+    input.focus();
+    input.select();
+
+    const doRename = () => {
+      const newName = input.value.trim();
+      if (!newName || newName === oldTag) {
+        refreshContent();
+        return;
       }
+      if (data.tags.includes(newName)) {
+        showToast('标签名已存在');
+        input.focus();
+        return;
+      }
+      const idx = data.tags.indexOf(oldTag);
+      if (idx !== -1) data.tags[idx] = newName;
+      data.todos.forEach(todo => { if (todo.tag === oldTag) todo.tag = newName; });
+      if (currentTag === oldTag) currentTag = newName;
+      saveData();
+      render();
+      refreshContent();
+      showToast('标签已重命名');
+    };
+
+    input.addEventListener('blur', doRename);
+    input.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') { ev.preventDefault(); input.blur(); }
+      if (ev.key === 'Escape') { ev.preventDefault(); refreshContent(); }
     });
   });
-  overlay.addEventListener('keydown', (ev) => {
-    if (ev.key === 'Escape') {
-      ev.preventDefault();
-      close();
-    }
-  });
-  overlay.querySelector('.btn-cancel').focus();
 }
 
 // --- Filtering ---

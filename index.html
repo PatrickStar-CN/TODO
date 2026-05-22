@@ -11,9 +11,11 @@
     <aside class="sidebar">
       <div class="sidebar-header">
         <h2>待办事项</h2>
+        <div class="header-actions">
+          <button class="btn-header-action" id="btn-theme-toggle" title="切换主题">🌗</button>
+          <button class="btn-header-action" id="btn-mini-mode" title="迷你模式">📌</button>
+        </div>
         <span class="date" id="today-date"></span>
-        <button class="btn-mini-mode" id="btn-mini-mode" title="迷你模式">📌</button>
-        <button class="btn-theme-toggle" id="btn-theme-toggle" title="切换主题">🌗</button>
       </div>
       <nav class="sidebar-nav">
         <a href="#" class="nav-item active" data-list="todo" title="TODO">
@@ -97,7 +99,7 @@
           <div>
             <h1>日历</h1>
           </div>
-          <button class="icon-btn" id="btn-open-summary" title="AI 总结">📝</button>
+          <button class="btn-ai-summary" id="btn-open-summary" title="AI 总结">📝 AI 总结</button>
         </div>
         <div class="calendar-container">
           <div class="calendar-nav">

@@ -32,8 +32,25 @@ todoTools/
 ├── data.json                   # 持久化数据文件（开发环境）
 ├── src/
 │   ├── main.js                 # 应用入口（Neutralino 初始化 + 系统托盘）
-│   ├── app.js                  # 核心业务逻辑（~1200 行）
-│   └── style.css               # 全局样式 + 动画 + 迷你面板（~1560 行）
+│   ├── app.js                  # 组装骨架（~660 行），串联各模块
+│   ├── eventBus.js             # 发布/订阅事件总线
+│   ├── selectors.js            # 数据筛选与排序逻辑
+│   ├── renderTodoItem.js       # 单条任务 DOM 构建
+│   ├── calendar.js             # 日历视图渲染与日期任务匹配
+│   ├── detail.js               # 任务详情面板开关
+│   ├── overlay.js              # 通用弹窗/遮罩层系统
+│   ├── contextMenu.js          # 右键菜单 DOM 渲染与交互
+│   ├── contextMenuConfig.js    # 右键菜单配置（各场景菜单项）
+│   ├── quickAddPopup.js        # 快速添加预设弹窗（日期/优先级/标签）
+│   ├── aiSummary.js            # AI 总结面板
+│   ├── reminder.js             # 提醒系统（定时检测 + 通知）
+│   ├── miniMode.js             # 迷你模式（小窗置顶卡片）
+│   ├── theme.js                # 主题切换（亮/暗/跟随系统）
+│   ├── style.css               # 全局样式 + 动画 + 迷你面板（~1560 行）
+│   └── utils/
+│       ├── date.js             # 日期格式化与比较工具函数
+│       ├── html.js             # HTML 转义工具
+│       └── id.js               # 唯一 ID 生成器
 ├── public/
 │   ├── neutralino.js           # Neutralino 客户端库
 │   └── icon.png                # 应用图标
@@ -47,11 +64,165 @@ todoTools/
 
 ---
 
+## 架构设计
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                      index.html (SPA)                             │
+├──────────────────────────────────────────────────────────────────┤
+│  main.js（入口）                                                  │
+│  ├── Neutralino 初始化 + 系统托盘设置                              │
+│  └── 调用 initApp()                                               │
+├──────────────────────────────────────────────────────────────────┤
+│  app.js（组装骨架 ~660 行）                                        │
+│  ├── 数据层: loadData() / saveData()                              │
+│  ├── 状态管理: data, currentList, currentTag, selectedDate        │
+│  ├── 渲染调度: render() → renderSidebar / renderTodoList          │
+│  ├── 事件委托: 统一 click/contextmenu/keydown 分发                 │
+│  └── 模块初始化: 调用各子模块 init 函数并注入依赖                    │
+├──────────────────────────────────────────────────────────────────┤
+│  功能模块层                                                        │
+│  ┌────────────┐ ┌────────────┐ ┌──────────────┐ ┌─────────────┐ │
+│  │ calendar   │ │ detail     │ │ contextMenu  │ │ overlay     │ │
+│  │ 日历视图    │ │ 详情面板    │ │ 右键菜单渲染  │ │ 弹窗系统    │ │
+│  └────────────┘ └────────────┘ └──────────────┘ └─────────────┘ │
+│  ┌────────────┐ ┌────────────┐ ┌──────────────┐ ┌─────────────┐ │
+│  │ miniMode   │ │ aiSummary  │ │ reminder     │ │ theme       │ │
+│  │ 迷你模式    │ │ AI 总结    │ │ 提醒系统      │ │ 主题切换    │ │
+│  └────────────┘ └────────────┘ └──────────────┘ └─────────────┘ │
+│  ┌────────────────┐ ┌──────────────────┐ ┌────────────────────┐ │
+│  │ quickAddPopup  │ │ contextMenuConfig│ │ renderTodoItem     │ │
+│  │ 快速添加弹窗    │ │ 菜单配置         │ │ 任务项渲染          │ │
+│  └────────────────┘ └──────────────────┘ └────────────────────┘ │
+├──────────────────────────────────────────────────────────────────┤
+│  基础设施层                                                        │
+│  ┌────────────┐ ┌────────────┐ ┌──────────────────────────────┐ │
+│  │ selectors  │ │ eventBus   │ │ utils/ (date, html, id)      │ │
+│  │ 数据筛选    │ │ 事件总线    │ │ 工具函数                      │ │
+│  └────────────┘ └────────────┘ └──────────────────────────────┘ │
+├──────────────────────────────────────────────────────────────────┤
+│  style.css                                                        │
+│  ├── 亮色/暗色主题样式（CSS 变量）                                  │
+│  ├── 响应式布局（flex）                                            │
+│  ├── 侧边栏折叠样式（.sidebar.mini）                               │
+│  ├── 动画系统（@keyframes + transition）                           │
+│  └── 迷你面板样式 + tooltip                                        │
+└──────────────────────────────────────────────────────────────────┘
+         │                        │
+    [Neutralino 环境]        [浏览器/开发环境]
+         │                        │
+    filesystem API          server-plugin.js
+    (本地 JSON 文件)          (Vite 中间件 → data.json)
+```
+
+---
+
+## 模块职责
+
+### main.js — 应用入口
+- 导入样式，初始化 Neutralino 运行时
+- 设置系统托盘菜单（显示窗口/退出）
+- 监听窗口关闭事件（隐藏到托盘）
+- 调用 `initApp()` 启动业务逻辑
+
+### app.js — 组装骨架
+- 管理全局状态（`data`、`currentList`、`currentTag`、`selectedDate`、`currentMonth`）
+- 实现数据持久化（`loadData` / `saveData`，三层降级）
+- 数据规范化（`normalizeData`）
+- 渲染调度（`render` → `renderSidebar` + `renderTodoList` + `renderStatus`）
+- 事件委托（统一处理 click、contextmenu、keydown）
+- 标签管理（新建/删除/重命名/管理弹窗）
+- 侧边栏折叠控制
+- 调用各子模块 init 函数并注入所需依赖
+
+### eventBus.js — 事件总线
+- 提供 `on` / `off` / `emit` 发布订阅接口
+- 用于模块间松耦合通信
+
+### selectors.js — 数据筛选与排序
+- `sortByPriority` — 按优先级排序（高 > 中 > 低 > 无，同级按创建时间倒序）
+- `getFilteredTodos` — 根据当前视图/标签筛选任务列表
+- `countByList` — 统计各视图未完成任务数
+- `countTagUndone` — 统计指定标签未完成任务数
+- `splitPendingDone` — 将任务列表拆分为待办/已完成两组
+
+### renderTodoItem.js — 任务项渲染
+- `createTodoItemEl` — 使用 DOM API 构建单条任务元素
+- 包含 checkbox、标题、徽章（日期/标签/优先级/TODO/提醒）、操作按钮
+
+### calendar.js — 日历视图
+- `renderCalendar` — 渲染月历网格（含日期指示点）
+- `getTodosForDate` — 智能匹配某日关联任务（支持时间范围/单日期/创建日期）
+- `renderCalendarDetail` — 渲染选中日期的任务详情列表
+
+### detail.js — 详情面板
+- `openDetail` — 打开任务详情编辑面板，填充表单字段
+- `closeDetail` — 带退场动画关闭面板
+
+### overlay.js — 弹窗系统
+- `createOverlay` — 创建遮罩弹窗（标题 + 内容 + 按钮行）
+- `closeOverlay` — 带退场动画关闭弹窗
+- `createManagedOverlay` — 创建自动绑定取消/遮罩关闭/Escape 的弹窗
+- `showConfirmDialog` — 确认对话框（支持 Enter/Escape 键盘操作）
+
+### contextMenu.js — 右键菜单渲染
+- `showContextMenu` — 在指定坐标渲染菜单（支持子菜单、分隔线、键盘导航）
+- `closeContextMenu` — 关闭当前菜单
+- 自动调整位置防止溢出视口
+
+### contextMenuConfig.js — 右键菜单配置
+- `buildTodoContextMenu` — 任务右键菜单（完成/重要/TODO/优先级/标签/提醒/编辑/删除）
+- `buildTagContextMenu` — 标签右键菜单（查看/删除）
+- `buildNavContextMenu` — 导航项右键菜单（清空已完成）
+- `buildListAreaMenu` — 列表区域右键菜单（新建任务/清空已完成）
+
+### quickAddPopup.js — 快速添加预设弹窗
+- 日期选择弹窗（今天/明天/下周/自定义/清除）
+- 优先级选择弹窗（高/中/低/无）
+- 标签选择弹窗（已有标签列表/清除）
+- 弹窗自动调整位置防止溢出
+
+### aiSummary.js — AI 总结面板
+- 打开/关闭总结面板（带动画）
+- 按日期范围筛选任务生成报告
+- 调用外部 AI API 生成总结
+- AI 配置管理（API URL/Key/Model/自定义 Prompt）
+
+### reminder.js — 提醒系统
+- 定时检测到期提醒（每 30 秒轮询）
+- 触发桌面通知或应用内 Toast
+- 支持重复提醒（每天/每周/每月）
+- 自动计算下次提醒时间
+
+### miniMode.js — 迷你模式
+- 进入/退出迷你模式（窗口缩小为 280×320 置顶卡片）
+- 渲染待办/已完成计数 + 前 8 条待办任务
+- 迷你面板内完成任务、快速添加任务
+- 悬停 tooltip 显示任务详情
+- 窗口拖动（`setDraggableRegion`）
+
+### theme.js — 主题切换
+- `applyTheme` — 根据设置切换 `data-theme` 属性（auto/light/dark）
+- `updateThemeButton` — 更新主题按钮图标和提示文字
+
+### utils/date.js — 日期工具
+- `toLocalDatetime` / `toLocalDateInput` / `parseLocalDateInput` — 日期格式转换
+- `formatMonthDay` / `formatDate` / `formatDateTime` — 日期格式化显示
+- `isSameDay` / `isToday` / `getWeekday` — 日期比较与判断
+
+### utils/html.js — HTML 工具
+- `escapeHtml` — 防 XSS 的 HTML 转义
+
+### utils/id.js — ID 生成器
+- `genId` — 基于时间戳 + 随机字符串生成唯一 ID
+
+---
+
 ## 功能特性
 
 ### 任务管理
 - 快速添加任务（Enter 键提交，支持预设截止日期、优先级、标签）
-- 任务详情编辑面板（标题、备注、优先级、标签、开始/截止时间、TODO/重要标记）
+- 任务详情编辑面板（标题、备注、优先级、标签、开始/截止时间、提醒、TODO/重要标记）
 - 标记完成/取消完成（带动画反馈）
 - 标记为重要（星标）
 - 删除任务（带自定义确认对话框 + 退出动画）
@@ -74,6 +245,7 @@ todoTools/
 ### 标签系统
 - 新建标签（弹窗输入，重复检测）
 - 删除标签（带关联任务数量提示）
+- 重命名标签（双击编辑）
 - 标签管理面板（查看所有标签及任务数）
 - 按标签筛选任务
 - 数据规范化处理（去重、修剪空白、自动收集任务中的标签）
@@ -103,6 +275,17 @@ todoTools/
 - 鼠标悬停任务 400ms 后弹出 tooltip 显示详情（标题、描述、优先级、标签、时间）
 - 点击 `⊞` 按钮退出迷你模式，恢复正常窗口
 - 标题文字区域可拖动窗口位置（通过 `setDraggableRegion`）
+
+### 提醒系统
+- 为任务设置提醒时间（右键菜单快捷设置或详情面板手动设置）
+- 支持重复提醒（每天/每周/每月）
+- 到期时触发桌面通知或应用内 Toast
+- 完成任务时自动清除非重复提醒
+
+### AI 总结
+- 按日期范围筛选任务生成工作报告
+- 支持自定义 AI API 配置（URL/Key/Model）
+- 自定义 Prompt 模板
 
 ### 桌面应用特性
 - 系统托盘菜单（显示窗口/退出）
@@ -146,44 +329,6 @@ todoTools/
 
 ---
 
-## 架构设计
-
-```
-┌─────────────────────────────────────────────────────┐
-│                   index.html (SPA)                   │
-├─────────────────────────────────────────────────────┤
-│  main.js                                            │
-│  ├── Neutralino 初始化 + 系统托盘设置                │
-│  └── 调用 initApp()                                 │
-├─────────────────────────────────────────────────────┤
-│  app.js (核心逻辑)                                   │
-│  ├── 数据层: loadData() / saveData()                │
-│  ├── 状态管理: data, currentList, currentTag        │
-│  ├── 渲染层: render() → renderSidebar/TodoList/...  │
-│  ├── 事件处理: 事件委托 + DOM 操作                    │
-│  ├── 弹窗系统: createOverlay / closeOverlay         │
-│  ├── 动画控制: entering/removing/checking 类切换     │
-│  ├── 日历模块: renderCalendar / getTodosForDate     │
-│  ├── 侧边栏折叠: applySidebarState / sidebarMini   │
-│  ├── 主题切换: applyTheme / updateThemeButton       │
-│  └── 迷你模式: enterMiniMode / exitMiniMode         │
-├─────────────────────────────────────────────────────┤
-│  style.css                                          │
-│  ├── 亮色/暗色主题样式（CSS 变量）                    │
-│  ├── 响应式布局（flex）                              │
-│  ├── 侧边栏折叠样式（.sidebar.mini）                 │
-│  ├── 动画系统（@keyframes + transition）             │
-│  └── 迷你面板样式 + tooltip                          │
-└─────────────────────────────────────────────────────┘
-         │                        │
-    [Neutralino 环境]        [浏览器/开发环境]
-         │                        │
-    filesystem API          server-plugin.js
-    (本地 JSON 文件)          (Vite 中间件 → data.json)
-```
-
----
-
 ## 数据持久化策略
 
 三层降级机制：
@@ -213,6 +358,8 @@ todoTools/
       important: boolean,   // 是否标记为重要
       done: boolean,        // 是否已完成
       doneAt: string | null,      // 完成时间
+      reminder: string | null,    // 提醒时间（本地 datetime 格式）
+      reminderRepeat: 'none' | 'daily' | 'weekly' | 'monthly',  // 提醒重复
       createdAt: number     // 创建时间戳
     }
   ],
@@ -233,6 +380,7 @@ todoTools/
 ## 开发约定
 
 - 无前端框架，使用命令式 DOM 操作
+- 模块化拆分：app.js 作为组装骨架，各功能模块通过 init 函数接收依赖注入
 - 事件委托模式：通过 `data-action` 和 `data-id` 属性统一处理
 - 弹窗系统：`createOverlay()` 创建遮罩弹窗，支持键盘操作（Enter 确认、Escape 取消、点击遮罩关闭）
 - 所有确认性操作使用应用内弹窗（`showConfirmDialog`），不使用浏览器原生 `confirm()`
@@ -240,6 +388,7 @@ todoTools/
 - Toast 通知用于操作反馈（`showToast` 函数）
 - 动画遵循 `requestAnimationFrame` + `animationend` 事件模式
 - 迷你模式通过 Neutralino `window.*` API 控制窗口状态（setBorderless、setAlwaysOnTop、setSize、setDraggableRegion）
+- 右键菜单配置与渲染分离：`contextMenuConfig.js` 定义菜单项，`contextMenu.js` 负责 DOM 渲染
 
 ---
 
