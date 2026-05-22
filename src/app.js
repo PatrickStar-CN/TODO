@@ -44,21 +44,29 @@ async function loadData() {
   }
 }
 
+let saveTimer = null;
+
 function saveData() {
   const json = JSON.stringify(data, null, 2);
-  if (isNeutralinoEnv()) {
-    Neutralino.filesystem.writeFile(`./${DATA_FILE}`, json).catch(() => {
-      localStorage.setItem(STORAGE_KEY, json);
+  localStorage.setItem(STORAGE_KEY, json);
+
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    saveTimer = null;
+    if (isNeutralinoEnv()) {
+      Neutralino.filesystem.writeFile(`./${DATA_FILE}`, json).catch(() => {
+        showToast('保存失败，数据已暂存本地');
+      });
+      return;
+    }
+    fetch('/api/data', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: json
+    }).catch(() => {
+      showToast('保存失败，数据已暂存本地');
     });
-    return;
-  }
-  fetch('/api/data', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: json
-  }).catch(() => {
-    localStorage.setItem(STORAGE_KEY, json);
-  });
+  }, 300);
 }
 
 let data = { todos: [], tags: ['计划内'], aiConfig: { apiUrl: '', apiKey: '', model: '', customPrompt: '' }, theme: 'auto', sidebarMini: false };
@@ -133,6 +141,9 @@ function getTagTaskCount(tag) {
 function createOverlay(title, content, actions) {
   const overlay = document.createElement('div');
   overlay.className = 'tag-input-overlay';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+  overlay.setAttribute('aria-label', title);
   overlay.innerHTML = `
     <div class="tag-input-box">
       <h4>${title}</h4>
@@ -141,6 +152,8 @@ function createOverlay(title, content, actions) {
     </div>
   `;
   document.body.appendChild(overlay);
+  const firstBtn = overlay.querySelector('button');
+  if (firstBtn) firstBtn.focus();
   return overlay;
 }
 
@@ -423,7 +436,7 @@ function renderTodoItem(t) {
 
   return `
     <div class="todo-item ${t.done ? 'done' : ''}" data-id="${t.id}">
-      <div class="todo-checkbox ${t.done ? 'checked' : ''}" data-action="toggle" data-id="${t.id}"></div>
+      <div class="todo-checkbox ${t.done ? 'checked' : ''}" data-action="toggle" data-id="${t.id}" role="checkbox" aria-checked="${t.done}" aria-label="标记完成" tabindex="0"></div>
       <div class="todo-body" data-action="edit" data-id="${t.id}">
         <div class="todo-title">${escapeHtml(t.title)}</div>
         ${badges.length ? `<div class="todo-meta">${badges.join('')}</div>` : ''}
@@ -830,9 +843,7 @@ export async function initApp() {
   });
 
   // Todo actions (delegated)
-  document.addEventListener('click', (e) => {
-    const target = e.target.closest('[data-action]');
-    if (!target) return;
+  function handleTodoAction(target) {
     const action = target.dataset.action;
     const id = target.dataset.id;
 
@@ -869,6 +880,20 @@ export async function initApp() {
     } else if (action === 'delete') {
       deleteTodoById(id, target.closest('.todo-item'), true);
     }
+  }
+
+  document.addEventListener('click', (e) => {
+    const target = e.target.closest('[data-action]');
+    if (!target) return;
+    handleTodoAction(target);
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const target = e.target.closest('[data-action="toggle"]');
+    if (!target) return;
+    e.preventDefault();
+    handleTodoAction(target);
   });
 
   // Done toggle
@@ -1065,6 +1090,7 @@ export async function initApp() {
   function showContextMenu(x, y, items) {
     const menu = document.createElement('div');
     menu.className = 'context-menu';
+    menu.setAttribute('role', 'menu');
     items.forEach(item => {
       if (item.separator) {
         const sep = document.createElement('div');
@@ -1091,6 +1117,8 @@ export async function initApp() {
       }
       const el = document.createElement('div');
       el.className = 'context-menu-item' + (item.className ? ' ' + item.className : '');
+      el.setAttribute('role', 'menuitem');
+      el.tabIndex = 0;
       el.appendChild(createMenuItemContent(item.icon, item.label));
       el.addEventListener('click', () => { closeContextMenu(); item.action(); });
       menu.appendChild(el);
@@ -1105,6 +1133,26 @@ export async function initApp() {
       document.addEventListener('click', closeContextMenu, { once: true });
       document.addEventListener('contextmenu', closeContextMenu, { once: true, capture: true });
     }, 0);
+
+    menu.addEventListener('keydown', (e) => {
+      const menuItems = [...menu.querySelectorAll('[role="menuitem"]')];
+      const idx = menuItems.indexOf(document.activeElement);
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        menuItems[(idx + 1) % menuItems.length]?.focus();
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        menuItems[(idx - 1 + menuItems.length) % menuItems.length]?.focus();
+      } else if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        document.activeElement?.click();
+      } else if (e.key === 'Escape') {
+        closeContextMenu();
+      }
+    });
+
+    const firstItem = menu.querySelector('[role="menuitem"]');
+    if (firstItem) firstItem.focus();
   }
 
   function closeContextMenu() {
@@ -1155,7 +1203,11 @@ export async function initApp() {
   }
 
   // --- Reminder System ---
+  let reminderLock = false;
+
   function checkReminders() {
+    if (reminderLock) return;
+    reminderLock = true;
     const now = new Date();
     let changed = false;
     data.todos.forEach(todo => {
@@ -1165,15 +1217,15 @@ export async function initApp() {
         triggerReminder(todo);
         if (todo.reminderRepeat === 'daily') {
           const next = new Date(reminderTime);
-          next.setDate(next.getDate() + 1);
+          while (next <= now) next.setDate(next.getDate() + 1);
           todo.reminder = toLocalDatetime(next);
         } else if (todo.reminderRepeat === 'weekly') {
           const next = new Date(reminderTime);
-          next.setDate(next.getDate() + 7);
+          while (next <= now) next.setDate(next.getDate() + 7);
           todo.reminder = toLocalDatetime(next);
         } else if (todo.reminderRepeat === 'monthly') {
           const next = new Date(reminderTime);
-          next.setMonth(next.getMonth() + 1);
+          while (next <= now) next.setMonth(next.getMonth() + 1);
           todo.reminder = toLocalDatetime(next);
         } else {
           todo.reminder = null;
@@ -1185,6 +1237,7 @@ export async function initApp() {
       saveData();
       render();
     }
+    reminderLock = false;
   }
 
   async function triggerReminder(todo) {

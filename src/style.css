@@ -42,6 +42,7 @@
   --overlay: rgba(15, 23, 42, 0.72);
   --shadow: rgba(15, 23, 42, 0.45);
   --toast-shadow: rgba(34, 197, 94, 0.3);
+  --focus-ring: rgba(79, 70, 229, 0.5);
 }
 
 [data-theme="light"] {
@@ -82,10 +83,28 @@
   --overlay: rgba(15, 23, 42, 0.4);
   --shadow: rgba(0, 0, 0, 0.1);
   --toast-shadow: rgba(34, 197, 94, 0.2);
+  --focus-ring: rgba(79, 70, 229, 0.4);
 }
 
 .hidden {
   display: none !important;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+button:focus-visible,
+.icon-btn:focus-visible,
+.nav-item:focus-visible,
+.tag-item:focus-visible,
+.todo-item:focus-visible,
+.calendar-day:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--focus-ring);
+  border-radius: 6px;
 }
 
 body {
