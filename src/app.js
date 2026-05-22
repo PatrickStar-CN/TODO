@@ -77,6 +77,23 @@ function toLocalDatetime(date) {
   return `${y}-${m}-${d}T${h}:${min}`;
 }
 
+function toLocalDateInput(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function parseLocalDateInput(value) {
+  const parts = String(value || '').split('-').map(Number);
+  if (parts.length !== 3 || parts.some(Number.isNaN)) return null;
+  return new Date(parts[0], parts[1] - 1, parts[2]);
+}
+
+function formatMonthDay(date) {
+  return `${date.getMonth() + 1}/${date.getDate()}`;
+}
+
 function escapeHtml(str) {
   const div = document.createElement('div');
   div.textContent = str;
@@ -769,9 +786,13 @@ export async function initApp() {
     closeAllPopups();
     const popup = document.createElement('div');
     popup.className = 'quick-popup';
-    const todayStr = new Date().toISOString().slice(0, 10);
-    const tomorrowStr = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
-    const nextWeekStr = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+    const todayStr = toLocalDateInput(new Date());
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const nextWeek = new Date();
+    nextWeek.setDate(nextWeek.getDate() + 7);
+    const tomorrowStr = toLocalDateInput(tomorrow);
+    const nextWeekStr = toLocalDateInput(nextWeek);
     popup.innerHTML = `
       <div class="popup-title">截止日期</div>
       <div class="popup-option" data-date="${todayStr}">☀️ 今天</div>
@@ -929,23 +950,7 @@ export async function initApp() {
         render();
       }
     } else if (action === 'delete') {
-      showConfirmDialog('确定要删除这个任务吗？', () => {
-        const itemEl = target.closest('.todo-item');
-        if (itemEl) {
-          itemEl.classList.add('removing');
-          itemEl.addEventListener('animationend', () => {
-            data.todos = data.todos.filter(t => t.id !== id);
-            saveData();
-            closeDetail();
-            render();
-          }, { once: true });
-        } else {
-          data.todos = data.todos.filter(t => t.id !== id);
-          saveData();
-          closeDetail();
-          render();
-        }
-      });
+      deleteTodoById(id, target.closest('.todo-item'), true);
     }
   });
 
@@ -1000,28 +1005,12 @@ export async function initApp() {
 
   document.getElementById('close-detail').addEventListener('click', closeDetail);
   document.getElementById('btn-delete-task').addEventListener('click', () => {
-    showConfirmDialog('确定要删除这个任务吗？', () => {
-      const id = document.getElementById('detail-id').value;
-      data.todos = data.todos.filter(t => t.id !== id);
-      saveData();
-      closeDetail();
-      render();
-    });
+    deleteTodoById(document.getElementById('detail-id').value);
   });
 
   // Clear done
   document.getElementById('btn-clear-done').addEventListener('click', () => {
-    const filtered = getFilteredTodos();
-    const doneIds = new Set(filtered.filter(t => t.done).map(t => t.id));
-    if (doneIds.size === 0) {
-      showToast('没有已完成的任务');
-      return;
-    }
-    showConfirmDialog(`确定要清空 ${doneIds.size} 个已完成的任务吗？`, () => {
-      data.todos = data.todos.filter(t => !doneIds.has(t.id));
-      saveData();
-      render();
-    });
+    clearDoneTasks();
   });
 
   // Add tag
@@ -1130,7 +1119,7 @@ export async function initApp() {
       showContextMenu(e.clientX, e.clientY, [
         { icon: '📋', label: '查看该标签任务', action: () => { currentTag = tag; currentList = null; render(); } },
         { separator: true },
-        { icon: '🗑️', label: '删除标签', className: 'danger', action: () => deleteTag(tag) }
+        { icon: '🗑️', label: '删除标签', className: 'danger', action: () => deleteTagFromMenu(tag) }
       ]);
     } else if (navItem) {
       showContextMenu(e.clientX, e.clientY, [
@@ -1203,24 +1192,25 @@ export async function initApp() {
     }
   }
 
-  function deleteTodoById(id) {
+  function deleteTodoById(id, itemEl = null, animated = false) {
     showConfirmDialog('确定要删除这个任务吗？', () => {
-      const idx = data.todos.findIndex(t => t.id === id);
-      if (idx !== -1) {
-        data.todos.splice(idx, 1);
+      const removeTodo = () => {
+        data.todos = data.todos.filter(t => t.id !== id);
         saveData();
+        closeDetail();
         render();
+      };
+      if (animated && itemEl) {
+        itemEl.classList.add('removing');
+        itemEl.addEventListener('animationend', removeTodo, { once: true });
+      } else {
+        removeTodo();
       }
     });
   }
 
-  function deleteTag(tag) {
-    const count = data.todos.filter(t => t.tag === tag).length;
-    showConfirmDialog(`删除标签"${tag}"？（关联 ${count} 个任务的标签将被清除）`, () => {
-      data.tags = data.tags.filter(t => t !== tag);
-      data.todos.forEach(t => { if (t.tag === tag) t.tag = ''; });
-      if (currentTag === tag) { currentTag = null; currentList = 'todo'; }
-      saveData();
+  function deleteTagFromMenu(tag) {
+    deleteTag(tag, () => {
       render();
     });
   }
@@ -1228,9 +1218,9 @@ export async function initApp() {
   function clearDoneTasks() {
     const doneTodos = getFilteredTodos().filter(t => t.done);
     if (doneTodos.length === 0) { showToast('没有已完成的任务'); return; }
-    showConfirmDialog(`确定清空 ${doneTodos.length} 个已完成任务？`, () => {
-      const ids = doneTodos.map(t => t.id);
-      data.todos = data.todos.filter(t => !ids.includes(t.id));
+    const doneIds = new Set(doneTodos.map(t => t.id));
+    showConfirmDialog(`确定要清空 ${doneTodos.length} 个已完成任务？`, () => {
+      data.todos = data.todos.filter(t => !doneIds.has(t.id));
       saveData();
       render();
     });
@@ -1509,9 +1499,11 @@ export async function initApp() {
   const summaryOutput = document.getElementById('summary-output');
   const summaryFooter = document.getElementById('summary-footer');
   const summaryDateInput = document.getElementById('summary-date');
+  const generateReportBtn = document.getElementById('btn-generate-report');
+  let isGeneratingReport = false;
 
   const nowDate = new Date();
-  summaryDateInput.value = `${nowDate.getFullYear()}-${String(nowDate.getMonth() + 1).padStart(2, '0')}-${String(nowDate.getDate()).padStart(2, '0')}`;
+  summaryDateInput.value = toLocalDateInput(nowDate);
 
   document.getElementById('btn-open-summary').addEventListener('click', () => {
     summaryPanel.classList.remove('hidden', 'hiding');
@@ -1562,7 +1554,11 @@ export async function initApp() {
     });
   });
 
-  document.getElementById('btn-generate-report').addEventListener('click', async () => {
+  generateReportBtn.addEventListener('click', async () => {
+    if (isGeneratingReport) {
+      showToast('报告正在生成中');
+      return;
+    }
     if (!data.aiConfig.apiUrl || !data.aiConfig.apiKey || !data.aiConfig.model) {
       showToast('请先配置 API');
       return;
@@ -1573,14 +1569,18 @@ export async function initApp() {
       return;
     }
 
-    const baseDate = new Date(dateStr);
+    const baseDate = parseLocalDateInput(dateStr);
+    if (!baseDate) {
+      showToast('日期格式无效');
+      return;
+    }
     let startDate, endDate, rangeLabel;
 
     if (summaryType === 'daily') {
       startDate = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate());
       endDate = new Date(startDate);
       endDate.setDate(endDate.getDate() + 1);
-      rangeLabel = `${startDate.getMonth() + 1}/${startDate.getDate()}`;
+      rangeLabel = formatMonthDay(startDate);
     } else {
       const day = baseDate.getDay();
       startDate = new Date(baseDate);
@@ -1588,7 +1588,9 @@ export async function initApp() {
       startDate.setHours(0, 0, 0, 0);
       endDate = new Date(startDate);
       endDate.setDate(endDate.getDate() + 7);
-      rangeLabel = `${startDate.getMonth() + 1}/${startDate.getDate()} ~ ${endDate.getMonth() + 1}/${endDate.getDate() - 1}`;
+      const weekEnd = new Date(endDate);
+      weekEnd.setDate(weekEnd.getDate() - 1);
+      rangeLabel = `${formatMonthDay(startDate)} ~ ${formatMonthDay(weekEnd)}`;
     }
 
     const doneTodos = data.todos.filter(t => {
@@ -1671,6 +1673,9 @@ ${pendingList}
 - 保持整体篇幅适中，控制在 ${wordLimit} 字以内`;
     }
 
+    isGeneratingReport = true;
+    generateReportBtn.disabled = true;
+    generateReportBtn.textContent = '生成中...';
     summaryOutput.textContent = '';
     summaryFooter.classList.add('hidden');
     summaryOutput.innerHTML = '<div class="summary-loading">正在生成...</div>';
@@ -1691,12 +1696,19 @@ ${pendingList}
 
       if (!response.ok) {
         const err = await response.text();
-        summaryOutput.textContent = `请求失败: ${response.status}\n${err}`;
+        summaryOutput.textContent = `请求失败：${response.status}\n${err || '请检查 API 地址、模型名称或服务状态'}`;
         return;
       }
 
       summaryOutput.textContent = '';
-      const reader = response.body.getReader();
+      const reader = response.body?.getReader();
+      if (!reader) {
+        const json = await response.json();
+        const content = json.choices?.[0]?.message?.content || json.choices?.[0]?.text || '';
+        summaryOutput.textContent = content || '接口未返回报告内容';
+        summaryFooter.classList.remove('hidden');
+        return;
+      }
       const decoder = new TextDecoder();
       let buffer = '';
 
