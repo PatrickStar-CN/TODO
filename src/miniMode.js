@@ -1,5 +1,5 @@
 import { escapeHtml } from './utils/html.js';
-import { formatDate } from './utils/date.js';
+import { formatDateTime } from './utils/date.js';
 import { genId } from './utils/id.js';
 import { sortByPriority, splitPendingDone } from './selectors.js';
 
@@ -46,10 +46,10 @@ export function initMiniMode({ data, saveData, render, showToast, isNeutralinoEn
       html += `<div class="mini-tooltip-row"><span class="tag-dot" ${getTagDotStyle(todo.tag)}></span>${escapeHtml(todo.tag)}</div>`;
     }
     if (todo.endTime) {
-      html += `<div class="mini-tooltip-row">📅 ${formatDate(todo.endTime)}</div>`;
+      html += `<div class="mini-tooltip-row">📅 ${formatDateTime(todo.endTime)}</div>`;
     }
     if (todo.startTime) {
-      html += `<div class="mini-tooltip-row">🕐 开始: ${formatDate(todo.startTime)}</div>`;
+      html += `<div class="mini-tooltip-row">🕐 开始: ${formatDateTime(todo.startTime)}</div>`;
     }
     miniTooltip.innerHTML = html;
     miniTooltip.classList.remove('hidden');

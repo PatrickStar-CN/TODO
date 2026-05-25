@@ -1,6 +1,7 @@
 import { toLocalDateInput, parseLocalDateInput, formatMonthDay } from './utils/date.js';
 import { escapeHtml } from './utils/html.js';
 import { createManagedOverlay } from './overlay.js';
+import { closeDetail } from './detail.js';
 
 export function initAiSummary({ data, saveData, showToast }) {
   let summaryType = 'daily';
@@ -14,6 +15,7 @@ export function initAiSummary({ data, saveData, showToast }) {
   summaryDateInput.value = toLocalDateInput(new Date());
 
   document.getElementById('btn-open-summary').addEventListener('click', () => {
+    closeDetail();
     summaryPanel.classList.remove('hidden', 'hiding');
     summaryPanel.style.animation = 'none';
     summaryPanel.offsetHeight;

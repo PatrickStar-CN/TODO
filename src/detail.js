@@ -2,7 +2,28 @@ import { formatDateTime } from './utils/date.js';
 
 export function openDetail(todo) {
   if (!todo) return;
+
+  const summaryPanel = document.getElementById('summary-panel');
+  if (summaryPanel && !summaryPanel.classList.contains('hidden')) {
+    summaryPanel.classList.add('hiding');
+    summaryPanel.addEventListener('animationend', () => {
+      summaryPanel.classList.add('hidden');
+      summaryPanel.classList.remove('hiding');
+    }, { once: true });
+  }
+
   const detailPanel = document.getElementById('detail-panel');
+
+  let overlay = document.querySelector('.detail-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.className = 'detail-overlay';
+    overlay.addEventListener('click', () => closeDetail());
+    document.body.appendChild(overlay);
+  } else {
+    overlay.classList.remove('hiding');
+  }
+
   detailPanel.classList.remove('hidden', 'hiding');
   detailPanel.style.animation = 'none';
   detailPanel.offsetHeight;
@@ -33,6 +54,15 @@ export function openDetail(todo) {
 export function closeDetail() {
   const panel = document.getElementById('detail-panel');
   if (panel.classList.contains('hidden')) return;
+
+  const overlay = document.querySelector('.detail-overlay');
+  if (overlay) {
+    overlay.classList.add('hiding');
+    overlay.addEventListener('animationend', () => {
+      overlay.remove();
+    }, { once: true });
+  }
+
   panel.classList.add('hiding');
   panel.addEventListener('animationend', () => {
     panel.classList.add('hidden');

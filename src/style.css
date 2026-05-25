@@ -953,19 +953,38 @@ body {
 
 /* Detail Panel */
 .detail-panel {
-  width: 340px;
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 380px;
+  height: 100vh;
   background: var(--bg-surface);
   border-left: 1px solid var(--border);
   padding: 20px;
   overflow-y: auto;
   overflow-x: hidden;
-  flex-shrink: 0;
   display: flex;
   flex-direction: column;
+  z-index: 900;
 }
 
 .detail-panel.hidden {
   display: none !important;
+}
+
+.detail-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.3);
+  z-index: 899;
+  animation: overlayFadeIn 0.2s ease;
+}
+
+.detail-overlay.hiding {
+  animation: overlayFadeOut 0.15s ease forwards;
 }
 
 .detail-header {

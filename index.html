@@ -122,88 +122,88 @@
         <span id="status-text"></span>
       </div>
     </main>
+  </div>
 
-    <!-- 任务详情面板 -->
-    <div id="detail-panel" class="detail-panel hidden">
-      <div class="detail-header">
-        <h3>编辑任务</h3>
-        <button class="icon-btn" id="close-detail">✕</button>
-      </div>
-      <form id="detail-form">
-        <input type="hidden" id="detail-id">
-        <div class="detail-row">
-          <label>标题</label>
-          <input type="text" id="detail-title" required>
-        </div>
-        <div class="detail-row">
-          <label>备注</label>
-          <textarea id="detail-desc" placeholder="添加备注..."></textarea>
-        </div>
-        <div class="detail-row-inline">
-          <div class="detail-row">
-            <label>优先级</label>
-            <select id="detail-priority">
-              <option value="none">无</option>
-              <option value="low">低</option>
-              <option value="medium">中</option>
-              <option value="high">高</option>
-            </select>
-          </div>
-          <div class="detail-row">
-            <label>标签</label>
-            <input type="text" id="detail-tag" placeholder="标签" list="tag-datalist">
-            <datalist id="tag-datalist"></datalist>
-          </div>
-        </div>
-        <div class="detail-row-inline">
-          <div class="detail-row">
-            <label>开始时间</label>
-            <input type="datetime-local" id="detail-start">
-          </div>
-          <div class="detail-row">
-            <label>截止时间</label>
-            <input type="datetime-local" id="detail-end">
-          </div>
-        </div>
-        <div class="detail-row-inline">
-          <div class="detail-row">
-            <label>提醒时间</label>
-            <input type="datetime-local" id="detail-reminder">
-          </div>
-          <div class="detail-row">
-            <label>重复提醒</label>
-            <select id="detail-reminder-repeat">
-              <option value="none">不重复</option>
-              <option value="daily">每天</option>
-              <option value="weekly">每周</option>
-              <option value="monthly">每月</option>
-            </select>
-          </div>
-        </div>
-        <div class="detail-row checkbox-row">
-          <label>
-            <input type="checkbox" id="detail-todo"> 添加到"TODO"
-          </label>
-        </div>
-        <div class="detail-row checkbox-row">
-          <label>
-            <input type="checkbox" id="detail-important"> 标记为重要
-          </label>
-        </div>
-        <div class="detail-row detail-done-time hidden" id="detail-done-row">
-          <label>完成时间</label>
-          <span id="detail-done-time" class="detail-done-value"></span>
-        </div>
-        <div class="detail-row detail-created-time" id="detail-created-row">
-          <label>创建时间</label>
-          <span id="detail-created-time" class="detail-created-value"></span>
-        </div>
-        <div class="detail-actions">
-          <button type="submit" class="btn-primary">保存</button>
-          <button type="button" class="btn-danger" id="btn-delete-task">删除</button>
-        </div>
-      </form>
+  <!-- 任务详情面板 -->
+  <div id="detail-panel" class="detail-panel hidden">
+    <div class="detail-header">
+      <h3>编辑任务</h3>
+      <button class="icon-btn" id="close-detail">✕</button>
     </div>
+    <form id="detail-form">
+      <input type="hidden" id="detail-id">
+      <div class="detail-row">
+        <label>标题</label>
+        <input type="text" id="detail-title" required>
+      </div>
+      <div class="detail-row">
+        <label>备注</label>
+        <textarea id="detail-desc" placeholder="添加备注..."></textarea>
+      </div>
+      <div class="detail-row-inline">
+        <div class="detail-row">
+          <label>优先级</label>
+          <select id="detail-priority">
+            <option value="none">无</option>
+            <option value="low">低</option>
+            <option value="medium">中</option>
+            <option value="high">高</option>
+          </select>
+        </div>
+        <div class="detail-row">
+          <label>标签</label>
+          <input type="text" id="detail-tag" placeholder="标签" list="tag-datalist">
+          <datalist id="tag-datalist"></datalist>
+        </div>
+      </div>
+      <div class="detail-row-inline">
+        <div class="detail-row">
+          <label>开始时间</label>
+          <input type="datetime-local" id="detail-start">
+        </div>
+        <div class="detail-row">
+          <label>截止时间</label>
+          <input type="datetime-local" id="detail-end">
+        </div>
+      </div>
+      <div class="detail-row-inline">
+        <div class="detail-row">
+          <label>提醒时间</label>
+          <input type="datetime-local" id="detail-reminder">
+        </div>
+        <div class="detail-row">
+          <label>重复提醒</label>
+          <select id="detail-reminder-repeat">
+            <option value="none">不重复</option>
+            <option value="daily">每天</option>
+            <option value="weekly">每周</option>
+            <option value="monthly">每月</option>
+          </select>
+        </div>
+      </div>
+      <div class="detail-row checkbox-row">
+        <label>
+          <input type="checkbox" id="detail-todo"> 添加到"TODO"
+        </label>
+      </div>
+      <div class="detail-row checkbox-row">
+        <label>
+          <input type="checkbox" id="detail-important"> 标记为重要
+        </label>
+      </div>
+      <div class="detail-row detail-done-time hidden" id="detail-done-row">
+        <label>完成时间</label>
+        <span id="detail-done-time" class="detail-done-value"></span>
+      </div>
+      <div class="detail-row detail-created-time" id="detail-created-row">
+        <label>创建时间</label>
+        <span id="detail-created-time" class="detail-created-value"></span>
+      </div>
+      <div class="detail-actions">
+        <button type="submit" class="btn-primary">保存</button>
+        <button type="button" class="btn-danger" id="btn-delete-task">删除</button>
+      </div>
+    </form>
   </div>
 
   <!-- AI 总结面板 -->
