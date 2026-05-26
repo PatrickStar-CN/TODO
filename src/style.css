@@ -424,6 +424,14 @@ body {
   text-align: center;
 }
 
+.btn-mini-mode-footer {
+  display: none;
+}
+
+.sidebar.mini .btn-mini-mode-footer {
+  display: block;
+}
+
 .tag-input-overlay {
   position: fixed;
   inset: 0;
@@ -1865,8 +1873,6 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 10px 14px;
-  background: var(--bg-base);
-  border-bottom: 1px solid var(--border);
 }
 
 .mini-title {

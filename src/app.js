@@ -58,12 +58,12 @@ async function loadData() {
 let saveTimer = null;
 
 function saveData() {
-  const json = JSON.stringify(data, null, 2);
-  localStorage.setItem(STORAGE_KEY, json);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data, null, 2));
 
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
     saveTimer = null;
+    const json = JSON.stringify(data, null, 2);
     if (isNeutralinoEnv()) {
       Neutralino.filesystem.writeFile(`./${DATA_FILE}`, json).catch(() => {
         showToast('保存失败，数据已暂存本地');
@@ -95,7 +95,8 @@ function showToast(msg) {
   requestAnimationFrame(() => toast.classList.add('show'));
   setTimeout(() => {
     toast.classList.remove('show');
-    toast.addEventListener('transitionend', () => toast.remove());
+    toast.addEventListener('transitionend', () => toast.remove(), { once: true });
+    setTimeout(() => { if (toast.parentNode) toast.remove(); }, 500);
   }, 1800);
 }
 
@@ -816,10 +817,10 @@ export async function initApp() {
   }
 
   // --- Reminder System ---
-  initReminders({ data, saveData, render, showToast, isNeutralinoEnv });
+  const reminders = initReminders({ data, saveData, render, showToast, isNeutralinoEnv });
 
   // --- Mini Mode ---
-  const mini = initMiniMode({ data, saveData, render, showToast, isNeutralinoEnv, getTagDotStyle, showContextMenu, closeWindow });
+  const mini = initMiniMode({ data, saveData, render, showToast, isNeutralinoEnv, getTagDotStyle, showContextMenu, closeWindow, reminders });
 
   // --- Summary Panel ---
   initAiSummary({ data, saveData, showToast });

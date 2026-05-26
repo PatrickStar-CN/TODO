@@ -10,6 +10,12 @@ export function openDetail(todo) {
       summaryPanel.classList.add('hidden');
       summaryPanel.classList.remove('hiding');
     }, { once: true });
+    setTimeout(() => {
+      if (summaryPanel.classList.contains('hiding')) {
+        summaryPanel.classList.add('hidden');
+        summaryPanel.classList.remove('hiding');
+      }
+    }, 300);
   }
 
   const detailPanel = document.getElementById('detail-panel');
@@ -61,6 +67,7 @@ export function closeDetail() {
     overlay.addEventListener('animationend', () => {
       overlay.remove();
     }, { once: true });
+    setTimeout(() => { if (overlay.parentNode) overlay.remove(); }, 300);
   }
 
   panel.classList.add('hiding');
@@ -68,4 +75,10 @@ export function closeDetail() {
     panel.classList.add('hidden');
     panel.classList.remove('hiding');
   }, { once: true });
+  setTimeout(() => {
+    if (panel.classList.contains('hiding')) {
+      panel.classList.add('hidden');
+      panel.classList.remove('hiding');
+    }
+  }, 300);
 }

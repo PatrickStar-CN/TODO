@@ -3,8 +3,9 @@ import { formatDateTime } from './utils/date.js';
 import { genId } from './utils/id.js';
 import { sortByPriority, splitPendingDone } from './selectors.js';
 
-export function initMiniMode({ data, saveData, render, showToast, isNeutralinoEnv, getTagDotStyle, showContextMenu, closeWindow }) {
+export function initMiniMode({ data, saveData, render, showToast, isNeutralinoEnv, getTagDotStyle, showContextMenu, closeWindow, reminders }) {
   let isMiniMode = false;
+  let miniTooltipTimer = null;
   const miniPanel = document.getElementById('mini-panel');
   const miniList = document.getElementById('mini-list');
   const miniTooltip = document.getElementById('mini-tooltip');
@@ -70,7 +71,9 @@ export function initMiniMode({ data, saveData, render, showToast, isNeutralinoEn
 
   async function enterMiniMode() {
     isMiniMode = true;
+    reminders.pause();
     document.querySelector('.app').style.display = 'none';
+    document.body.style.background = 'var(--bg-surface)';
     miniPanel.classList.remove('hidden');
     renderMiniPanel();
     if (isNeutralinoEnv()) {
@@ -95,8 +98,11 @@ export function initMiniMode({ data, saveData, render, showToast, isNeutralinoEn
 
   async function exitMiniMode() {
     isMiniMode = false;
+    clearTimeout(miniTooltipTimer);
+    reminders.resume();
     miniPanel.classList.add('hidden');
     miniInputRow.classList.add('hidden');
+    document.body.style.background = '';
     document.querySelector('.app').style.display = '';
     if (isNeutralinoEnv()) {
       try {
@@ -121,6 +127,7 @@ export function initMiniMode({ data, saveData, render, showToast, isNeutralinoEn
   }
 
   document.getElementById('btn-mini-mode').addEventListener('click', enterMiniMode);
+  document.getElementById('btn-mini-mode-footer').addEventListener('click', enterMiniMode);
   document.getElementById('btn-exit-mini').addEventListener('click', (e) => {
     e.stopPropagation();
     exitMiniMode();
@@ -178,7 +185,6 @@ export function initMiniMode({ data, saveData, render, showToast, isNeutralinoEn
     }
   });
 
-  let miniTooltipTimer = null;
   miniList.addEventListener('mouseover', (e) => {
     const item = e.target.closest('.mini-todo-item');
     if (!item) return;

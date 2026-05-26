@@ -67,6 +67,16 @@ export function initReminders({ data, saveData, render, showToast, isNeutralinoE
     }
   }
 
-  setInterval(checkReminders, 30000);
+  let intervalId = setInterval(checkReminders, 30000);
   setTimeout(checkReminders, 2000);
+
+  function pause() {
+    if (intervalId) { clearInterval(intervalId); intervalId = null; }
+  }
+
+  function resume() {
+    if (!intervalId) { intervalId = setInterval(checkReminders, 30000); }
+  }
+
+  return { pause, resume };
 }

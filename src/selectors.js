@@ -53,5 +53,10 @@ export function splitPendingDone(todos) {
     if (t.done) done.push(t);
     else pending.push(t);
   }
+  done.sort((a, b) => {
+    const ta = a.doneAt ? new Date(a.doneAt).getTime() : 0;
+    const tb = b.doneAt ? new Date(b.doneAt).getTime() : 0;
+    return tb - ta;
+  });
   return { pending, done };
 }

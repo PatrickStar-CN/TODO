@@ -23,6 +23,7 @@ export function closeOverlay(overlay) {
   if (overlay) {
     overlay.classList.add('closing');
     overlay.addEventListener('animationend', () => overlay.remove(), { once: true });
+    setTimeout(() => { if (overlay.parentNode) overlay.remove(); }, 300);
   }
 }
 
