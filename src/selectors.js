@@ -11,17 +11,19 @@ export function sortByPriority(todos) {
 
 export function getFilteredTodos(data, currentList, currentTag) {
   if (currentTag) {
-    return data.todos.filter(t => t.tag === currentTag);
+    return data.todos.filter(t => t.tag === currentTag && !t.archived);
   }
   switch (currentList) {
     case 'todo':
-      return data.todos.filter(t => t.todo);
+      return data.todos.filter(t => t.todo && !t.archived);
     case 'important':
-      return data.todos.filter(t => t.important);
+      return data.todos.filter(t => t.important && !t.archived);
+    case 'archived':
+      return data.todos.filter(t => t.archived);
     case 'all':
-      return data.todos;
+      return data.todos.filter(t => !t.archived);
     default:
-      return data.todos;
+      return data.todos.filter(t => !t.archived);
   }
 }
 
@@ -30,7 +32,7 @@ export function countByList(todos) {
   let important = 0;
   let all = 0;
   for (const t of todos) {
-    if (t.done) continue;
+    if (t.done || t.archived) continue;
     all++;
     if (t.todo) todo++;
     if (t.important) important++;
@@ -41,7 +43,7 @@ export function countByList(todos) {
 export function countTagUndone(todos, tag) {
   let count = 0;
   for (const t of todos) {
-    if (t.tag === tag && !t.done) count++;
+    if (t.tag === tag && !t.done && !t.archived) count++;
   }
   return count;
 }

@@ -128,6 +128,8 @@ function normalizeData() {
     }
     if (typeof todo.reminder === 'undefined') todo.reminder = null;
     if (typeof todo.reminderRepeat === 'undefined') todo.reminderRepeat = 'none';
+    if (typeof todo.archived === 'undefined') todo.archived = false;
+    if (typeof todo.archivedAt === 'undefined') todo.archivedAt = null;
   });
 
   data.tags = normalizedTags;
@@ -366,9 +368,14 @@ function renderSidebar() {
   document.getElementById('count-todo').textContent = counts.todo;
   document.getElementById('count-important').textContent = counts.important;
   document.getElementById('count-all').textContent = counts.all;
+  document.getElementById('count-archived').textContent = data.todos.filter(t => t.archived).length;
 
   const tagListEl = document.getElementById('tag-list');
-  tagListEl.innerHTML = data.tags.map(tag => `
+  const visibleTags = data.tags.filter(tag => {
+    const tagTodos = data.todos.filter(t => t.tag === tag);
+    return tagTodos.length === 0 || tagTodos.some(t => !t.archived);
+  });
+  tagListEl.innerHTML = visibleTags.map(tag => `
     <a href="#" class="tag-item ${currentTag === tag ? 'active' : ''}" data-tag="${escapeHtml(tag)}">
       <span class="tag-dot" ${getTagDotStyle(tag)}></span>
       <span class="tag-label">${escapeHtml(tag)}</span>
@@ -394,6 +401,28 @@ function renderTodoList() {
   const statusText = document.getElementById('status-text');
 
   const filtered = getFilteredTodos();
+  const addTaskBar = document.querySelector('.add-task-bar');
+
+  if (currentList === 'archived') {
+    addTaskBar.style.display = 'none';
+    const sorted = filtered.slice().sort((a, b) => {
+      const ta = a.archivedAt ? new Date(a.archivedAt).getTime() : 0;
+      const tb = b.archivedAt ? new Date(b.archivedAt).getTime() : 0;
+      return tb - ta;
+    });
+    todoListEl.innerHTML = '';
+    if (sorted.length === 0) {
+      todoListEl.innerHTML = '<div class="empty-state">暂无归档任务</div>';
+    } else {
+      sorted.forEach(t => todoListEl.appendChild(renderTodoItem(t)));
+    }
+    doneSection.style.display = 'none';
+    taskSummary.textContent = `${sorted.length} 个归档`;
+    statusText.textContent = `共 ${sorted.length} 项归档任务`;
+    return;
+  }
+
+  addTaskBar.style.display = '';
   const { pending, done } = splitPendingDone(filtered);
   const sorted = sortByPriority(pending);
 
@@ -425,7 +454,7 @@ function renderStatus() {
   if (currentTag) {
     listTitle.textContent = currentTag;
   } else {
-    const titles = { todo: 'TODO', important: '重要', all: '所有' };
+    const titles = { todo: 'TODO', important: '重要', all: '所有', archived: '归档' };
     listTitle.textContent = titles[currentList] || '所有';
   }
 }
@@ -573,6 +602,8 @@ export async function initApp() {
         doneAt: null,
         reminder: null,
         reminderRepeat: 'none',
+        archived: false,
+        archivedAt: null,
         createdAt: Date.now()
       };
       data.todos.push(todo);
@@ -644,7 +675,8 @@ export async function initApp() {
   });
 
   // Done toggle
-  doneToggle.addEventListener('click', () => {
+  doneToggle.addEventListener('click', (e) => {
+    if (e.target.closest('.btn-archive-all')) return;
     doneCollapsed = !doneCollapsed;
     doneToggle.classList.toggle('collapsed', doneCollapsed);
     const wrapper = document.getElementById('done-list-wrapper');
@@ -663,6 +695,18 @@ export async function initApp() {
         wrapper.classList.remove('expanding');
       }, { once: true });
     }
+  });
+
+  document.getElementById('btn-archive-done').addEventListener('click', (e) => {
+    e.stopPropagation();
+    const filtered = getFilteredTodos();
+    const doneTodos = filtered.filter(t => t.done && !t.archived);
+    if (doneTodos.length === 0) { showToast('没有可归档的任务'); return; }
+    const now = new Date().toISOString();
+    doneTodos.forEach(t => { t.archived = true; t.archivedAt = now; });
+    saveData();
+    render();
+    showToast(`已归档 ${doneTodos.length} 个任务`);
   });
 
   // Detail form

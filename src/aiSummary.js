@@ -112,10 +112,10 @@ export function initAiSummary({ data, saveData, showToast }) {
     const typeLabel = summaryType === 'daily' ? '日报' : '周报';
     const planLabel = summaryType === 'daily' ? '明日计划' : '下周计划';
     const doneList = doneTodos.length > 0
-      ? doneTodos.map(t => `- ${t.title}${t.priority !== 'none' ? `（优先级：${{high:'高',medium:'中',low:'低'}[t.priority]}）` : ''}${t.tag ? `（标签：${t.tag}）` : ''}`).join('\n')
+      ? doneTodos.map(t => `- ${t.title}${t.priority !== 'none' ? `（优先级：${{high:'高',medium:'中',low:'低'}[t.priority]}）` : ''}${t.tag ? `（标签：${t.tag}）` : ''}${t.desc ? `\n  备注：${t.desc}` : ''}`).join('\n')
       : '- 无';
     const pendingList = pendingTodos.length > 0
-      ? pendingTodos.map(t => `- ${t.title}${t.priority !== 'none' ? `（优先级：${{high:'高',medium:'中',low:'低'}[t.priority]}）` : ''}${t.tag ? `（标签：${t.tag}）` : ''}`).join('\n')
+      ? pendingTodos.map(t => `- ${t.title}${t.priority !== 'none' ? `（优先级：${{high:'高',medium:'中',low:'低'}[t.priority]}）` : ''}${t.tag ? `（标签：${t.tag}）` : ''}${t.desc ? `\n  备注：${t.desc}` : ''}`).join('\n')
       : '- 无';
 
     const prompt = buildPrompt({ data, summaryType, typeLabel, planLabel, rangeLabel, doneList, pendingList });

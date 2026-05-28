@@ -2,7 +2,7 @@ import { formatDate } from './utils/date.js';
 
 export function createTodoItemEl(t, { getTagBadgeStyle, currentList }) {
   const item = document.createElement('div');
-  item.className = 'todo-item' + (t.done ? ' done' : '');
+  item.className = 'todo-item' + (t.done ? ' done' : '') + (t.archived ? ' archived' : '');
   item.dataset.id = t.id;
 
   const checkbox = document.createElement('div');

@@ -938,12 +938,35 @@ body {
 .done-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
   padding: 8px 0;
   font-size: 13px;
   color: var(--text-secondary);
   cursor: pointer;
   user-select: none;
+}
+
+.done-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-archive-all {
+  font-size: 12px;
+  padding: 2px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-archive-all:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
 }
 
 .done-header .arrow {
@@ -953,6 +976,14 @@ body {
 
 .done-header.collapsed .arrow {
   transform: rotate(-90deg);
+}
+
+.todo-item.archived {
+  opacity: 0.6;
+}
+
+.todo-item.archived .todo-title {
+  color: var(--text-secondary);
 }
 
 .done-section .todo-list {
