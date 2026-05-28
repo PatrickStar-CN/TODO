@@ -1,13 +1,19 @@
 {
   "name": "TODO Tools", 
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "TODO Tools",
   "author": "Patrick",
-  "copyright": "Copyright © 2025 Patrick",
+  "copyright": "Copyright © 2026 Patrick",
   "binaryName": "todo-tools",
   "windowTitle": "TODO",
   "windowWidth": 1100,
   "windowHeight": 700,
   "minWidth": 800,
-  "minHeight": 500
+  "minHeight": 500,
+  "miniMode": {
+    "width": 220,
+    "height": 260,
+    "minWidth": 160,
+    "minHeight": 120
+  }
 }

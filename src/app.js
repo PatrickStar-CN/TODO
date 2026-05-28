@@ -483,6 +483,12 @@ export async function initApp() {
   data = await loadData();
   normalizeData();
 
+  let appConfig = {};
+  try {
+    const res = await fetch('./app.config.json');
+    if (res.ok) appConfig = await res.json();
+  } catch (e) { /* ignore */ }
+
   applyTheme(data.theme);
 
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
@@ -864,7 +870,7 @@ export async function initApp() {
   const reminders = initReminders({ data, saveData, render, showToast, isNeutralinoEnv });
 
   // --- Mini Mode ---
-  const mini = initMiniMode({ data, saveData, render, showToast, isNeutralinoEnv, getTagDotStyle, showContextMenu, closeWindow, reminders });
+  const mini = initMiniMode({ data, saveData, render, showToast, isNeutralinoEnv, getTagDotStyle, showContextMenu, closeWindow, reminders, appConfig });
 
   // --- Summary Panel ---
   initAiSummary({ data, saveData, showToast });

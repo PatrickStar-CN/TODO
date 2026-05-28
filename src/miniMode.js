@@ -3,7 +3,7 @@ import { formatDateTime } from './utils/date.js';
 import { genId } from './utils/id.js';
 import { sortByPriority, splitPendingDone } from './selectors.js';
 
-export function initMiniMode({ data, saveData, render, showToast, isNeutralinoEnv, getTagDotStyle, showContextMenu, closeWindow, reminders }) {
+export function initMiniMode({ data, saveData, render, showToast, isNeutralinoEnv, getTagDotStyle, showContextMenu, closeWindow, reminders, appConfig }) {
   let isMiniMode = false;
   let miniTooltipTimer = null;
   const miniPanel = document.getElementById('mini-panel');
@@ -11,6 +11,12 @@ export function initMiniMode({ data, saveData, render, showToast, isNeutralinoEn
   const miniTooltip = document.getElementById('mini-tooltip');
   const miniInputRow = document.getElementById('mini-input-row');
   const miniQuickAdd = document.getElementById('mini-quick-add');
+
+  const miniCfg = appConfig?.miniMode || {};
+  const miniWidth = miniCfg.width || 220;
+  const miniHeight = miniCfg.height || 260;
+  const miniMinWidth = miniCfg.minWidth || 160;
+  const miniMinHeight = miniCfg.minHeight || 120;
 
   function renderMiniPanel() {
     const { pending, done } = splitPendingDone(data.todos);
@@ -81,14 +87,14 @@ export function initMiniMode({ data, saveData, render, showToast, isNeutralinoEn
         await Neutralino.window.setAlwaysOnTop(true);
         await Neutralino.window.setBorderless(true);
         await Neutralino.window.setSize({
-          width: 280,
-          height: 320,
-          minWidth: 200,
-          minHeight: 150
+          width: miniWidth,
+          height: miniHeight,
+          minWidth: miniMinWidth,
+          minHeight: miniMinHeight
         });
         const displays = await Neutralino.computer.getDisplays();
         const primary = displays[0];
-        const x = primary.resolution.width - 280 - 20;
+        const x = primary.resolution.width - miniWidth - 20;
         const y = 20;
         await Neutralino.window.move(x, y);
         await Neutralino.window.setDraggableRegion('mini-drag-region');
@@ -115,10 +121,10 @@ export function initMiniMode({ data, saveData, render, showToast, isNeutralinoEn
       await new Promise(r => setTimeout(r, 100));
       try {
         await Neutralino.window.setSize({
-          width: 1100,
-          height: 700,
-          minWidth: 800,
-          minHeight: 500
+          width: appConfig?.windowWidth || 1100,
+          height: appConfig?.windowHeight || 700,
+          minWidth: appConfig?.minWidth || 800,
+          minHeight: appConfig?.minHeight || 500
         });
         await Neutralino.window.center();
       } catch (e) { console.warn('exitMiniMode resize error:', e); }
