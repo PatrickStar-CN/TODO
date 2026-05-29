@@ -86,6 +86,7 @@ let currentTag = null;
 let selectedDate = null;
 let currentMonth = new Date();
 let doneCollapsed = true;
+let searchKeyword = '';
 
 function showToast(msg) {
   const toast = document.createElement('div');
@@ -353,6 +354,13 @@ function openManageTagsDialog() {
 
 // --- Filtering ---
 function getFilteredTodos() {
+  if (searchKeyword) {
+    const kw = searchKeyword.toLowerCase();
+    return data.todos.filter(t => !t.archived && (
+      t.title.toLowerCase().includes(kw) ||
+      (t.desc && t.desc.toLowerCase().includes(kw))
+    ));
+  }
   return _getFilteredTodos(data, currentList, currentTag);
 }
 
@@ -419,6 +427,21 @@ function renderTodoList() {
     doneSection.style.display = 'none';
     taskSummary.textContent = `${sorted.length} 个归档`;
     statusText.textContent = `共 ${sorted.length} 项归档任务`;
+    return;
+  }
+
+  if (searchKeyword) {
+    addTaskBar.style.display = 'none';
+    const sorted = sortByPriority(filtered);
+    todoListEl.innerHTML = '';
+    if (sorted.length === 0) {
+      todoListEl.innerHTML = '<div class="empty-state">未找到匹配的任务</div>';
+    } else {
+      sorted.forEach(t => todoListEl.appendChild(renderTodoItem(t)));
+    }
+    doneSection.style.display = 'none';
+    taskSummary.textContent = `搜索到 ${sorted.length} 个任务`;
+    statusText.textContent = `搜索: "${searchKeyword}"`;
     return;
   }
 
@@ -505,6 +528,37 @@ export async function initApp() {
   });
   updateThemeButton(data.theme);
 
+  // --- Search ---
+  const searchBar = document.getElementById('search-bar');
+  const searchInput = document.getElementById('search-input');
+  let searchTimer = null;
+
+  document.getElementById('btn-search').addEventListener('click', () => {
+    searchBar.classList.toggle('hidden');
+    if (!searchBar.classList.contains('hidden')) {
+      searchInput.focus();
+    } else {
+      searchInput.value = '';
+      searchKeyword = '';
+      renderTodoList();
+    }
+  });
+
+  document.getElementById('btn-search-close').addEventListener('click', () => {
+    searchBar.classList.add('hidden');
+    searchInput.value = '';
+    searchKeyword = '';
+    renderTodoList();
+  });
+
+  searchInput.addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => {
+      searchKeyword = searchInput.value.trim();
+      renderTodoList();
+    }, 200);
+  });
+
   const sidebar = document.querySelector('.sidebar');
   const toggleSidebarBtn = document.getElementById('btn-toggle-sidebar');
 
@@ -542,6 +596,9 @@ export async function initApp() {
     e.preventDefault();
     currentTag = null;
     currentList = item.dataset.list;
+    searchKeyword = '';
+    searchInput.value = '';
+    searchBar.classList.add('hidden');
 
     if (currentList === 'calendar') {
       document.getElementById('view-list').classList.remove('active');
@@ -561,6 +618,9 @@ export async function initApp() {
     e.preventDefault();
     currentTag = item.dataset.tag;
     currentList = null;
+    searchKeyword = '';
+    searchInput.value = '';
+    searchBar.classList.add('hidden');
     document.getElementById('view-calendar').classList.remove('active');
     document.getElementById('view-list').classList.add('active');
     render();
