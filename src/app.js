@@ -356,10 +356,13 @@ function openManageTagsDialog() {
 function getFilteredTodos() {
   if (searchKeyword) {
     const kw = searchKeyword.toLowerCase();
-    return data.todos.filter(t => !t.archived && (
-      t.title.toLowerCase().includes(kw) ||
-      (t.desc && t.desc.toLowerCase().includes(kw))
-    ));
+    const onlyArchived = currentList === 'archived';
+    return data.todos.filter(t => {
+      if (onlyArchived ? !t.archived : t.archived) return false;
+      return t.title.toLowerCase().includes(kw) ||
+        (t.desc && t.desc.toLowerCase().includes(kw)) ||
+        (t.tag && t.tag.toLowerCase().includes(kw));
+    });
   }
   return _getFilteredTodos(data, currentList, currentTag);
 }
