@@ -15,6 +15,32 @@ export function initAiSummary({ data, saveData, showToast }) {
   summaryDateInput.value = toLocalDateInput(new Date());
 
   let summaryOverlay = null;
+  const summaryDateRangeEl = document.getElementById('summary-date-range');
+
+  summaryDateInput.addEventListener('change', updateSummaryDateRange);
+
+  function updateSummaryDateRange() {
+    const dateStr = summaryDateInput.value;
+    if (!dateStr) {
+      summaryDateRangeEl.textContent = '';
+      return;
+    }
+    const baseDate = parseLocalDateInput(dateStr);
+    if (!baseDate) {
+      summaryDateRangeEl.textContent = '';
+      return;
+    }
+    if (summaryType === 'weekly') {
+      const day = baseDate.getDay();
+      const start = new Date(baseDate);
+      start.setDate(start.getDate() - (day === 0 ? 6 : day - 1));
+      const end = new Date(start);
+      end.setDate(end.getDate() + 6);
+      summaryDateRangeEl.textContent = `${formatMonthDay(start)} ~ ${formatMonthDay(end)}`;
+    } else {
+      summaryDateRangeEl.textContent = '';
+    }
+  }
 
   document.getElementById('btn-open-summary').addEventListener('click', () => {
     closeDetail();
@@ -55,6 +81,7 @@ export function initAiSummary({ data, saveData, showToast }) {
       document.querySelectorAll('.summary-tab').forEach(t => t.classList.remove('active'));
       tab.classList.add('active');
       summaryType = tab.dataset.type;
+      updateSummaryDateRange();
     });
   });
 
