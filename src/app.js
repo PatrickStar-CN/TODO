@@ -850,6 +850,13 @@ export async function initApp() {
     renderCalendar();
   });
 
+  document.getElementById('btn-today').addEventListener('click', () => {
+    const today = new Date();
+    currentMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    selectedDate = today;
+    renderCalendar();
+  });
+
   calendarDays.addEventListener('click', (e) => {
     const dayEl = e.target.closest('.calendar-day');
     if (!dayEl || dayEl.classList.contains('other-month')) return;
