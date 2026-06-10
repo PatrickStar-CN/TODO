@@ -13,6 +13,7 @@ import { initAiSummary } from './aiSummary.js';
 import { initReminders } from './reminder.js';
 import { initMiniMode } from './miniMode.js';
 import { initQuickAddPopups } from './quickAddPopup.js';
+import { initDatePicker } from './datePicker.js';
 
 const TAG_COLORS = ['#4f46e5', '#06b6d4', '#f59e0b', '#ef4444', '#10b981', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#6366f1'];
 const STORAGE_KEY = 'todo_app_data';
@@ -710,6 +711,12 @@ export async function initApp() {
   }
 
   initQuickAddPopups({ quickAddPreset, updateQuickAddIndicators, data, getTagDotStyle });
+
+  // Date pickers
+  initDatePicker(document.getElementById('detail-start'), { mode: 'datetime' });
+  initDatePicker(document.getElementById('detail-end'), { mode: 'datetime' });
+  initDatePicker(document.getElementById('detail-reminder'), { mode: 'datetime' });
+  initDatePicker(document.getElementById('summary-date'), { mode: 'date' });
 
   // Quick add
   quickAdd.addEventListener('keydown', (e) => {

@@ -57,12 +57,20 @@ function buildBadges(t, getTagBadgeStyle, currentList) {
   let count = 0;
 
   if (t.startTime || t.endTime) {
-    const dateText = t.endTime ? formatDate(t.endTime) : formatDate(t.startTime);
-    const badge = document.createElement('span');
-    badge.className = 'badge badge-date';
-    badge.textContent = `📅 ${dateText}`;
-    meta.appendChild(badge);
-    count++;
+    if (t.endTime) {
+      const badge = document.createElement('span');
+      badge.className = 'badge badge-date';
+      badge.textContent = `📅 ${formatDate(t.endTime)}`;
+      meta.appendChild(badge);
+      count++;
+    }
+    if (t.startTime && t.startTime !== t.endTime) {
+      const badge = document.createElement('span');
+      badge.className = 'badge badge-date badge-start';
+      badge.textContent = `🏁 ${formatDate(t.startTime)}`;
+      meta.appendChild(badge);
+      count++;
+    }
   }
 
   if (t.tag) {

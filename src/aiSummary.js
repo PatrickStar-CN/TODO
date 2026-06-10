@@ -14,16 +14,36 @@ export function initAiSummary({ data, saveData, showToast }) {
 
   summaryDateInput.value = toLocalDateInput(new Date());
 
+  let summaryOverlay = null;
+
   document.getElementById('btn-open-summary').addEventListener('click', () => {
     closeDetail();
     summaryPanel.classList.remove('hidden', 'hiding');
     summaryPanel.style.animation = 'none';
     summaryPanel.offsetHeight;
     summaryPanel.style.animation = '';
+
+    if (!summaryOverlay) {
+      summaryOverlay = document.createElement('div');
+      summaryOverlay.className = 'summary-overlay';
+      summaryOverlay.addEventListener('click', () => {
+        document.getElementById('close-summary').click();
+      });
+      document.body.appendChild(summaryOverlay);
+    }
+    summaryOverlay.classList.remove('hiding');
   });
 
   document.getElementById('close-summary').addEventListener('click', () => {
     summaryPanel.classList.add('hiding');
+    if (summaryOverlay) {
+      summaryOverlay.classList.add('hiding');
+      summaryOverlay.addEventListener('animationend', () => {
+        summaryOverlay.remove();
+        summaryOverlay = null;
+      }, { once: true });
+      setTimeout(() => { if (summaryOverlay && summaryOverlay.parentNode) { summaryOverlay.remove(); summaryOverlay = null; } }, 300);
+    }
     summaryPanel.addEventListener('animationend', () => {
       summaryPanel.classList.add('hidden');
       summaryPanel.classList.remove('hiding');

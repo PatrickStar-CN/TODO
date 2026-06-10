@@ -1,5 +1,6 @@
 import { toLocalDateInput } from './utils/date.js';
 import { escapeHtml } from './utils/html.js';
+import { initDatePicker } from './datePicker.js';
 
 function closeAllPopups() {
   document.querySelectorAll('.quick-popup').forEach(el => el.remove());
@@ -37,12 +38,13 @@ export function initQuickAddPopups({ quickAddPreset, updateQuickAddIndicators, d
       <div class="popup-option" data-date="${nextWeekStr}">📆 下周</div>
       <div class="popup-divider"></div>
       <div class="popup-option popup-custom-date">
-        <input type="date" class="popup-date-input" value="${quickAddPreset.endTime || ''}">
+        <input type="text" class="popup-date-input" value="${quickAddPreset.endTime || ''}">
       </div>
       ${quickAddPreset.endTime ? '<div class="popup-option popup-clear" data-date="">✕ 清除日期</div>' : ''}
     `;
     container.appendChild(popup);
     adjustPopupPosition(popup);
+    initDatePicker(popup.querySelector('.popup-date-input'), { mode: 'date' });
 
     popup.querySelectorAll('[data-date]').forEach(opt => {
       opt.addEventListener('click', () => {

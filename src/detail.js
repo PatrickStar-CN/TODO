@@ -1,4 +1,5 @@
 import { formatDateTime, toLocalDatetime } from './utils/date.js';
+import { initDatePicker, closeDatePicker } from './datePicker.js';
 
 let onDoneTimeChange = null;
 
@@ -101,17 +102,18 @@ function enterDoneTimeEdit(todo) {
   if (!todo.done) return;
 
   const input = document.createElement('input');
-  input.type = 'datetime-local';
+  input.type = 'text';
   input.className = 'detail-done-input';
   input.value = todo.doneAt ? toLocalDatetime(new Date(todo.doneAt)) : '';
 
-  doneTimeEl.replaceWith(input);
-  input.focus();
+  const wrapper = doneTimeEl.closest('.dp-wrapper') || doneTimeEl;
+  wrapper.replaceWith(input);
 
   let finished = false;
   const finish = (save) => {
     if (finished) return;
     finished = true;
+    closeDatePicker();
 
     const span = document.createElement('span');
     span.id = 'detail-done-time';
@@ -121,16 +123,13 @@ function enterDoneTimeEdit(todo) {
     span.style.cursor = 'pointer';
     span.title = '点击修改完成时间';
     span.onclick = () => enterDoneTimeEdit(todo);
-    input.replaceWith(span);
+    const inputWrapper = input.closest('.dp-wrapper') || input;
+    inputWrapper.replaceWith(span);
 
     if (save && onDoneTimeChange) {
       onDoneTimeChange(todo.id, input.value ? new Date(input.value).toISOString() : null);
     }
   };
 
-  input.addEventListener('blur', () => finish(true));
-  input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
-    if (e.key === 'Escape') { e.preventDefault(); finish(false); }
-  });
+  initDatePicker(input, { mode: 'datetime', onChange: () => finish(true) });
 }
