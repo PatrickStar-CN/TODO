@@ -55,7 +55,10 @@ export function getTodosForDate(date, data) {
       return start < dayEnd && end >= dayStart;
     }
     if (start) return isSameDay(start, date);
-    if (end) return isSameDay(end, date);
+    if (end) {
+      const created = new Date(t.createdAt);
+      return created <= dayEnd && end >= dayStart;
+    }
     if (doneAt) return isSameDay(doneAt, date);
     return isSameDay(new Date(t.createdAt), date);
   });

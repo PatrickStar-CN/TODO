@@ -6,7 +6,7 @@ import { showContextMenu, closeContextMenu } from './contextMenu.js';
 import { buildTodoContextMenu, buildTagContextMenu, buildNavContextMenu, buildListAreaMenu } from './contextMenuConfig.js';
 import { createTodoItemEl } from './renderTodoItem.js';
 import { renderCalendar as _renderCalendar, getTodosForDate as _getTodosForDate, renderCalendarDetail as _renderCalendarDetail } from './calendar.js';
-import { openDetail as _openDetail, closeDetail } from './detail.js';
+import { openDetail as _openDetail, closeDetail, initDetailEditor } from './detail.js';
 import { createOverlay, closeOverlay, createManagedOverlay, showConfirmDialog } from './overlay.js';
 import { applyTheme, updateThemeButton } from './theme.js';
 import { initAiSummary } from './aiSummary.js';
@@ -508,6 +508,17 @@ function openDetail(id) {
 export async function initApp() {
   data = await loadData();
   normalizeData();
+
+  initDetailEditor({
+    onDoneTimeChange: (id, newDoneAt) => {
+      const todo = data.todos.find(t => t.id === id);
+      if (!todo) return;
+      todo.doneAt = newDoneAt;
+      saveData();
+      render();
+      if (currentList === 'calendar') renderCalendar();
+    }
+  });
 
   let appConfig = {};
   try {
