@@ -498,6 +498,52 @@ function renderCalendarDetail() {
   _renderCalendarDetail({ selectedDate, data, renderTodoItem });
 }
 
+function showMonthPicker(currentMonth, onConfirm) {
+  const year = currentMonth.getFullYear();
+  const month = currentMonth.getMonth();
+  const nowYear = new Date().getFullYear();
+
+  const yearOptions = [];
+  for (let y = nowYear - 10; y <= nowYear + 10; y++) yearOptions.push(y);
+
+  const monthNames = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
+
+  const contentHtml = `
+    <div class="month-picker">
+      <div class="month-picker-row">
+        <select id="picker-year">${yearOptions.map(y => `<option value="${y}" ${y === year ? 'selected' : ''}>${y}年</option>`).join('')}</select>
+        <select id="picker-month">${monthNames.map((n, i) => `<option value="${i}" ${i === month ? 'selected' : ''}>${n}</option>`).join('')}</select>
+      </div>
+    </div>`;
+
+  const actionsHtml = '<button class="btn-cancel" id="picker-cancel">取消</button><button class="btn-primary" id="picker-confirm">确定</button>';
+
+  const overlay = createOverlay('选择月份', contentHtml, actionsHtml);
+  const close = () => closeOverlay(overlay);
+
+  overlay.querySelector('#picker-cancel').addEventListener('click', close);
+  overlay.querySelector('#picker-confirm').addEventListener('click', () => {
+    const y = parseInt(document.getElementById('picker-year').value);
+    const m = parseInt(document.getElementById('picker-month').value);
+    close();
+    onConfirm(y, m);
+  });
+  overlay.addEventListener('click', (ev) => { if (ev.target === overlay) close(); });
+  overlay.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter') {
+      ev.preventDefault();
+      const y = parseInt(document.getElementById('picker-year').value);
+      const m = parseInt(document.getElementById('picker-month').value);
+      close();
+      onConfirm(y, m);
+    } else if (ev.key === 'Escape') {
+      ev.preventDefault();
+      close();
+    }
+  });
+  overlay.querySelector('#picker-confirm').focus();
+}
+
 // --- Detail Panel ---
 function openDetail(id) {
   const todo = data.todos.find(t => t.id === id);
@@ -855,6 +901,14 @@ export async function initApp() {
     currentMonth = new Date(today.getFullYear(), today.getMonth(), 1);
     selectedDate = today;
     renderCalendar();
+  });
+
+  document.getElementById('calendar-title').addEventListener('click', () => {
+    showMonthPicker(currentMonth, (year, month) => {
+      currentMonth = new Date(year, month, 1);
+      selectedDate = null;
+      renderCalendar();
+    });
   });
 
   calendarDays.addEventListener('click', (e) => {

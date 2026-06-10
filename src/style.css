@@ -1385,6 +1385,66 @@ body {
   font-weight: 600;
 }
 
+.calendar-title-btn {
+  background: none;
+  border: none;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  cursor: pointer;
+  padding: 4px 12px;
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+
+.calendar-title-btn:hover {
+  background: var(--bg-hover);
+}
+
+.month-picker {
+  padding: 8px 0;
+}
+
+.month-picker-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.month-picker-row select {
+  flex: 1;
+  padding: 10px 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-input);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 14px;
+  outline: none;
+}
+
+.month-picker-row select:focus {
+  border-color: var(--accent);
+}
+
+.month-picker-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.month-picker-actions button {
+  padding: 6px 20px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.month-picker-actions #picker-cancel {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-input);
+  color: var(--text-nav);
+}
+
 .calendar-weekdays {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
