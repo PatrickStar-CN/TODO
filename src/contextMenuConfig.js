@@ -1,16 +1,16 @@
 import { toLocalDatetime } from './utils/date.js';
 
-export function buildTodoContextMenu(todo, { data, saveData, render, openDetail, deleteTodoById }) {
+export function buildTodoContextMenu(todo, { data, saveData, render, openDetail, deleteTodoById, toggleDone }) {
   const items = [];
   if (todo.done) {
-    items.push({ icon: '↩️', label: '取消完成', action: () => { todo.done = false; todo.doneAt = null; saveData(); render(); } });
+    items.push({ icon: '↩️', label: '取消完成', action: () => toggleDone(todo, false) });
     if (todo.archived) {
       items.push({ icon: '📤', label: '取消归档', action: () => { todo.archived = false; todo.archivedAt = null; saveData(); render(); } });
     } else {
       items.push({ icon: '🗃️', label: '归档', action: () => { todo.archived = true; todo.archivedAt = new Date().toISOString(); saveData(); render(); } });
     }
   } else {
-    items.push({ icon: '✅', label: '标记完成', action: () => { todo.done = true; todo.doneAt = new Date().toISOString(); saveData(); render(); } });
+    items.push({ icon: '✅', label: '标记完成', action: () => toggleDone(todo, true) });
     items.push({ icon: todo.important ? '☆' : '⭐', label: todo.important ? '取消重要' : '标记重要', action: () => { todo.important = !todo.important; saveData(); render(); } });
     items.push({ icon: todo.todo ? '☀️' : '☀️', label: todo.todo ? '从 TODO 移除' : '添加到 TODO', action: () => { todo.todo = !todo.todo; saveData(); render(); } });
     items.push({ separator: true });

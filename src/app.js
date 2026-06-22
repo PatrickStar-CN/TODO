@@ -953,7 +953,7 @@ export async function initApp() {
       const id = todoItem.dataset.id;
       const todo = data.todos.find(t => t.id === id);
       if (!todo) return;
-      const items = buildTodoContextMenu(todo, { data, saveData, render, openDetail, deleteTodoById });
+      const items = buildTodoContextMenu(todo, { data, saveData, render, openDetail, deleteTodoById, toggleDone });
       showContextMenu(e.clientX, e.clientY, items);
     } else if (tagItem) {
       const tag = tagItem.dataset.tag;
@@ -989,6 +989,20 @@ export async function initApp() {
         removeTodo();
       }
     });
+  }
+
+  function toggleDone(todo, doneState) {
+    todo.done = doneState;
+    todo.doneAt = doneState ? new Date().toISOString() : null;
+    if (doneState && todo.reminderRepeat === 'none') {
+      todo.reminder = null;
+    }
+    saveData();
+    render();
+    if (currentList === 'calendar') {
+      renderCalendar();
+      renderCalendarDetail();
+    }
   }
 
   function deleteTagFromMenu(tag) {
