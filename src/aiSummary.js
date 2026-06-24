@@ -1,6 +1,5 @@
 import { toLocalDateInput, parseLocalDateInput, formatMonthDay } from './utils/date.js';
 import { escapeHtml } from './utils/html.js';
-import { createManagedOverlay } from './overlay.js';
 import { closeDetail } from './detail.js';
 
 export function initAiSummary({ data, saveData, showToast }) {
@@ -82,26 +81,6 @@ export function initAiSummary({ data, saveData, showToast }) {
       tab.classList.add('active');
       summaryType = tab.dataset.type;
       updateSummaryDateRange();
-    });
-  });
-
-  document.getElementById('btn-ai-config').addEventListener('click', () => {
-    const { overlay, close } = createManagedOverlay(
-      'API 配置',
-      `<div class="detail-row"><label>API 地址</label><input type="text" id="cfg-api-url" value="${escapeHtml(data.aiConfig.apiUrl)}" placeholder="https://api.openai.com/v1/chat/completions"></div>
-       <div class="detail-row"><label>API Key</label><input type="password" id="cfg-api-key" value="${escapeHtml(data.aiConfig.apiKey)}" placeholder="sk-..."></div>
-       <div class="detail-row"><label>模型</label><input type="text" id="cfg-model" value="${escapeHtml(data.aiConfig.model)}" placeholder="gpt-4o-mini"></div>
-       <div class="detail-row"><label>自定义提示词</label><textarea id="cfg-prompt" rows="6" placeholder="可用变量：{type}=日报/周报, {range}=日期范围, {doneList}=已完成任务, {pendingList}=进行中任务, {plan}=明日计划/下周计划&#10;&#10;留空则使用默认提示词">${escapeHtml(data.aiConfig.customPrompt)}</textarea></div>`,
-      '<button class="btn-primary" id="cfg-save">保存</button><button class="btn-cancel" style="margin-left:8px;">取消</button>'
-    );
-    overlay.querySelector('#cfg-save').addEventListener('click', () => {
-      data.aiConfig.apiUrl = overlay.querySelector('#cfg-api-url').value.trim();
-      data.aiConfig.apiKey = overlay.querySelector('#cfg-api-key').value.trim();
-      data.aiConfig.model = overlay.querySelector('#cfg-model').value.trim();
-      data.aiConfig.customPrompt = overlay.querySelector('#cfg-prompt').value.trim();
-      saveData();
-      showToast('API 配置已保存');
-      close();
     });
   });
 

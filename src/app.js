@@ -7,13 +7,14 @@ import { buildTodoContextMenu, buildTagContextMenu, buildNavContextMenu, buildLi
 import { createTodoItemEl } from './renderTodoItem.js';
 import { renderCalendar as _renderCalendar, getTodosForDate as _getTodosForDate, renderCalendarDetail as _renderCalendarDetail } from './calendar.js';
 import { openDetail as _openDetail, closeDetail, initDetailEditor } from './detail.js';
-import { createOverlay, closeOverlay, createManagedOverlay, showConfirmDialog } from './overlay.js';
-import { applyTheme, updateThemeButton } from './theme.js';
+import { createOverlay, closeOverlay, showConfirmDialog } from './overlay.js';
+import { applyTheme } from './theme.js';
 import { initAiSummary } from './aiSummary.js';
 import { initReminders } from './reminder.js';
 import { initMiniMode } from './miniMode.js';
 import { initQuickAddPopups } from './quickAddPopup.js';
 import { initDatePicker } from './datePicker.js';
+import { initSettings } from './settings.js';
 
 const TAG_COLORS = ['#4f46e5', '#06b6d4', '#f59e0b', '#ef4444', '#10b981', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#6366f1'];
 const STORAGE_KEY = 'todo_app_data';
@@ -209,148 +210,6 @@ function deleteTag(tag, onDeleted) {
     }
   });
   confirmBtn.focus();
-}
-
-function openCreateTagDialog() {
-  const overlay = createOverlay(
-    '新建标签',
-    '<input type="text" id="new-tag-input" placeholder="输入标签名称" autofocus>',
-    '<button class="btn-cancel">取消</button><button class="btn-ok">确定</button>'
-  );
-
-  const input = overlay.querySelector('#new-tag-input');
-  input.focus();
-
-  const close = () => closeOverlay(overlay);
-  const confirmCreate = () => {
-    const name = input.value.trim();
-    if (!name) {
-      showToast('请输入标签名称');
-      input.focus();
-      return;
-    }
-    if (data.tags.includes(name)) {
-      showToast('标签已存在');
-      input.focus();
-      return;
-    }
-    data.tags.push(name);
-    saveData();
-    render();
-    close();
-    showToast('标签创建成功');
-  };
-
-  overlay.querySelector('.btn-cancel').addEventListener('click', close);
-  overlay.querySelector('.btn-ok').addEventListener('click', confirmCreate);
-  overlay.addEventListener('click', (ev) => {
-    if (ev.target === overlay) {
-      close();
-    }
-  });
-  input.addEventListener('keydown', (ev) => {
-    if (ev.key === 'Enter') {
-      confirmCreate();
-    }
-  });
-}
-
-function renderManageTagItems() {
-  return data.tags.map(tag => `
-    <div class="tag-manage-item" data-tag="${escapeHtml(tag)}">
-      <span class="tag-dot" ${getTagDotStyle(tag)}></span>
-      <span class="tag-manage-name" data-role="rename-tag" title="双击重命名">${escapeHtml(tag)}</span>
-      <span class="tag-manage-count">${getTagTaskCount(tag)} 个任务</span>
-      <button class="tag-delete-btn" data-role="delete-tag" data-tag="${escapeHtml(tag)}" title="删除标签">✕</button>
-    </div>
-  `).join('');
-}
-
-function renderManageTagContent() {
-  const items = renderManageTagItems();
-  return items
-    ? `<div class="tag-manage-list">${items}</div>`
-    : '<div class="tag-manage-empty"><span class="empty-icon">🏷️</span><p>还没有标签</p><p class="empty-hint">点击侧边栏「新建标签」添加</p></div>';
-}
-
-function openManageTagsDialog() {
-  const { overlay, close } = createManagedOverlay(
-    '管理标签',
-    renderManageTagContent(),
-    '<button class="btn-cancel">关闭</button>'
-  );
-
-  const refreshContent = () => {
-    const box = overlay.querySelector('.tag-input-box');
-    const h4 = box.querySelector('h4');
-    const btnRow = box.querySelector('.btn-row');
-    box.innerHTML = '';
-    box.appendChild(h4);
-    box.insertAdjacentHTML('beforeend', renderManageTagContent());
-    box.appendChild(btnRow);
-  };
-
-  overlay.addEventListener('click', (ev) => {
-    if (ev.target === overlay) { close(); return; }
-
-    const deleteBtn = ev.target.closest('[data-role="delete-tag"]');
-    if (deleteBtn) {
-      const tag = deleteBtn.dataset.tag;
-      const item = deleteBtn.closest('.tag-manage-item');
-      item.classList.add('removing');
-      item.addEventListener('animationend', () => {
-        data.tags = data.tags.filter(t => t !== tag);
-        data.todos.forEach(todo => { if (todo.tag === tag) todo.tag = ''; });
-        if (currentTag === tag) { currentTag = null; currentList = 'all'; }
-        saveData();
-        render();
-        refreshContent();
-        showToast('标签已删除');
-      }, { once: true });
-      return;
-    }
-  });
-
-  overlay.addEventListener('dblclick', (ev) => {
-    const nameEl = ev.target.closest('[data-role="rename-tag"]');
-    if (!nameEl) return;
-    const item = nameEl.closest('.tag-manage-item');
-    const oldTag = item.dataset.tag;
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.className = 'tag-rename-input';
-    input.value = oldTag;
-    nameEl.replaceWith(input);
-    input.focus();
-    input.select();
-
-    const doRename = () => {
-      const newName = input.value.trim();
-      if (!newName || newName === oldTag) {
-        refreshContent();
-        return;
-      }
-      if (data.tags.includes(newName)) {
-        showToast('标签名已存在');
-        input.focus();
-        return;
-      }
-      const idx = data.tags.indexOf(oldTag);
-      if (idx !== -1) data.tags[idx] = newName;
-      data.todos.forEach(todo => { if (todo.tag === oldTag) todo.tag = newName; });
-      if (currentTag === oldTag) currentTag = newName;
-      saveData();
-      render();
-      refreshContent();
-      showToast('标签已重命名');
-    };
-
-    input.addEventListener('blur', doRename);
-    input.addEventListener('keydown', (ev) => {
-      if (ev.key === 'Enter') { ev.preventDefault(); input.blur(); }
-      if (ev.key === 'Escape') { ev.preventDefault(); refreshContent(); }
-    });
-  });
 }
 
 // --- Filtering ---
@@ -578,16 +437,6 @@ export async function initApp() {
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
     if (data.theme === 'auto') applyTheme(data.theme);
   });
-
-  document.getElementById('btn-theme-toggle').addEventListener('click', () => {
-    const order = ['auto', 'light', 'dark'];
-    const idx = order.indexOf(data.theme);
-    data.theme = order[(idx + 1) % 3];
-    saveData();
-    applyTheme(data.theme);
-    updateThemeButton(data.theme);
-  });
-  updateThemeButton(data.theme);
 
   // --- Search ---
   const searchBar = document.getElementById('search-bar');
@@ -879,17 +728,6 @@ export async function initApp() {
     clearDoneTasks();
   });
 
-  // Add tag
-  document.getElementById('btn-add-tag').addEventListener('click', (e) => {
-    e.preventDefault();
-    openCreateTagDialog();
-  });
-
-  document.getElementById('btn-manage-tags').addEventListener('click', (e) => {
-    e.preventDefault();
-    openManageTagsDialog();
-  });
-
   // Calendar nav
   document.getElementById('prev-month').addEventListener('click', () => {
     currentMonth.setMonth(currentMonth.getMonth() - 1);
@@ -1030,6 +868,9 @@ export async function initApp() {
 
   // --- Summary Panel ---
   initAiSummary({ data, saveData, showToast });
+
+  // --- Settings Panel ---
+  initSettings({ data, saveData, showToast, render });
 
   // Init render
   render();
