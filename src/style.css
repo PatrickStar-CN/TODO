@@ -1157,7 +1157,7 @@ body::before {
 .todo-checkbox {
   width: 22px;
   height: 22px;
-  border-radius: 7px;
+  border-radius: 50%;
   border: 1.5px solid var(--checkbox-border);
   flex-shrink: 0;
   display: flex;
@@ -1175,9 +1175,9 @@ body::before {
 }
 
 .todo-checkbox.checked {
-  background: var(--accent);
-  border-color: var(--accent);
-  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+  background: var(--success);
+  border-color: var(--success);
+  box-shadow: 0 2px 8px rgba(52, 211, 153, 0.35);
 }
 
 .todo-checkbox.checked::after {
