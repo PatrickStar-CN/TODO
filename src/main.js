@@ -1,5 +1,6 @@
 import './style.css';
 import { initApp } from './app.js';
+import { initRipple } from './ripple.js';
 
 function setupTray() {
   Neutralino.os.setTray({
@@ -28,6 +29,7 @@ function setupTray() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  initRipple();
   if (typeof Neutralino !== 'undefined') {
     Neutralino.init();
     Neutralino.events.on('ready', () => {

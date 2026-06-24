@@ -1,40 +1,56 @@
 # 待办事项管理工具（TODO Tools）
 
-一个基于原生前端技术构建的轻量级待办事项管理应用，支持 Web 浏览器和 Windows 桌面应用两种运行模式。使用 Vite 构建，Neutralinojs 打包桌面应用，无前端框架依赖。
+一个基于原生前端技术构建的轻量级待办事项管理应用，支持 Web 浏览器和 Windows 桌面应用两种运行模式。使用 Vite 构建，Neutralinojs 打包桌面应用，无前端框架依赖。采用液态磨砂玻璃（Liquid Glassmorphism）UI 设计风格。
 
 ## 功能特性
 
+### 核心功能
 - **任务管理**：快速添加、编辑、删除任务，标记完成/取消完成，按优先级排序
 - **重要标记**：将任务标记为重要（星标），支持重要视图筛选
-- **视图分类**：TODO（默认）、重要、所有任务、日历视图
-- **标签系统**：自定义标签，按标签筛选，标签管理面板，双击重命名标签
-- **日历视图**：紧凑月历网格，日期任务指示点，"今天"快捷按钮，点击月份标题选择年月，点击查看当天任务，仅截止时间的任务从创建日起每日显示
-- **详情面板**：编辑标题、备注、优先级、标签、开始/截止时间，可点击编辑完成时间
-- **侧边栏折叠**：可折叠为迷你侧边栏（仅图标），状态持久化，带过渡动画
-- **归档系统**：将已完成任务归档，归档后不在主视图显示但日历中正常显示，标签下全部归档后自动隐藏
-- **模糊搜索**：实时模糊搜索任务标题、备注和标签，200ms 防抖，不区分大小写，归档视图仅搜索归档任务
-- **编辑面板悬浮模式**：详情编辑面板使用 position: fixed 悬浮覆盖，带半透明遮罩层，不挤压主内容
-- **已完成列表排序**：已完成任务按完成时间倒序排列
-- **迷你模式**：窗口缩小为置顶小卡片，显示待办列表，支持快速添加和完成任务，窗口尺寸可通过 app.config.json 配置
-- **快速添加预设**：日期、优先级、标签预设弹窗
-- **自定义日期选择器**：替换原生控件的美化日历组件，支持 date 和 datetime 两种模式，匹配暗色主题
-- **任务徽章优化**：开始时间（🏁）和截止时间（📅）独立显示为两个徽章
-- **AI 摘要**：基于 SSE 流式输出的每日/每周任务报告，报告中包含任务备注内容，支持自定义 API 配置，打开时有半透明遮罩层防止误操作，周报模式显示所选日期所在周的起止日期范围
-- **提醒系统**：基于 Windows Toast 通知的任务提醒，支持重复提醒
-- **主题切换**：支持自动/亮色/暗色主题切换
-- **动画系统**：完整的入场/退场/微交互动画
-- **已完成区域**：可折叠/展开，展开后内部滚动，不超出窗口
-- **桌面特性**：系统托盘、关闭隐藏到托盘、本地文件持久化
+- **视图分类**：TODO（默认）、重要、所有任务、归档、日历视图
+- **标签系统**：自定义标签，按标签筛选，标签管理面板（在设置中），双击重命名标签
+- **日历视图**：紧凑月历网格，日期任务指示点，"今天"快捷按钮 + 月份标题点击选月，智能任务匹配（时间范围/单日期/创建日期）
+- **详情编辑面板**：悬浮覆盖式编辑（标题、备注、优先级、标签、开始/截止时间、提醒、TODO/重要），自定义下拉选择器（优先级/标签/重复提醒），可编辑完成时间
+- **归档系统**：右键菜单归档已完成任务，归档视图筛选，取消归档恢复主视图
+- **模糊搜索**：实时模糊搜索标题/备注/标签，200ms 防抖，按视图过滤
+
+### UI 设计
+- **液态磨砂玻璃主题**：暗色模式（烟熏低透明玻璃质感）+ 亮色模式（柔和半透明磨砂卡片），低饱和冷色调办公风配色
+- **三套主题切换**：自动跟随系统 / 亮色 / 暗色
+- **玻璃按钮系统**：全局按钮统一玻璃样式，带涟漪波纹点按动效（`glassRipple` / `glassRippleAccent` 关键帧动画）
+- **自定义下拉组件**：详情面板优先级/标签/重复提醒使用自建 `.detail-dropdown` 弹窗替代原生 `<select>` / `<datalist>`
+- **原生 select 玻璃化**：日期选择器、月份选择器等处原生 `<select>` 统一适配玻璃样式（appearance: none + 自定义 SVG 箭头）
+- **圆角分层体系**：侧边栏 16px、导航项/标签项 12px、任务卡片 16px、弹窗 12-18px、复选框 7px
+- **内部高光模拟**：`--glass-highlight` 渐变层模拟光线折射效果
+- **性能友好**：backdrop-filter blur 值控制在 6-14px 范围内
+- **完整动画系统**：入场/退场/微交互全覆盖（`@keyframes` + `animationend` 事件清理）
+
+### 设置系统
+- **弹出式设置面板**：居中模态弹窗，三 Tab 切换（外观/AI 配置/标签管理）
+- **外观设置**：主题切换（自动/亮色/暗色）
+- **AI 配置**：API URL / Key / Model / 自定义 Prompt
+- **标签管理**：新建/重命名/删除标签，显示关联任务数量
+
+### 其他特性
+- **迷你模式**：置顶小窗卡片，待办计数 + 前 8 条任务，快速添加/完成任务，悬停 tooltip 显示详情
+- **快速添加预设弹窗**：日期/优先级/标签快捷预设（玻璃化选项卡片样式）
+- **自定义日期选择器**：替换原生控件的美化日历组件，支持 date 和 datetime 模式，匹配玻璃主题
+- **右键菜单**：配置与渲染分离架构，玻璃化菜单项样式
+- **AI 总结**：SSE 流式日报/周报，含备注内容，半透明遮罩防误操作
+- **提醒系统**：定时检测 + 桌面通知/Toast，支持重复提醒（每天/每周/每月）
+- **侧边栏折叠**：可折叠为迷你侧边栏（56px，仅图标），状态持久化，0.2s 过渡动画
+- **桌面特性**：系统托盘、关闭隐藏到托盘、本地 JSON 文件持久化
 
 ## 技术栈
 
 | 层面 | 技术 |
 |------|------|
-| 前端构建 | Vite 6.x |
+| 前端构建 | Vite 6.3.5 |
 | 桌面框架 | Neutralinojs 6.7.0 |
 | 语言 | 原生 JavaScript (ES Module) |
-| 样式 | 原生 CSS（暗色主题） |
-| 数据存储 | JSON 文件 + localStorage 降级 |
+| 样式 | 原生 CSS（液态磨砂玻璃设计，亮/暗双主题） |
+| 数据存储 | 本地 JSON 文件 + localStorage 降级 |
+| 包管理 | npm |
 
 ## 快速开始
 
@@ -59,54 +75,61 @@ npm run neu:build
 
 ```
 todoTools/
-├── index.html                  # 主 HTML 入口
+├── index.html                  # 主 HTML 入口（含迷你面板结构）
 ├── package.json                # 项目配置
-├── neutralino.config.json      # 桌面应用配置
-├── vite.config.js              # Vite 构建配置
-├── server-plugin.js            # 开发服务器数据 API 插件
 ├── app.config.json             # 应用配置文件（窗口尺寸/迷你模式参数）
+├── neutralino.config.json      # Neutralino 桌面应用配置
+├── vite.config.js              # Vite 构建配置（含自定义插件）
+├── server-plugin.js            # Vite 开发服务器数据 API 插件
 ├── .gitignore                  # Git 忽略规则
+├── data.json                   # 持久化数据文件（开发环境）
+├── scripts/
+│   ├── sync-config.js          # 构建时同步配置到 neutralino.config.json
+│   └── patch-exe.js            # 构建后修改 exe 文件元数据
 ├── src/
-│   ├── main.js                 # 应用入口（Neutralino 初始化 + 托盘）
-│   ├── app.js                  # 核心业务逻辑（组装骨架，~660 行）
-│   ├── aiSummary.js            # AI 摘要模块（SSE 流式日报/周报）
-│   ├── calendar.js             # 日历视图
-│   ├── contextMenu.js          # 右键菜单核心逻辑
-│   ├── contextMenuConfig.js    # 右键菜单配置
-│   ├── detail.js               # 任务详情面板
-│   ├── eventBus.js             # 事件总线（模块间通信）
-│   ├── miniMode.js             # 迷你模式
-│   ├── overlay.js              # 遮罩层
-│   ├── quickAddPopup.js        # 快速添加弹窗
-│   ├── datePicker.js           # 自定义日期选择器
-│   ├── reminder.js             # 提醒系统（Windows Toast 通知）
-│   ├── renderTodoItem.js       # 任务项渲染
-│   ├── selectors.js            # DOM 选择器集中管理
-│   ├── theme.js                # 主题切换（自动/亮色/暗色）
-│   ├── style.css               # 全局样式 + 动画系统
+│   ├── main.js                 # 应用入口（Neutralino 初始化 + 托盘 + 涟漪初始化）
+│   ├── app.js                  # 组装骨架（~660 行），串联各模块
+│   ├── settings.js             # 设置弹窗面板（Tab 切换 / 外观 / AI / 标签管理）
+│   ├── ripple.js               # 按钮涟漪波纹动效模块
+│   ├── eventBus.js             # 发布/订阅事件总线
+│   ├── selectors.js            # 数据筛选与排序逻辑
+│   ├── renderTodoItem.js       # 单条任务 DOM 构建
+│   ├── calendar.js             # 日历视图渲染与日期任务匹配
+│   ├── detail.js               # 任务详情面板 + 自定义下拉选择器
+│   ├── overlay.js              # 通用弹窗/遮罩层系统
+│   ├── contextMenu.js          # 右键菜单 DOM 渲染与交互
+│   ├── contextMenuConfig.js    # 右键菜单配置（各场景菜单项）
+│   ├── quickAddPopup.js        # 快速添加预设弹窗（日期/优先级/标签）
+│   ├── datePicker.js           # 自定义日期/时间选择器组件
+│   ├── aiSummary.js            # AI 总结面板
+│   ├── reminder.js             # 提醒系统（定时检测 + 通知）
+│   ├── miniMode.js             # 迷你模式（小窗置顶卡片）
+│   ├── theme.js                # 主题切换（亮/暗/跟随系统）
+│   ├── style.css               # 全局样式 + 玻璃主题变量 + 动画系统（~1600+ 行）
 │   └── utils/
-│       ├── date.js             # 日期工具函数
-│       ├── html.js             # HTML 工具函数
-│       └── id.js               # ID 生成工具
+│       ├── date.js             # 日期格式化与比较工具函数
+│       ├── html.js             # HTML 转义工具
+│       └── id.js               # 唯一 ID 生成器
 ├── public/
 │   ├── neutralino.js           # Neutralino 客户端库
 │   └── icon.png                # 应用图标
-├── scripts/
-│   ├── sync-config.js          # 配置同步脚本
-│   └── patch-exe.js            # 可执行文件补丁脚本
+├── bin/
+│   └── neutralino-win_x64.exe  # Neutralino 运行时
 └── dist/                       # 构建产物
     └── todo-tools/
-        ├── todo-tools-win_x64.exe
-        └── resources.neu
+        ├── todo-tools-win_x64.exe  # 打包后的桌面应用
+        └── resources.neu            # 应用资源包
 ```
 
 ## 数据持久化
 
 三层降级机制：
 
-1. **桌面环境**：通过 Neutralino filesystem API 读写本地 `todo_data.json`
+1. **Neutralino 桌面环境**：通过 `Neutralino.filesystem` API 读写本地 `todo_data.json`
 2. **开发环境**：通过 Vite 插件 `/api/data` 接口读写 `data.json`
 3. **降级方案**：浏览器 `localStorage`
+
+环境检测逻辑：检查 `Neutralino` 全局对象和 `NL_PORT` 变量是否同时存在。
 
 ## 数据模型
 
@@ -122,7 +145,7 @@ todoTools/
       "startTime": "开始时间",
       "endTime": "截止时间",
       "reminder": "提醒时间",
-      "reminderRepeat": "none | daily | weekly",
+      "reminderRepeat": "none | daily | weekly | monthly",
       "todo": true,
       "important": false,
       "done": false,
@@ -134,7 +157,7 @@ todoTools/
   ],
   "tags": ["工作", "学习"],
   "aiConfig": { "apiUrl": "", "apiKey": "", "model": "", "customPrompt": "" },
-  "theme": "auto",
+  "theme": "auto | light | dark",
   "sidebarMini": false
 }
 ```
@@ -152,3 +175,4 @@ todoTools/
 - 迷你模式窗口拖动仅在桌面环境生效
 - 提醒通知仅在 Windows 桌面环境下生效
 - 无离线 PWA 支持（Web 模式下）
+- 列表渲染使用 `innerHTML` 整体替换，大量任务时可能有性能瓶颈

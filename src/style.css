@@ -5,75 +5,105 @@
 }
 
 :root {
-  --bg-base: #181b22;
-  --bg-surface: #12151a;
-  --bg-elevated: #1e2330;
-  --bg-hover: #252b3b;
-  --border: #2a2f38;
-  --border-input: #2a3548;
-  --text-primary: #e2e8f0;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
-  --text-heading: #f1f5f9;
-  --text-nav: #cbd5e1;
-  --accent: #4f46e5;
-  --accent-hover: #4338ca;
-  --accent-text: #7eb8f7;
-  --accent-bg: #1e3a5f;
-  --success: #22c55e;
-  --success-text: #10b981;
-  --danger: #dc2626;
-  --danger-hover: #b91c1c;
-  --danger-text: #f87171;
-  --danger-bg: #5c1a1a;
-  --danger-light-bg: #3b1f24;
-  --danger-light-text: #fda4af;
-  --warning-bg: #5c3a1a;
-  --warning-text: #fbbf24;
-  --info-bg: #1a3a5f;
-  --info-text: #60a5fa;
-  --low-bg: #1a3a2a;
-  --low-text: #4ade80;
-  --tag-bg: #2d1f5e;
-  --tag-text: #a78bfa;
-  --checkbox-border: #4a5568;
-  --scrollbar: #2a3548;
-  --scrollbar-hover: #3a4a60;
-  --overlay: rgba(15, 23, 42, 0.72);
-  --shadow: rgba(15, 23, 42, 0.45);
-  --toast-shadow: rgba(34, 197, 94, 0.3);
-  --focus-ring: rgba(79, 70, 229, 0.5);
+  /* === 基础色板（低饱和冷色调办公风） === */
+  --bg-base: #0f1219;
+  --bg-surface: #0a0d13;
+  --bg-elevated: #161b26;
+  --bg-hover: #1e2535;
+  --border: #1e2533;
+  --border-input: #252d3f;
 
-  /* 毛玻璃专用变量 */
-  --glass-bg: rgba(30, 35, 48, 0.7);
-  --glass-bg-strong: rgba(30, 35, 48, 0.85);
-  --glass-bg-elevated: rgba(45, 53, 70, 0.75);
-  --glass-border: rgba(255, 255, 255, 0.08);
-  --glass-border-strong: rgba(255, 255, 255, 0.18);
-  --glass-blur: blur(20px) saturate(180%);
-  --glass-blur-strong: blur(30px) saturate(200%);
-  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
-  --glass-shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.35);
+  /* 文字层级（高对比度可读性） */
+  --text-primary: #e8ecf4;
+  --text-secondary: #8892a8;
+  --text-muted: #556078;
+  --text-heading: #f0f3fa;
+  --text-nav: #a0aabf;
+
+  /* 功能色（低饱和） */
+  --accent: #6366f1;
+  --accent-hover: #4f46e5;
+  --accent-text: #93b4fc;
+  --accent-bg: #1a2040;
+  --success: #34d399;
+  --success-text: #22c55e;
+  --danger: #f87171;
+  --danger-hover: #ef4444;
+  --danger-text: #fca5a5;
+  --danger-bg: #3a1822;
+  --danger-light-bg: #2a1520;
+  --danger-light-text: #fca5a5;
+  --warning-bg: #3a2815;
+  --warning-text: #fbbf24;
+  --info-bg: #152540;
+  --info-text: #60a5fa;
+  --low-bg: #15302a;
+  --low-text: #4ade80;
+  --tag-bg: #241a42;
+  --tag-text: #a78bfa;
+  --checkbox-border: #384358;
+  --scrollbar: #1e2535;
+  --scrollbar-hover: #2d3850;
+  --overlay: rgba(10, 15, 25, 0.75);
+  --shadow: rgba(0, 0, 0, 0.35);
+  --toast-shadow: rgba(52, 211, 153, 0.2);
+  --focus-ring: rgba(99, 102, 241, 0.45);
+
+  /* === 液态磨砂玻璃（暗色：烟熏低透明） === */
+  --glass-bg: rgba(22, 27, 40, 0.65);
+  --glass-bg-strong: rgba(22, 27, 40, 0.82);
+  --glass-bg-elevated: rgba(32, 40, 58, 0.7);
+  --glass-bg-input: rgba(18, 23, 35, 0.5);
+  --glass-border: rgba(140, 150, 180, 0.06);
+  --glass-border-strong: rgba(140, 150, 180, 0.12);
+  --glass-blur: blur(10px) saturate(160%);
+  --glass-blur-strong: blur(14px) saturate(170%);
+  --glass-blur-light: blur(6px) saturate(150%);
+  --glass-shadow: 0 4px 20px rgba(0, 0, 0, 0.2), 0 1px 3px rgba(0, 0, 0, 0.1);
+  --glass-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.3), 0 2px 6px rgba(0, 0, 0, 0.15);
+  --glass-shadow-float: 0 6px 24px rgba(0, 0, 0, 0.25);
+
+  /* 内部高光 */
+  --glass-highlight: linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, transparent 50%);
+
+  /* === 玻璃按钮（暗色） === */
+  --glass-btn-bg: rgba(255, 255, 255, 0.05);
+  --glass-btn-bg-hover: rgba(255, 255, 255, 0.1);
+  --glass-btn-bg-active: rgba(255, 255, 255, 0.15);
+  --glass-btn-border: rgba(140, 150, 180, 0.1);
+  --glass-btn-border-hover: rgba(140, 150, 180, 0.2);
+  --glass-btn-blur: blur(8px) saturate(160%);
+  --glass-btn-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  --glass-btn-shadow-hover: 0 4px 14px rgba(0, 0, 0, 0.2);
+
+  /* 涟漪 */
+  --ripple-color: rgba(147, 180, 252, 0.3);
+  --ripple-color-accent: rgba(99, 102, 241, 0.35);
 }
 
 [data-theme="light"] {
-  --bg-base: #f1f5f9;
+  /* === 基础色板（低饱和办公中性色） === */
+  --bg-base: #f0f2f5;
   --bg-surface: #ffffff;
-  --bg-elevated: #f1f5f9;
-  --bg-hover: #e2e8f0;
-  --border: #e2e8f0;
-  --border-input: #cbd5e1;
-  --text-primary: #1e293b;
-  --text-secondary: #64748b;
-  --text-muted: #94a3b8;
-  --text-heading: #0f172a;
-  --text-nav: #475569;
-  --accent: #4f46e5;
-  --accent-hover: #4338ca;
+  --bg-elevated: #f7f8fb;
+  --bg-hover: #eef0f4;
+  --border: #e4e7ed;
+  --border-input: #d5dae3;
+
+  /* 文字 */
+  --text-primary: #1c2130;
+  --text-secondary: #5c6578;
+  --text-muted: #9aa0ad;
+  --text-heading: #111625;
+  --text-nav: #4a5368;
+
+  /* 功能色（保持一致但适配亮底） */
+  --accent: #6366f1;
+  --accent-hover: #4f46e5;
   --accent-text: #4f46e5;
-  --accent-bg: #eef2ff;
-  --success: #22c55e;
-  --success-text: #16a34a;
+  --accent-bg: #eef0ff;
+  --success: #16a34a;
+  --success-text: #15803d;
   --danger: #dc2626;
   --danger-hover: #b91c1c;
   --danger-text: #dc2626;
@@ -88,24 +118,44 @@
   --low-text: #16a34a;
   --tag-bg: #f5f3ff;
   --tag-text: #7c3aed;
-  --checkbox-border: #cbd5e1;
-  --scrollbar: #cbd5e1;
-  --scrollbar-hover: #94a3b8;
-  --overlay: rgba(15, 23, 42, 0.4);
-  --shadow: rgba(0, 0, 0, 0.1);
-  --toast-shadow: rgba(34, 197, 94, 0.2);
-  --focus-ring: rgba(79, 70, 229, 0.4);
+  --checkbox-border: #d0d5dd;
+  --scrollbar: #dde0e8;
+  --scrollbar-hover: #c8cdd8;
+  --overlay: rgba(240, 242, 245, 0.6);
+  --shadow: rgba(100, 110, 130, 0.1);
+  --toast-shadow: rgba(22, 163, 74, 0.15);
+  --focus-ring: rgba(99, 102, 241, 0.35);
 
-  /* 亮色毛玻璃 */
-  --glass-bg: rgba(255, 255, 255, 0.75);
-  --glass-bg-strong: rgba(255, 255, 255, 0.88);
-  --glass-bg-elevated: rgba(255, 255, 255, 0.8);
-  --glass-border: rgba(255, 255, 255, 0.6);
-  --glass-border-strong: rgba(255, 255, 255, 0.9);
-  --glass-blur: blur(20px) saturate(180%);
-  --glass-blur-strong: blur(30px) saturate(200%);
-  --glass-shadow: 0 8px 32px rgba(31, 38, 135, 0.15);
-  --glass-shadow-lg: 0 12px 40px rgba(31, 38, 135, 0.2);
+  /* === 液态磨砂玻璃（亮色：柔和半透明） === */
+  --glass-bg: rgba(255, 255, 255, 0.72);
+  --glass-bg-strong: rgba(255, 255, 255, 0.92);
+  --glass-bg-elevated: rgba(255, 255, 255, 0.82);
+  --glass-bg-input: rgba(250, 251, 253, 0.6);
+  --glass-border: rgba(200, 210, 230, 0.5);
+  --glass-border-strong: rgba(200, 210, 230, 0.75);
+  --glass-blur: blur(10px) saturate(160%);
+  --glass-blur-strong: blur(14px) saturate(170%);
+  --glass-blur-light: blur(6px) saturate(150%);
+  --glass-shadow: 0 4px 20px rgba(80, 90, 120, 0.08), 0 1px 3px rgba(0, 0, 0, 0.03);
+  --glass-shadow-lg: 0 8px 32px rgba(80, 90, 120, 0.12), 0 2px 6px rgba(0, 0, 0, 0.05);
+  --glass-shadow-float: 0 6px 24px rgba(80, 90, 120, 0.1);
+
+  /* 内部高光 */
+  --glass-highlight: linear-gradient(180deg, rgba(255, 255, 255, 0.8) 0%, transparent 50%);
+
+  /* === 玻璃按钮（亮色） === */
+  --glass-btn-bg: rgba(200, 210, 230, 0.35);
+  --glass-btn-bg-hover: rgba(200, 210, 230, 0.55);
+  --glass-btn-bg-active: rgba(200, 210, 230, 0.7);
+  --glass-btn-border: rgba(200, 210, 230, 0.6);
+  --glass-btn-border-hover: rgba(160, 175, 200, 0.85);
+  --glass-btn-blur: blur(8px) saturate(160%);
+  --glass-btn-shadow: 0 2px 8px rgba(80, 90, 120, 0.06);
+  --glass-btn-shadow-hover: 0 4px 14px rgba(80, 90, 120, 0.12);
+
+  /* 涟漪 */
+  --ripple-color: rgba(79, 70, 229, 0.12);
+  --ripple-color-accent: rgba(99, 102, 241, 0.2);
 }
 
 .hidden {
@@ -115,6 +165,138 @@
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+/* ========== 玻璃按钮涟漪动效 ========== */
+@keyframes glassRipple {
+  0% {
+    transform: translate(-50%, -50%) scale(0);
+    opacity: 0.55;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(2.5);
+    opacity: 0;
+  }
+}
+
+@keyframes glassRippleAccent {
+  0% {
+    transform: translate(-50%, -50%) scale(0);
+    opacity: 0.5;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(3);
+    opacity: 0;
+  }
+}
+
+@keyframes glassPress {
+  0% { transform: scale(1); }
+  50% { transform: scale(0.94); }
+  100% { transform: scale(1); }
+}
+
+/* 共享的玻璃按钮基础属性 */
+.btn-glass,
+.btn-header-action,
+.btn-mini-mode,
+.icon-btn,
+.btn-ai-summary,
+.btn-cancel,
+.btn-ok,
+.btn-danger,
+.btn-archive-all,
+.btn-primary,
+.btn-copy,
+.btn-theme-toggle,
+.btn-row button,
+.theme-opt,
+.settings-tab,
+.btn-ai-mode,
+.btn-ai-range,
+.month-opt {
+  position: relative;
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+  isolation: isolate;
+}
+
+.btn-glass::before,
+.btn-header-action::before,
+.btn-mini-mode::before,
+.icon-btn::before,
+.btn-ai-summary::before,
+.btn-cancel::before,
+.btn-ok::before,
+.btn-danger::before,
+.btn-archive-all::before,
+.btn-primary::before,
+.btn-copy::before,
+.btn-theme-toggle::before,
+.btn-row button::before,
+.theme-opt::before,
+.settings-tab::before,
+.btn-ai-mode::before,
+.btn-ai-range::before,
+.month-opt::before {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  width: 120px;
+  height: 120px;
+  top: var(--ripple-y, 50%);
+  left: var(--ripple-x, 50%);
+  transform: translate(-50%, -50%) scale(0);
+  background: var(--ripple-color);
+  opacity: 0;
+  z-index: 0;
+  will-change: transform, opacity;
+}
+
+.btn-glass.is-pressing::before,
+.btn-header-action.is-pressing::before,
+.btn-mini-mode.is-pressing::before,
+.icon-btn.is-pressing::before,
+.btn-ai-summary.is-pressing::before,
+.btn-cancel.is-pressing::before,
+.btn-archive-all.is-pressing::before,
+.btn-copy.is-pressing::before,
+.btn-theme-toggle.is-pressing::before,
+.btn-row button.is-pressing::before,
+.theme-opt.is-pressing::before,
+.settings-tab.is-pressing::before,
+.btn-ai-mode.is-pressing::before,
+.btn-ai-range.is-pressing::before,
+.month-opt.is-pressing::before {
+  animation: glassRipple 0.65s ease-out;
+}
+
+.btn-glass.is-accent::before,
+.btn-primary::before,
+.btn-ok::before,
+.btn-danger::before {
+  background: var(--ripple-color-accent);
+}
+
+.btn-primary.is-pressing::before,
+.btn-ok.is-pressing::before,
+.btn-danger.is-pressing::before {
+  animation: glassRippleAccent 0.7s ease-out;
+}
+
+/* 按钮文字内容在涟漪之上 */
+.btn-glass > *,
+.btn-header-action > *,
+.btn-mini-mode > *,
+.icon-btn > *,
+.btn-ai-summary > *,
+.btn-archive-all > *,
+.btn-primary > *,
+.btn-copy > *,
+.btn-theme-toggle > * {
+  position: relative;
+  z-index: 1;
 }
 
 button:focus-visible,
@@ -136,6 +318,23 @@ body {
   min-height: 100vh;
   overflow: hidden;
   position: relative;
+  line-height: 1.5;
+}
+
+/* 暗色：深蓝灰微渐变（非彩虹） */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  background: radial-gradient(ellipse at 20% 0%, #141824 0%, var(--bg-base) 60%),
+              radial-gradient(ellipse at 80% 100%, #161e2d 0%, var(--bg-base) 60%);
+}
+
+/* 亮色：极淡暖灰微渐变 */
+[data-theme="light"] body::before {
+  background: radial-gradient(ellipse at 30% 20%, #eef0f5 0%, var(--bg-base) 60%),
+              radial-gradient(ellipse at 70% 80%, #e8ecf4 0%, var(--bg-base) 60%);
 }
 
 .app {
@@ -154,7 +353,19 @@ body {
   flex-direction: column;
   border-right: 1px solid var(--glass-border);
   flex-shrink: 0;
-  transition: width 0.2s ease;
+  transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 0 16px 16px 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.sidebar::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; height: 1px;
+  background: var(--glass-highlight);
+  pointer-events: none;
+  z-index: 1;
 }
 
 .sidebar-header {
@@ -168,7 +379,7 @@ body {
 
 .sidebar-header h2 {
   font-size: 16px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--accent-text);
   flex: 1;
   min-width: 0;
@@ -181,36 +392,46 @@ body {
 }
 
 .btn-header-action {
-  background: none;
-  border: none;
+  background: var(--glass-btn-bg);
+  backdrop-filter: var(--glass-btn-blur);
+  -webkit-backdrop-filter: var(--glass-btn-blur);
+  border: 1px solid var(--glass-btn-border);
   color: var(--text-muted);
   font-size: 14px;
   cursor: pointer;
-  padding: 4px 6px;
-  border-radius: 6px;
-  transition: background 0.15s, color 0.15s;
+  padding: 6px 8px;
+  border-radius: 10px;
+  transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), color 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   line-height: 1;
+  box-shadow: var(--glass-btn-shadow);
 }
 
 .btn-header-action:hover {
-  background: var(--bg-elevated);
+  background: var(--glass-btn-bg-hover);
+  border-color: var(--glass-btn-border-hover);
   color: var(--accent-text);
+  box-shadow: var(--glass-btn-shadow-hover);
 }
 
 .btn-mini-mode {
-  background: none;
-  border: none;
+  background: var(--glass-btn-bg);
+  backdrop-filter: var(--glass-btn-blur);
+  -webkit-backdrop-filter: var(--glass-btn-blur);
+  border: 1px solid var(--glass-btn-border);
   color: var(--text-muted);
   font-size: 16px;
   cursor: pointer;
-  padding: 4px 6px;
-  border-radius: 4px;
-  transition: background 0.15s, color 0.15s;
+  padding: 6px 8px;
+  border-radius: 10px;
+  transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), color 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: var(--glass-btn-shadow);
 }
 
 .btn-mini-mode:hover {
-  background: var(--bg-elevated);
+  background: var(--glass-btn-bg-hover);
+  border-color: var(--glass-btn-border-hover);
   color: var(--accent-text);
+  box-shadow: var(--glass-btn-shadow-hover);
 }
 
 .sidebar-header .date {
@@ -228,13 +449,14 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 12px;
-  border-radius: 6px;
+  padding: 10px 14px;
+  border-radius: 12px;
   text-decoration: none;
   color: var(--text-nav);
   font-size: 14px;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s, transform 0.1s;
+  transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1), color 0.2s cubic-bezier(0.4, 0, 0.2, 1), transform 0.15s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  margin-bottom: 3px;
 }
 
 .nav-item:hover {
@@ -244,7 +466,8 @@ body {
 .nav-item.active {
   background: var(--glass-bg-elevated);
   color: var(--accent-text);
-  border: 1px solid var(--accent);
+  border: 1px solid var(--glass-border-strong);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .nav-icon {
@@ -258,13 +481,16 @@ body {
 }
 
 .nav-count {
-  font-size: 12px;
-  background: var(--border-input);
+  font-size: 11px;
+  background: var(--glass-bg-elevated);
+  backdrop-filter: var(--glass-blur-light);
+  -webkit-backdrop-filter: var(--glass-blur-light);
   color: var(--accent-text);
   padding: 2px 8px;
   border-radius: 10px;
   min-width: 20px;
   text-align: center;
+  font-weight: 500;
 }
 
 .sidebar-section {
@@ -284,6 +510,8 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.5px;
   flex-shrink: 0;
+  font-weight: 500;
+  opacity: 0.7;
 }
 
 .tag-list {
@@ -292,6 +520,7 @@ body {
   overflow-y: auto;
   flex: 1;
   min-height: 0;
+  gap: 3px;
 }
 
 .tag-actions {
@@ -305,13 +534,14 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 12px;
-  border-radius: 6px;
+  padding: 8px 14px;
+  border-radius: 12px;
   font-size: 13px;
   color: var(--text-secondary);
   cursor: pointer;
   text-decoration: none;
-  transition: background 0.15s, color 0.15s;
+  transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1), color 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  margin-bottom: 3px;
 }
 
 .tag-item:hover {
@@ -321,7 +551,8 @@ body {
 .tag-item.active {
   background: var(--glass-bg-elevated);
   color: var(--accent-text);
-  border: 1px solid var(--accent);
+  border: 1px solid var(--glass-border-strong);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .tag-label {
@@ -479,7 +710,7 @@ body {
   backdrop-filter: var(--glass-blur-strong);
   -webkit-backdrop-filter: var(--glass-blur-strong);
   border: 1px solid var(--glass-border-strong);
-  border-radius: 12px;
+  border-radius: 14px;
   padding: 20px;
   box-shadow: var(--glass-shadow-lg);
 }
@@ -668,12 +899,15 @@ body {
 }
 
 .btn-row button {
-  border: none;
-  border-radius: 8px;
+  border: 1px solid var(--glass-btn-border);
+  border-radius: 10px;
   padding: 8px 14px;
   cursor: pointer;
   font-size: 13px;
-  transition: background 0.15s, transform 0.1s;
+  transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1), transform 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  backdrop-filter: var(--glass-btn-blur);
+  -webkit-backdrop-filter: var(--glass-btn-blur);
+  box-shadow: var(--glass-btn-shadow);
 }
 
 .btn-row button:active {
@@ -681,8 +915,14 @@ body {
 }
 
 .btn-cancel {
-  background: var(--bg-elevated);
+  background: var(--glass-btn-bg);
   color: var(--text-nav);
+}
+
+.btn-cancel:hover {
+  background: var(--glass-btn-bg-hover);
+  border-color: var(--glass-btn-border-hover);
+  box-shadow: var(--glass-btn-shadow-hover);
 }
 
 .btn-row .btn-cancel:only-child {
@@ -693,15 +933,29 @@ body {
 .btn-ok {
   background: var(--accent);
   color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 2px 12px rgba(79, 70, 229, 0.3);
+}
+
+.btn-ok:hover {
+  background: var(--accent-hover);
+  box-shadow: 0 4px 16px rgba(79, 70, 229, 0.4);
 }
 
 .btn-danger {
-  background: var(--danger-light-bg);
-  color: var(--danger-light-text);
+  background: var(--danger);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 2px 12px rgba(239, 68, 68, 0.3);
 }
 
 .btn-danger:hover {
-  background: var(--danger-light-bg);
+  background: var(--danger-hover);
+  box-shadow: 0 4px 16px rgba(239, 68, 68, 0.4);
 }
 
 /* Main Content */
@@ -724,7 +978,7 @@ body {
 
 .main-header h1 {
   font-size: 24px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text-heading);
 }
 
@@ -748,15 +1002,15 @@ body {
 .search-bar input {
   flex: 1;
   padding: 8px 12px;
-  border: 1px solid var(--glass-border-strong);
-  border-radius: 6px;
-  background: var(--glass-bg);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  background: var(--glass-bg-input);
+  backdrop-filter: var(--glass-blur-light);
+  -webkit-backdrop-filter: var(--glass-blur-light);
   color: var(--text-primary);
-  font-size: 14px;
+  font-size: 13.5px;
   outline: none;
-  transition: border-color 0.15s;
+  transition: border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .search-bar input:focus {
@@ -766,14 +1020,16 @@ body {
 /* Add Task Bar */
 .add-task-bar {
   margin: 16px 32px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-input);
-  border-radius: 8px;
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
   display: flex;
   align-items: center;
   padding: 12px 16px;
   gap: 12px;
-  transition: border-color 0.2s;
+  transition: border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
 }
 
@@ -811,39 +1067,48 @@ body {
 }
 
 .icon-btn {
-  background: none;
-  border: none;
+  background: var(--glass-btn-bg);
+  backdrop-filter: var(--glass-btn-blur);
+  -webkit-backdrop-filter: var(--glass-btn-blur);
+  border: 1px solid var(--glass-btn-border);
   color: var(--text-secondary);
   font-size: 16px;
   cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 4px;
-  transition: background 0.15s;
+  padding: 6px 10px;
+  border-radius: 10px;
+  transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: var(--glass-btn-shadow);
 }
 
 .icon-btn:hover {
-  background: var(--border-input);
+  background: var(--glass-btn-bg-hover);
+  border-color: var(--glass-btn-border-hover);
+  box-shadow: var(--glass-btn-shadow-hover);
 }
 
 .btn-ai-summary {
-  background: none;
-  border: 1px solid var(--border);
+  background: var(--glass-btn-bg);
+  backdrop-filter: var(--glass-btn-blur);
+  -webkit-backdrop-filter: var(--glass-btn-blur);
+  border: 1px solid var(--glass-btn-border);
   color: var(--text-secondary);
   font-size: 13px;
   cursor: pointer;
-  padding: 5px 12px;
-  border-radius: 6px;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  padding: 6px 12px;
+  border-radius: 10px;
+  transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), color 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   align-items: center;
   gap: 4px;
   white-space: nowrap;
+  box-shadow: var(--glass-btn-shadow);
 }
 
 .btn-ai-summary:hover {
-  background: var(--bg-elevated);
-  color: var(--accent-text);
+  background: var(--glass-btn-bg-hover);
   border-color: var(--accent);
+  color: var(--accent-text);
+  box-shadow: var(--glass-btn-shadow-hover);
 }
 
 /* Todo List */
@@ -857,16 +1122,26 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 16px;
+  padding: 14px 18px;
   background: var(--glass-bg);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border-radius: 8px;
-  margin-bottom: 6px;
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-radius: 16px;
+  margin-bottom: 8px;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, transform 0.15s;
+  transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   border: 1px solid var(--glass-border);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--glass-shadow-float);
+  position: relative;
+}
+
+.todo-item::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 18px; right: 18px; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08), transparent);
+  pointer-events: none;
+  border-radius: 16px 16px 0 0;
 }
 
 .todo-item:hover {
@@ -880,16 +1155,19 @@ body {
 }
 
 .todo-checkbox {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  border: 2px solid var(--checkbox-border);
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  border: 1.5px solid var(--checkbox-border);
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.2s;
+  background: var(--glass-bg-input);
+  backdrop-filter: var(--glass-blur-light);
+  -webkit-backdrop-filter: var(--glass-blur-light);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .todo-checkbox:hover {
@@ -897,8 +1175,9 @@ body {
 }
 
 .todo-checkbox.checked {
-  background: var(--success);
-  border-color: var(--success);
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
 }
 
 .todo-checkbox.checked::after {
@@ -917,6 +1196,8 @@ body {
   font-size: 14px;
   color: var(--text-primary);
   margin-bottom: 4px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
 }
 
 .todo-meta {
@@ -928,11 +1209,14 @@ body {
 
 .todo-meta .badge {
   font-size: 11px;
-  padding: 2px 8px;
-  border-radius: 4px;
+  padding: 3px 8px;
+  border-radius: 6px;
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  background: var(--glass-bg-elevated);
+  backdrop-filter: var(--glass-blur-light);
+  -webkit-backdrop-filter: var(--glass-blur-light);
 }
 
 .badge-date {
@@ -1027,18 +1311,23 @@ body {
 
 .btn-archive-all {
   font-size: 12px;
-  padding: 2px 8px;
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  background: var(--bg-surface);
+  padding: 4px 10px;
+  background: var(--glass-btn-bg);
+  backdrop-filter: var(--glass-btn-blur);
+  -webkit-backdrop-filter: var(--glass-btn-blur);
+  border: 1px solid var(--glass-btn-border);
+  border-radius: 10px;
   color: var(--text-secondary);
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), color 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: var(--glass-btn-shadow);
 }
 
 .btn-archive-all:hover {
-  background: var(--bg-hover);
+  background: var(--glass-btn-bg-hover);
+  border-color: var(--glass-btn-border-hover);
   color: var(--text-primary);
+  box-shadow: var(--glass-btn-shadow-hover);
 }
 
 .done-header .arrow {
@@ -1073,6 +1362,7 @@ body {
   backdrop-filter: var(--glass-blur-strong);
   -webkit-backdrop-filter: var(--glass-blur-strong);
   border-left: 1px solid var(--glass-border);
+  border-radius: 0 16px 16px 0;
   padding: 20px;
   overflow-y: auto;
   overflow-x: hidden;
@@ -1145,28 +1435,142 @@ body {
 
 .detail-row input[type="text"],
 .detail-row input[type="datetime-local"],
-.detail-row textarea,
-.detail-row select {
+.detail-row textarea {
   width: 100%;
   padding: 10px 12px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-input);
-  border-radius: 6px;
+  background: var(--glass-bg-input);
+  backdrop-filter: var(--glass-blur-light);
+  -webkit-backdrop-filter: var(--glass-blur-light);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
   color: var(--text-primary);
   font-size: 13px;
   outline: none;
-  transition: border-color 0.2s;
+  transition: border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), background 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* === 原生 select 统一玻璃化（日期选择器/月份选择器） === */
+.dp-time-row select,
+.month-picker-row select {
+  width: 100%;
+  padding: 10px 12px;
+  padding-right: 32px;
+  background-color: var(--glass-bg-input);
+  backdrop-filter: var(--glass-blur-light);
+  -webkit-backdrop-filter: var(--glass-blur-light);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  color: var(--text-primary);
+  font-size: 13px;
+  outline: none;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238892a8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'></polyline></svg>");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  transition: border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1), background 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .detail-row input:focus,
-.detail-row textarea:focus,
-.detail-row select:focus {
+.detail-row textarea:focus {
   border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.dp-time-row select:focus,
+.month-picker-row select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
 .detail-row textarea {
   resize: vertical;
   min-height: 60px;
+}
+
+/* === 详情面板自定义下拉选择器 === */
+.detail-select {
+  width: 100%;
+  padding: 10px 12px;
+  padding-right: 32px;
+  background: var(--glass-bg-input);
+  backdrop-filter: var(--glass-blur-light);
+  -webkit-backdrop-filter: var(--glass-blur-light);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  color: var(--text-primary);
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: relative;
+  transition: border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1), background 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.detail-select:hover {
+  border-color: var(--glass-border-strong);
+  background: rgba(18, 23, 35, 0.6);
+}
+
+[data-theme="light"] .detail-select:hover {
+  background: rgba(250, 251, 253, 0.75);
+}
+
+.detail-select-trigger {
+  flex: 1;
+  text-align: left;
+  pointer-events: none;
+  color: inherit;
+  font-size: inherit;
+}
+
+.detail-select-arrow {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  pointer-events: none;
+  color: var(--text-muted);
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 下拉弹窗 */
+.detail-dropdown {
+  position: fixed;
+  z-index: 1050;
+  min-width: 140px;
+  max-height: 220px;
+  overflow-y: auto;
+  background: var(--glass-bg-strong);
+  backdrop-filter: var(--glass-blur-strong);
+  -webkit-backdrop-filter: var(--glass-blur-strong);
+  border: 1px solid var(--glass-border-strong);
+  border-radius: 12px;
+  padding: 5px;
+  box-shadow: var(--glass-shadow-lg);
+  animation: popupFadeIn 0.15s ease-out;
+}
+
+.detail-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  font-size: 13px;
+  color: var(--text-nav);
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1), transform 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.detail-dropdown-item:hover {
+  background: var(--glass-bg-elevated);
+}
+
+.detail-dropdown-item.selected {
+  background: var(--accent-bg);
+  color: var(--accent-text);
 }
 
 .detail-row-inline {
@@ -1242,30 +1646,41 @@ body {
 .btn-primary {
   background: var(--accent);
   color: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   padding: 10px 20px;
-  border-radius: 6px;
+  border-radius: 10px;
   font-size: 13px;
   cursor: pointer;
   flex: 1;
+  box-shadow: 0 2px 12px rgba(79, 70, 229, 0.3);
+  transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1), transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .btn-primary:hover {
   background: var(--accent-hover);
+  box-shadow: 0 4px 18px rgba(79, 70, 229, 0.4);
+  transform: translateY(-1px);
 }
 
 .btn-danger {
   background: var(--danger);
   color: #fff;
-  border: none;
+  border: 1px solid rgba(255, 255, 255, 0.22);
   padding: 10px 20px;
-  border-radius: 6px;
+  border-radius: 10px;
   font-size: 13px;
   cursor: pointer;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 2px 12px rgba(239, 68, 68, 0.3);
+  transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .btn-danger:hover {
   background: var(--danger-hover);
+  box-shadow: 0 4px 16px rgba(239, 68, 68, 0.4);
 }
 
 /* Calendar */
@@ -1281,6 +1696,7 @@ body {
   backdrop-filter: var(--glass-blur-strong);
   -webkit-backdrop-filter: var(--glass-blur-strong);
   border-left: 1px solid var(--glass-border);
+  border-radius: 0 16px 16px 0;
   display: flex;
   flex-direction: column;
   z-index: 900;
@@ -1326,25 +1742,25 @@ body {
 
 .summary-tab {
   flex: 1;
-  padding: 8px 12px;
-  border: 1px solid var(--border-input);
-  border-radius: 6px;
+  padding: 8px 14px;
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
   background: transparent;
   color: var(--text-secondary);
   font-size: 13px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .summary-tab.active {
   background: var(--accent);
   border-color: var(--accent);
   color: #fff;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.2);
 }
 
 .summary-tab:hover:not(.active) {
-  background: var(--bg-elevated);
-  color: var(--text-primary);
+  background: var(--glass-bg-elevated);
 }
 
 .summary-date-row {
@@ -1412,17 +1828,22 @@ body {
 .btn-copy {
   width: 100%;
   padding: 8px 16px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-input);
-  border-radius: 6px;
+  background: var(--glass-btn-bg);
+  backdrop-filter: var(--glass-btn-blur);
+  -webkit-backdrop-filter: var(--glass-btn-blur);
+  border: 1px solid var(--glass-btn-border);
+  border-radius: 10px;
   color: var(--text-primary);
   font-size: 13px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: var(--glass-btn-shadow);
 }
 
 .btn-copy:hover {
-  background: var(--border-input);
+  background: var(--glass-btn-bg-hover);
+  border-color: var(--glass-btn-border-hover);
+  box-shadow: var(--glass-btn-shadow-hover);
 }
 
 .summary-loading {
@@ -1454,7 +1875,7 @@ body {
   backdrop-filter: var(--glass-blur-strong);
   -webkit-backdrop-filter: var(--glass-blur-strong);
   border: 1px solid var(--glass-border-strong);
-  border-radius: 10px;
+  border-radius: 18px;
   box-shadow: var(--glass-shadow-lg);
   display: flex;
   flex-direction: column;
@@ -1481,20 +1902,21 @@ body {
   flex-shrink: 0;
 }
 .settings-tab {
-  padding: 6px 14px;
+  padding: 7px 16px;
   border: 1px solid var(--border-input);
   border-radius: 999px;
   background: transparent;
   color: var(--text-secondary);
   font-size: 13px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .settings-tab:hover:not(.active) { background: var(--bg-elevated); }
 .settings-tab.active {
   background: var(--accent);
   border-color: var(--accent);
   color: #fff;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.2);
 }
 
 .settings-body {
@@ -1516,19 +1938,21 @@ body {
 .settings-row textarea {
   width: 100%;
   padding: 10px 12px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid var(--glass-border-strong);
-  border-radius: 6px;
+  background: var(--glass-bg-input);
+  backdrop-filter: var(--glass-blur-light);
+  -webkit-backdrop-filter: var(--glass-blur-light);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
   color: var(--text-primary);
   font-size: 13px;
   outline: none;
   box-sizing: border-box;
-  transition: border-color 0.15s, background 0.15s;
+  transition: border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), background 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .settings-row input:focus,
 .settings-row textarea:focus {
   border-color: var(--accent);
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--glass-bg-input);
 }
 .settings-row textarea { resize: vertical; min-height: 60px; }
 
@@ -1537,20 +1961,21 @@ body {
 /* 主题选项 */
 .theme-options { display: flex; gap: 8px; flex-wrap: wrap; }
 .theme-opt {
-  padding: 8px 14px;
+  padding: 10px 16px;
   border: 1px solid var(--border-input);
-  border-radius: 6px;
+  border-radius: 10px;
   background: transparent;
   color: var(--text-secondary);
   font-size: 13px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .theme-opt:hover:not(.active) { background: var(--bg-elevated); }
 .theme-opt.active {
   background: var(--accent);
   border-color: var(--accent);
   color: #fff;
+  box-shadow: 0 2px 10px rgba(99, 102, 241, 0.25);
 }
 
 /* 标签管理 Tab */
@@ -1669,12 +2094,12 @@ body {
   color: var(--text-primary);
   cursor: pointer;
   padding: 4px 12px;
-  border-radius: 6px;
-  transition: background 0.2s;
+  border-radius: 8px;
+  transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .calendar-title-btn:hover {
-  background: var(--bg-hover);
+  background: var(--glass-bg-elevated);
 }
 
 .month-picker {
@@ -1689,17 +2114,6 @@ body {
 
 .month-picker-row select {
   flex: 1;
-  padding: 10px 12px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-input);
-  border-radius: 6px;
-  color: var(--text-primary);
-  font-size: 14px;
-  outline: none;
-}
-
-.month-picker-row select:focus {
-  border-color: var(--accent);
 }
 
 .month-picker-actions {
@@ -1710,15 +2124,31 @@ body {
 
 .month-picker-actions button {
   padding: 6px 20px;
-  border-radius: 6px;
+  border-radius: 8px;
   font-size: 13px;
   cursor: pointer;
+  border: 1px solid var(--glass-border);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .month-picker-actions #picker-cancel {
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-input);
+  background: var(--glass-bg-input);
+  border-color: var(--glass-border);
   color: var(--text-nav);
+}
+
+.month-picker-actions #picker-cancel:hover {
+  background: var(--glass-bg-elevated);
+}
+
+.month-picker-actions #picker-ok {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.month-picker-actions #picker-ok:hover {
+  opacity: 0.85;
 }
 
 .calendar-weekdays {
@@ -1743,11 +2173,11 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  border-radius: 6px;
+  border-radius: 10px;
   cursor: pointer;
   font-size: 12px;
   position: relative;
-  transition: background 0.15s;
+  transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .calendar-day:hover {
@@ -1759,6 +2189,7 @@ body {
   color: var(--accent-text);
   font-weight: 700;
   border: 1px solid var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), 0 2px 8px rgba(99, 102, 241, 0.2);
 }
 
 .calendar-day.other-month {
@@ -1768,6 +2199,7 @@ body {
 .calendar-day.selected {
   background: var(--accent);
   color: #fff;
+  box-shadow: 0 2px 10px rgba(99, 102, 241, 0.3);
 }
 
 .calendar-day .dot-row {
@@ -1791,8 +2223,11 @@ body {
 .calendar-detail {
   margin-top: 16px;
   padding: 16px;
-  background: var(--bg-elevated);
-  border-radius: 8px;
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
   min-height: 60px;
   flex: 1;
   overflow-y: auto;
@@ -1850,7 +2285,7 @@ body {
   backdrop-filter: var(--glass-blur-strong);
   -webkit-backdrop-filter: var(--glass-blur-strong);
   border: 1px solid var(--glass-border-strong);
-  border-radius: 8px;
+  border-radius: 14px;
   padding: 20px;
   width: 280px;
   box-shadow: var(--glass-shadow-lg);
@@ -1901,6 +2336,7 @@ body {
 /* Quick Add Popups */
 .add-task-bar {
   position: relative;
+  z-index: 10;
 }
 
 .quick-popup {
@@ -1911,11 +2347,11 @@ body {
   backdrop-filter: var(--glass-blur-strong);
   -webkit-backdrop-filter: var(--glass-blur-strong);
   border: 1px solid var(--glass-border-strong);
-  border-radius: 8px;
+  border-radius: 12px;
   padding: 8px 0;
   min-width: 180px;
-  box-shadow: var(--glass-shadow);
-  z-index: 50;
+  box-shadow: var(--glass-shadow-lg);
+  z-index: 100;
   animation: popupFadeIn 0.15s ease;
 }
 
@@ -1925,25 +2361,29 @@ body {
 }
 
 .popup-title {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-muted);
-  padding: 4px 14px 8px;
-  font-weight: 600;
+  padding: 6px 16px 8px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .popup-option {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 14px;
+  padding: 9px 16px;
   font-size: 13px;
   color: var(--text-nav);
   cursor: pointer;
-  transition: background 0.12s;
+  border-radius: 8px;
+  margin: 0 6px;
+  transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1), transform 0.15s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .popup-option:hover {
-  background: var(--border-input);
+  background: var(--glass-bg-elevated);
 }
 
 .popup-option.selected {
@@ -1961,12 +2401,12 @@ body {
 
 .popup-divider {
   height: 1px;
-  background: var(--border-input);
-  margin: 4px 0;
+  background: var(--glass-border-strong);
+  margin: 4px 12px;
 }
 
 .popup-empty {
-  padding: 8px 14px;
+  padding: 12px 16px;
   font-size: 12px;
   color: var(--text-muted);
 }
@@ -2041,8 +2481,8 @@ body {
   min-width: 280px;
   background: var(--bg-elevated);
   border: 1px solid var(--border-input);
-  border-radius: 10px;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.15);
+  border-radius: 14px;
+  box-shadow: var(--glass-shadow-lg);
   padding: 12px;
   font-size: 13px;
   animation: popupFadeIn 0.15s ease-out;
@@ -2062,13 +2502,14 @@ body {
   font-size: 14px;
   cursor: pointer;
   padding: 4px 6px;
-  border-radius: 4px;
+  border-radius: 8px;
   line-height: 1;
+  transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1), color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .dp-nav-btn:hover {
   color: var(--text-primary);
-  background: var(--bg-hover);
+  background: var(--glass-bg-elevated);
 }
 
 .dp-title {
@@ -2084,18 +2525,21 @@ body {
 
 .dp-today-btn {
   background: none;
-  border: 1px solid var(--accent);
+  border: 1px solid var(--glass-border-strong);
   color: var(--accent);
   font-size: 11px;
   cursor: pointer;
-  padding: 2px 8px;
-  border-radius: 4px;
+  padding: 3px 10px;
+  border-radius: 8px;
   margin-left: auto;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .dp-today-btn:hover {
   background: var(--accent);
   color: #fff;
+  border-color: var(--accent);
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.25);
 }
 
 .dp-weekdays {
@@ -2163,18 +2607,6 @@ body {
 
 .dp-time-row select {
   flex: 1;
-  padding: 6px 8px;
-  background: var(--bg-surface);
-  border: 1px solid var(--border-input);
-  border-radius: 5px;
-  color: var(--text-primary);
-  font-size: 13px;
-  outline: none;
-  cursor: pointer;
-}
-
-.dp-time-row select:focus {
-  border-color: var(--accent);
 }
 
 .dp-actions {
@@ -2188,16 +2620,17 @@ body {
 
 .dp-btn {
   padding: 6px 18px;
-  border-radius: 6px;
+  border-radius: 8px;
   font-size: 12px;
   cursor: pointer;
-  border: none;
-  transition: opacity 0.15s;
+  border: 1px solid var(--glass-border);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .dp-btn-confirm {
   background: var(--accent);
   color: #fff;
+  border-color: var(--accent);
 }
 
 .dp-btn-confirm:hover {
@@ -2205,13 +2638,13 @@ body {
 }
 
 .dp-btn-clear {
-  background: var(--bg-surface);
+  background: var(--glass-bg-input);
   color: var(--text-nav);
-  border: 1px solid var(--border-input) !important;
+  border: 1px solid var(--glass-border) !important;
 }
 
 .dp-btn-clear:hover {
-  background: var(--bg-hover);
+  background: var(--glass-bg-elevated);
 }
 
 .prio-dot {
@@ -2243,14 +2676,14 @@ body {
   border: 1px solid var(--glass-border-strong);
   color: var(--text-primary);
   padding: 10px 24px;
-  border-radius: 8px;
+  border-radius: 12px;
   font-size: 14px;
   font-weight: 500;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.3s, transform 0.3s;
+  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: 999;
-  box-shadow: var(--glass-shadow);
+  box-shadow: var(--glass-shadow-lg);
 }
 
 .toast-msg.show {
@@ -2418,9 +2851,9 @@ body {
   backdrop-filter: var(--glass-blur-strong);
   -webkit-backdrop-filter: var(--glass-blur-strong);
   border: 1px solid var(--glass-border-strong);
-  border-radius: 8px;
+  border-radius: 14px;
   padding: 4px 0;
-  box-shadow: var(--glass-shadow);
+  box-shadow: var(--glass-shadow-lg);
   animation: contextMenuFadeIn 0.1s ease;
 }
 
@@ -2428,15 +2861,17 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 14px;
+  padding: 9px 14px;
   font-size: 13px;
   color: var(--text-primary);
   cursor: pointer;
-  transition: background 0.1s;
+  border-radius: 8px;
+  margin: 0 4px;
+  transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .context-menu-item:hover {
-  background: var(--bg-hover);
+  background: var(--glass-bg-elevated);
 }
 
 .context-menu-item.danger {
@@ -2449,8 +2884,8 @@ body {
 
 .context-menu-separator {
   height: 1px;
-  background: var(--border);
-  margin: 4px 0;
+  background: var(--glass-border-strong);
+  margin: 4px 10px;
 }
 
 .context-menu-item .menu-icon {
@@ -2521,6 +2956,7 @@ body {
   flex-direction: column;
   z-index: 2000;
   overflow: hidden;
+  border-radius: 16px;
 }
 
 .mini-panel.hidden {
@@ -2672,14 +3108,16 @@ body {
 
 .mini-tooltip {
   position: fixed;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-input);
-  border-radius: 8px;
+  background: var(--glass-bg-strong);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
   padding: 10px 12px;
   font-size: 12px;
   color: var(--text-nav);
   max-width: 220px;
-  box-shadow: 0 8px 24px var(--shadow);
+  box-shadow: var(--glass-shadow-lg);
   z-index: 3000;
   pointer-events: none;
   animation: popupFadeIn 0.15s ease;
@@ -2712,19 +3150,24 @@ body {
 }
 
 .btn-theme-toggle {
-  background: none;
-  border: none;
+  background: var(--glass-btn-bg);
+  backdrop-filter: var(--glass-btn-blur);
+  -webkit-backdrop-filter: var(--glass-btn-blur);
+  border: 1px solid var(--glass-btn-border);
   color: var(--text-muted);
   font-size: 16px;
   cursor: pointer;
-  padding: 4px 6px;
-  border-radius: 4px;
-  transition: background 0.15s, color 0.15s;
+  padding: 6px 8px;
+  border-radius: 10px;
+  transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), color 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: var(--glass-btn-shadow);
 }
 
 .btn-theme-toggle:hover {
-  background: var(--bg-elevated);
+  background: var(--glass-btn-bg-hover);
+  border-color: var(--glass-btn-border-hover);
   color: var(--accent-text);
+  box-shadow: var(--glass-btn-shadow-hover);
 }
 
 [data-theme="light"] .popup-date-input::-webkit-calendar-picker-indicator {

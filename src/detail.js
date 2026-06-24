@@ -1,10 +1,125 @@
 import { formatDateTime, toLocalDatetime } from './utils/date.js';
 import { initDatePicker, closeDatePicker } from './datePicker.js';
+import { escapeHtml } from './utils/html.js';
 
 let onDoneTimeChange = null;
 
+/* 优先级选项配置 */
+const PRIORITY_OPTIONS = [
+  { value: 'none', label: '无', dotClass: '' },
+  { value: 'low', label: '低', dotClass: 'prio-low' },
+  { value: 'medium', label: '中', dotClass: 'prio-medium' },
+  { value: 'high', label: '高', dotClass: 'prio-high' },
+];
+
+/* 重复提醒选项配置 */
+const REPEAT_OPTIONS = [
+  { value: 'none', label: '不重复' },
+  { value: 'daily', label: '每天' },
+  { value: 'weekly', label: '每周' },
+  { value: 'monthly', label: '每月' },
+];
+
+let activeDropdown = null;
+
+/** 关闭所有详情下拉弹窗 */
+function closeDetailDropdowns() {
+  if (activeDropdown) {
+    activeDropdown.remove();
+    activeDropdown = null;
+  }
+}
+
+/** 创建下拉选项弹窗 */
+function createDetailDropdown(selectEl, options, getOptionHtml) {
+  closeDetailDropdowns();
+
+  const rect = selectEl.getBoundingClientRect();
+  const popup = document.createElement('div');
+  popup.className = 'detail-dropdown';
+
+  const itemsHtml = options.map(opt => {
+    const isSelected = selectEl.dataset.value === opt.value;
+    return `<div class="detail-dropdown-item${isSelected ? ' selected' : ''}" data-value="${opt.value}">${getOptionHtml(opt)}</div>`;
+  }).join('');
+
+  popup.innerHTML = itemsHtml;
+  document.body.appendChild(popup);
+
+  /* 定位：在触发器下方 */
+  const top = rect.bottom + window.scrollY + 4;
+  const left = rect.left + window.scrollX;
+  popup.style.top = `${top}px`;
+  popup.style.left = `${left}px`;
+  popup.style.minWidth = `${rect.width}px`;
+
+  /* 防止溢出视口底部 */
+  const popupRect = popup.getBoundingClientRect();
+  if (popupRect.bottom > window.innerHeight) {
+    popup.style.top = `${rect.top + window.scrollY - popupRect.height - 4}px`;
+  }
+
+  activeDropdown = popup;
+
+  /* 点击选项 */
+  popup.querySelectorAll('.detail-dropdown-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const val = item.dataset.value;
+      selectEl.dataset.value = val;
+      const trigger = selectEl.querySelector('.detail-select-trigger');
+      if (trigger) {
+        const opt = options.find(o => o.value === val);
+        trigger.textContent = opt ? opt.label : val;
+      }
+      /* 更新选中态 */
+      popup.querySelectorAll('.detail-dropdown-item').forEach(i => i.classList.remove('selected'));
+      item.classList.add('selected');
+      closeDetailDropdowns();
+    });
+  });
+}
+
 export function initDetailEditor(callbacks) {
   onDoneTimeChange = callbacks.onDoneTimeChange || null;
+  const { data } = callbacks;
+
+  /* 优先级下拉 */
+  document.getElementById('detail-priority').addEventListener('click', function (e) {
+    e.stopPropagation();
+    createDetailDropdown(this, PRIORITY_OPTIONS, (opt) =>
+      opt.dotClass ? `<span class="prio-dot ${opt.dotClass}"></span>${opt.label}` : opt.label
+    );
+  });
+
+  /* 标签下拉 */
+  document.getElementById('detail-tag').addEventListener('click', function (e) {
+    e.stopPropagation();
+    const tagOptions = (data.tags || []).map(tag => ({ value: tag, label: tag }));
+    createDetailDropdown(this, tagOptions.length > 0 ? tagOptions : [{ value: '', label: '暂无标签' }], (opt) =>
+      opt.value ? `<span class="tag-dot" style="background:${getTagColor(opt.value)}"></span>${escapeHtml(opt.label)}` : opt.label
+    );
+  });
+
+  /* 重复提醒下拉 */
+  document.getElementById('detail-reminder-repeat').addEventListener('click', function (e) {
+    e.stopPropagation();
+    createDetailDropdown(this, REPEAT_OPTIONS, (opt) => opt.label);
+  });
+
+  /* 点击外部关闭 */
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.detail-select') && !e.target.closest('.detail-dropdown')) {
+      closeDetailDropdowns();
+    }
+  });
+}
+
+/** 根据标签名生成圆点颜色（与 renderTodoItem 保持一致） */
+function getTagColor(tag) {
+  let hash = 0;
+  for (let i = 0; i < tag.length; i++) hash = tag.charCodeAt(i) + ((hash << 5) - hash);
+  const colors = ['#6366f1', '#ec4899', '#14b8a6', '#f59e0b', '#8b5cf6', '#06b6d4', '#ef4444', '#22c55e'];
+  return colors[Math.abs(hash) % colors.length];
 }
 
 export function openDetail(todo) {
@@ -41,17 +156,37 @@ export function openDetail(todo) {
   detailPanel.style.animation = 'none';
   detailPanel.offsetHeight;
   detailPanel.style.animation = '';
+  closeDetailDropdowns();
+
   document.getElementById('detail-id').value = todo.id;
   document.getElementById('detail-title').value = todo.title;
   document.getElementById('detail-desc').value = todo.desc || '';
-  document.getElementById('detail-priority').value = todo.priority || 'none';
-  document.getElementById('detail-tag').value = todo.tag || '';
   document.getElementById('detail-start').value = todo.startTime ? todo.startTime.slice(0, 16) : '';
   document.getElementById('detail-end').value = todo.endTime ? todo.endTime.slice(0, 16) : '';
   document.getElementById('detail-reminder').value = todo.reminder ? todo.reminder.slice(0, 16) : '';
-  document.getElementById('detail-reminder-repeat').value = todo.reminderRepeat || 'none';
   document.getElementById('detail-todo').checked = !!todo.todo;
   document.getElementById('detail-important').checked = !!todo.important;
+
+  /* 设置自定义下拉值 —— 优先级 */
+  const priorityVal = todo.priority || 'none';
+  const priorityEl = document.getElementById('detail-priority');
+  priorityEl.dataset.value = priorityVal;
+  priorityEl.querySelector('.detail-select-trigger').textContent =
+    PRIORITY_OPTIONS.find(o => o.value === priorityVal)?.label || '无';
+
+  /* 设置自定义下拉值 —— 标签 */
+  const tagVal = todo.tag || '';
+  const tagEl = document.getElementById('detail-tag');
+  tagEl.dataset.value = tagVal;
+  tagEl.querySelector('.detail-select-trigger').textContent = tagVal || '未设置';
+
+  /* 设置自定义下拉值 —— 重复提醒 */
+  const repeatVal = todo.reminderRepeat || 'none';
+  const repeatEl = document.getElementById('detail-reminder-repeat');
+  repeatEl.dataset.value = repeatVal;
+  repeatEl.querySelector('.detail-select-trigger').textContent =
+    REPEAT_OPTIONS.find(o => o.value === repeatVal)?.label || '不重复';
+
   const doneRow = document.getElementById('detail-done-row');
   const doneTimeEl = document.getElementById('detail-done-time');
   if (todo.done && todo.doneAt) {
@@ -71,6 +206,7 @@ export function openDetail(todo) {
 }
 
 export function closeDetail() {
+  closeDetailDropdowns();
   const panel = document.getElementById('detail-panel');
   if (panel.classList.contains('hidden')) return;
 

@@ -257,9 +257,6 @@ function renderSidebar() {
   document.querySelectorAll('.nav-item[data-list]').forEach(el => {
     el.classList.toggle('active', !currentTag && el.dataset.list === currentList);
   });
-
-  const datalist = document.getElementById('tag-datalist');
-  datalist.innerHTML = data.tags.map(t => `<option value="${escapeHtml(t)}">`).join('');
 }
 
 function renderTodoList() {
@@ -416,6 +413,7 @@ export async function initApp() {
   normalizeData();
 
   initDetailEditor({
+    data,
     onDoneTimeChange: (id, newDoneAt) => {
       const todo = data.todos.find(t => t.id === id);
       if (!todo) return;
@@ -700,12 +698,12 @@ export async function initApp() {
 
     todo.title = document.getElementById('detail-title').value.trim();
     todo.desc = document.getElementById('detail-desc').value.trim();
-    todo.priority = document.getElementById('detail-priority').value;
-    todo.tag = document.getElementById('detail-tag').value.trim();
+    todo.priority = document.getElementById('detail-priority').dataset.value || 'none';
+    todo.tag = document.getElementById('detail-tag').dataset.value.trim();
     todo.startTime = document.getElementById('detail-start').value || null;
     todo.endTime = document.getElementById('detail-end').value || null;
     todo.reminder = document.getElementById('detail-reminder').value || null;
-    todo.reminderRepeat = document.getElementById('detail-reminder-repeat').value || 'none';
+    todo.reminderRepeat = document.getElementById('detail-reminder-repeat').dataset.value || 'none';
     todo.todo = document.getElementById('detail-todo').checked;
     todo.important = document.getElementById('detail-important').checked;
 

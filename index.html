@@ -149,17 +149,17 @@
       <div class="detail-row-inline">
         <div class="detail-row">
           <label>优先级</label>
-          <select id="detail-priority">
-            <option value="none">无</option>
-            <option value="low">低</option>
-            <option value="medium">中</option>
-            <option value="high">高</option>
-          </select>
+          <div class="detail-select" id="detail-priority" data-value="">
+            <span class="detail-select-trigger">无</span>
+            <svg class="detail-select-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </div>
         </div>
         <div class="detail-row">
           <label>标签</label>
-          <input type="text" id="detail-tag" placeholder="标签" list="tag-datalist">
-          <datalist id="tag-datalist"></datalist>
+          <div class="detail-select" id="detail-tag" data-value="">
+            <span class="detail-select-trigger">未设置</span>
+            <svg class="detail-select-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </div>
         </div>
       </div>
       <div class="detail-row-inline">
@@ -179,12 +179,10 @@
         </div>
         <div class="detail-row">
           <label>重复提醒</label>
-          <select id="detail-reminder-repeat">
-            <option value="none">不重复</option>
-            <option value="daily">每天</option>
-            <option value="weekly">每周</option>
-            <option value="monthly">每月</option>
-          </select>
+          <div class="detail-select" id="detail-reminder-repeat" data-value="">
+            <span class="detail-select-trigger">不重复</span>
+            <svg class="detail-select-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </div>
         </div>
       </div>
       <div class="detail-row checkbox-row">
