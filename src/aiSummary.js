@@ -43,10 +43,17 @@ export function initAiSummary({ data, saveData, showToast }) {
 
   document.getElementById('btn-open-summary').addEventListener('click', () => {
     closeDetail();
+
+    // 记录触发按钮位置，用于弹窗从点击处放大动画
+    const btn = document.getElementById('btn-open-summary');
+    const rect = btn.getBoundingClientRect();
+    summaryPanel.style.setProperty('--origin-x', `${rect.left + rect.width / 2 - window.innerWidth / 2}px`);
+    summaryPanel.style.setProperty('--origin-y', `${rect.top + rect.height / 2 - window.innerHeight / 2}px`);
+
     summaryPanel.classList.remove('hidden', 'hiding');
     summaryPanel.style.animation = 'none';
     summaryPanel.offsetHeight;
-    summaryPanel.style.animation = '';
+    summaryPanel.style.animation = 'modalExpandIn 0.28s cubic-bezier(0.16, 1, 0.3, 1)';
 
     if (!summaryOverlay) {
       summaryOverlay = document.createElement('div');
@@ -61,6 +68,7 @@ export function initAiSummary({ data, saveData, showToast }) {
 
   document.getElementById('close-summary').addEventListener('click', () => {
     summaryPanel.classList.add('hiding');
+    summaryPanel.style.animation = 'modalShrinkOut 0.2s cubic-bezier(0.4, 0, 1, 1) forwards';
     if (summaryOverlay) {
       summaryOverlay.classList.add('hiding');
       summaryOverlay.addEventListener('animationend', () => {
@@ -72,7 +80,15 @@ export function initAiSummary({ data, saveData, showToast }) {
     summaryPanel.addEventListener('animationend', () => {
       summaryPanel.classList.add('hidden');
       summaryPanel.classList.remove('hiding');
+      summaryPanel.style.animation = '';
     }, { once: true });
+    setTimeout(() => {
+      if (summaryPanel.classList.contains('hiding')) {
+        summaryPanel.classList.add('hidden');
+        summaryPanel.classList.remove('hiding');
+        summaryPanel.style.animation = '';
+      }
+    }, 300);
   });
 
   document.querySelectorAll('.summary-tab').forEach(tab => {

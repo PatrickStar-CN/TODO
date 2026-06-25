@@ -22,6 +22,8 @@ function getTagTaskCount(tag) {
 
 function closePanel() {
   if (!settingsOverlay) return;
+  const modal = settingsOverlay.querySelector('.settings-modal');
+  if (modal) modal.style.animation = 'modalShrinkOut 0.2s cubic-bezier(0.4, 0, 1, 1) forwards';
   settingsOverlay.classList.add('closing');
   const overlayRef = settingsOverlay;
   settingsOverlay = null;
@@ -105,6 +107,16 @@ function openPanel() {
   `;
   document.body.appendChild(overlay);
   settingsOverlay = overlay;
+
+  // 设置弹窗从触发按钮位置放大动画
+  const modal = overlay.querySelector('.settings-modal');
+  const triggerBtn = document.getElementById('btn-settings');
+  if (triggerBtn) {
+    const rect = triggerBtn.getBoundingClientRect();
+    modal.style.setProperty('--origin-x', `${rect.left + rect.width / 2 - window.innerWidth / 2}px`);
+    modal.style.setProperty('--origin-y', `${rect.top + rect.height / 2 - window.innerHeight / 2}px`);
+  }
+  modal.style.animation = 'modalExpandIn 0.28s cubic-bezier(0.16, 1, 0.3, 1)';
 
   // 点击遮罩关闭（点击 modal 内部不触发）
   overlay.addEventListener('click', (e) => {

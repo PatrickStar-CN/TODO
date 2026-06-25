@@ -122,7 +122,7 @@ function getTagColor(tag) {
   return colors[Math.abs(hash) % colors.length];
 }
 
-export function openDetail(todo) {
+export function openDetail(todo, triggerEl) {
   if (!todo) return;
 
   const summaryPanel = document.getElementById('summary-panel');
@@ -142,6 +142,17 @@ export function openDetail(todo) {
 
   const detailPanel = document.getElementById('detail-panel');
 
+  // 记录触发位置，用于弹窗从点击处放大动画
+  // 优先使用透传的触发元素，避免 querySelector 命中隐藏的重复元素（如日历视图下主列表的隐藏项）
+  const el = triggerEl || document.querySelector(`.todo-item[data-id="${todo.id}"]`) || document.activeElement;
+  if (el) {
+    const rect = el.getBoundingClientRect();
+    const originX = rect.left + rect.width / 2 - window.innerWidth / 2;
+    const originY = rect.top + rect.height / 2 - window.innerHeight / 2;
+    detailPanel.style.setProperty('--origin-x', `${originX}px`);
+    detailPanel.style.setProperty('--origin-y', `${originY}px`);
+  }
+
   let overlay = document.querySelector('.detail-overlay');
   if (!overlay) {
     overlay = document.createElement('div');
@@ -155,7 +166,7 @@ export function openDetail(todo) {
   detailPanel.classList.remove('hidden', 'hiding');
   detailPanel.style.animation = 'none';
   detailPanel.offsetHeight;
-  detailPanel.style.animation = '';
+  detailPanel.style.animation = 'modalExpandIn 0.28s cubic-bezier(0.16, 1, 0.3, 1)';
   closeDetailDropdowns();
 
   document.getElementById('detail-id').value = todo.id;
@@ -220,14 +231,17 @@ export function closeDetail() {
   }
 
   panel.classList.add('hiding');
+  panel.style.animation = 'modalShrinkOut 0.2s cubic-bezier(0.4, 0, 1, 1) forwards';
   panel.addEventListener('animationend', () => {
     panel.classList.add('hidden');
     panel.classList.remove('hiding');
+    panel.style.animation = '';
   }, { once: true });
   setTimeout(() => {
     if (panel.classList.contains('hiding')) {
       panel.classList.add('hidden');
       panel.classList.remove('hiding');
+      panel.style.animation = '';
     }
   }, 300);
 }

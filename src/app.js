@@ -402,9 +402,9 @@ function showMonthPicker(currentMonth, onConfirm) {
 }
 
 // --- Detail Panel ---
-function openDetail(id) {
+function openDetail(id, triggerEl) {
   const todo = data.todos.find(t => t.id === id);
-  _openDetail(todo);
+  _openDetail(todo, triggerEl);
 }
 
 // --- Main init ---
@@ -627,7 +627,7 @@ export async function initApp() {
         }
       }
     } else if (action === 'edit') {
-      openDetail(id);
+      openDetail(id, target.closest('.todo-item'));
     } else if (action === 'star') {
       const todo = data.todos.find(t => t.id === id);
       if (todo) {
