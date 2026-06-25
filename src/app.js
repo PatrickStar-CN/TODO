@@ -769,6 +769,13 @@ export async function initApp() {
     if (e.key === 'F5' || (e.ctrlKey && e.key === 'r') || (e.ctrlKey && e.shiftKey && e.key === 'R')) {
       e.preventDefault();
     }
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+      const detailPanel = document.getElementById('detail-panel');
+      if (detailPanel && !detailPanel.classList.contains('hidden')) {
+        e.preventDefault();
+        detailForm.requestSubmit();
+      }
+    }
   });
 
   document.addEventListener('contextmenu', (e) => {
