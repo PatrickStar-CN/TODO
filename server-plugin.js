@@ -6,18 +6,16 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_FILE = path.join(__dirname, 'data.json');
 
 function readData() {
+  /* 透传模式：直接返回文件内容（可能是 ENC: 加密文本或旧明文 JSON） */
   if (!fs.existsSync(DATA_FILE)) {
-    return { todos: [], tags: ['计划内'] };
+    return '';
   }
-  try {
-    return JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8'));
-  } catch {
-    return { todos: [], tags: ['计划内'] };
-  }
+  return fs.readFileSync(DATA_FILE, 'utf-8');
 }
 
-function writeData(data) {
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf-8');
+function writeData(content) {
+  /* 透传模式：直接写入 body 字符串，不解析 JSON */
+  fs.writeFileSync(DATA_FILE, content, 'utf-8');
 }
 
 function sendJson(res, statusCode, data) {
@@ -32,16 +30,20 @@ export default function dataServerPlugin() {
     configureServer(server) {
       server.middlewares.use('/api/data', (req, res) => {
         if (req.method === 'GET') {
-          sendJson(res, 200, readData());
+          /* 直接返回文件原始内容（可能是 ENC: 加密文本或旧明文 JSON） */
+          const content = readData();
+          res.statusCode = 200;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(content);
         } else if (req.method === 'POST') {
           let body = '';
           req.on('data', chunk => { body += chunk; });
           req.on('end', () => {
             try {
-              writeData(JSON.parse(body));
+              writeData(body);
               sendJson(res, 200, { ok: true });
             } catch {
-              sendJson(res, 400, { ok: false, error: 'Invalid JSON data' });
+              sendJson(res, 500, { ok: false, error: 'Failed to write data' });
             }
           });
           req.on('error', () => {

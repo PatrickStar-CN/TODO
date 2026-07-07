@@ -1,6 +1,7 @@
 import { escapeHtml } from './utils/html.js';
 import { toLocalDatetime, toLocalDateInput, parseLocalDateInput, formatMonthDay, isSameDay, isToday, getWeekday, formatDate, formatDateTime } from './utils/date.js';
 import { genId } from './utils/id.js';
+import { initCrypto, encrypt, tryDecrypt, isCryptoReady } from './utils/crypto.js';
 import { sortByPriority, getFilteredTodos as _getFilteredTodos, countByList, countTagUndone, splitPendingDone } from './selectors.js';
 import { showContextMenu, closeContextMenu } from './contextMenu.js';
 import { buildTodoContextMenu, buildTagContextMenu, buildNavContextMenu, buildListAreaMenu } from './contextMenuConfig.js';
@@ -43,14 +44,17 @@ async function loadData() {
   if (isNeutralinoEnv()) {
     try {
       const content = await Neutralino.filesystem.readFile(`./${DATA_FILE}`);
-      return JSON.parse(content);
+      const plain = await tryDecrypt(content);
+      return JSON.parse(plain);
     } catch {
       return { todos: [], tags: [] };
     }
   }
   try {
     const res = await fetch('/api/data');
-    return await res.json();
+    const content = await res.text();
+    const plain = await tryDecrypt(content);
+    return JSON.parse(plain);
   } catch {
     const raw = localStorage.getItem(STORAGE_KEY);
     return raw ? JSON.parse(raw) : { todos: [], tags: [] };
@@ -59,16 +63,27 @@ async function loadData() {
 
 let saveTimer = null;
 
-function saveData() {
+async function saveData() {
   const replacer = (key, value) => (key === '_index' ? undefined : value);
   const json = JSON.stringify(data, replacer, 2);
+  /* localStorage 保持明文（用户选择的离线降级方式） */
   localStorage.setItem(STORAGE_KEY, json);
 
   if (saveTimer) clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
+  saveTimer = setTimeout(async () => {
     saveTimer = null;
+    /* 文件存储：加密 */
+    let payload = json;
+    if (isCryptoReady()) {
+      try {
+        payload = await encrypt(json);
+      } catch (err) {
+        console.warn('[saveData] 加密失败，使用明文:', err);
+        payload = json;
+      }
+    }
     if (isNeutralinoEnv()) {
-      Neutralino.filesystem.writeFile(`./${DATA_FILE}`, json).catch(() => {
+      Neutralino.filesystem.writeFile(`./${DATA_FILE}`, payload).catch(() => {
         showToast('保存失败，数据已暂存本地');
       });
       return;
@@ -76,7 +91,7 @@ function saveData() {
     fetch('/api/data', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: json
+      body: payload
     }).catch(() => {
       showToast('保存失败，数据已暂存本地');
     });
@@ -105,18 +120,27 @@ function showToast(msg) {
 }
 
 function normalizeData() {
+  /* 防御：loadData 可能因文件为空/损坏返回非对象（如空字符串） */
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    data = { todos: [], tags: [], aiConfig: {}, theme: 'auto', sidebarMini: false };
+  }
   if (!Array.isArray(data.tags)) {
     data.tags = [];
   }
 
   const normalizedTags = [];
-  data.tags.forEach(tag => {
-    const name = typeof tag === 'string' ? tag.trim() : '';
-    if (name && !normalizedTags.includes(name)) {
-      normalizedTags.push(name);
-    }
-  });
+  if (Array.isArray(data.tags)) {
+    data.tags.forEach(tag => {
+      const name = typeof tag === 'string' ? tag.trim() : '';
+      if (name && !normalizedTags.includes(name)) {
+        normalizedTags.push(name);
+      }
+    });
+  }
 
+  if (!Array.isArray(data.todos)) {
+    data.todos = [];
+  }
   data.todos.forEach(todo => {
     if (typeof todo.tag === 'string') {
       todo.tag = todo.tag.trim();
@@ -570,6 +594,7 @@ function openDetail(id, triggerEl) {
 
 // --- Main init ---
 export async function initApp() {
+  await initCrypto();
   data = await loadData();
   normalizeData();
   rebuildIndex();
