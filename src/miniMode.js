@@ -166,6 +166,15 @@ export function initMiniMode({ data, saveData, render, showToast, isNeutralinoEn
         createdAt: Date.now()
       };
       data.todos.push(todo);
+      if (data._index) {
+        if (todo.tag) {
+          data._index.tagTotal[todo.tag] = (data._index.tagTotal[todo.tag] || 0) + 1;
+          data._index.tagUndone[todo.tag] = (data._index.tagUndone[todo.tag] || 0) + 1;
+        }
+        const c = data._index.counts;
+        c.all++;
+        c.todo++;
+      }
       saveData();
       miniQuickAdd.value = '';
       renderMiniPanel();
@@ -180,10 +189,25 @@ export function initMiniMode({ data, saveData, render, showToast, isNeutralinoEn
       const id = checkbox.dataset.miniToggle;
       const todo = data.todos.find(t => t.id === id);
       if (todo) {
+        const oldDone = todo.done;
         todo.done = !todo.done;
         todo.doneAt = todo.done ? new Date().toISOString() : null;
         if (todo.done && todo.reminderRepeat === 'none') {
           todo.reminder = null;
+        }
+        /* mini 模式不持有索引函数引用，调用 _index 自更新 */
+        if (data._index) {
+          const wasUndone = !oldDone && !todo.archived;
+          const isUndone = !todo.done && !todo.archived;
+          if (wasUndone && !isUndone) {
+            data._index.counts.all--;
+            if (todo.todo) data._index.counts.todo--;
+            if (todo.important) data._index.counts.important--;
+          } else if (!wasUndone && isUndone) {
+            data._index.counts.all++;
+            if (todo.todo) data._index.counts.todo++;
+            if (todo.important) data._index.counts.important++;
+          }
         }
         saveData();
         renderMiniPanel();

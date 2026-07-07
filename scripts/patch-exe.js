@@ -5,6 +5,9 @@ import path from 'path';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const config = JSON.parse(readFileSync(path.resolve(__dirname, '../app.config.json'), 'utf-8'));
+/* exe 版本跟随 package.json，确保与 npm 发布版本一致 */
+const pkg = JSON.parse(readFileSync(path.resolve(__dirname, '../package.json'), 'utf-8'));
+const version = pkg.version || config.version;
 const exePath = path.resolve(__dirname, `../dist/${config.binaryName}/${config.binaryName}-win_x64.exe`);
 
 await rcedit(exePath, {
@@ -15,8 +18,8 @@ await rcedit(exePath, {
     LegalCopyright: config.copyright || '',
     OriginalFilename: `${config.binaryName}.exe`
   },
-  'file-version': config.version,
-  'product-version': config.version
+  'file-version': version,
+  'product-version': version
 });
 
-console.log(`Patched exe: ${config.name} v${config.version}`);
+console.log(`Patched exe: ${config.name} v${version}`);

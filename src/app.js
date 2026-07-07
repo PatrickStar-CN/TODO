@@ -5,7 +5,7 @@ import { sortByPriority, getFilteredTodos as _getFilteredTodos, countByList, cou
 import { showContextMenu, closeContextMenu } from './contextMenu.js';
 import { buildTodoContextMenu, buildTagContextMenu, buildNavContextMenu, buildListAreaMenu } from './contextMenuConfig.js';
 import { createTodoItemEl } from './renderTodoItem.js';
-import { renderCalendar as _renderCalendar, getTodosForDate as _getTodosForDate, renderCalendarDetail as _renderCalendarDetail } from './calendar.js';
+import { renderCalendar as _renderCalendar, getTodosForDate as _getTodosForDate, renderCalendarDetail as _renderCalendarDetail, buildMonthIndex } from './calendar.js';
 import { openDetail as _openDetail, closeDetail, initDetailEditor } from './detail.js';
 import { createOverlay, closeOverlay, showConfirmDialog } from './overlay.js';
 import { applyTheme } from './theme.js';
@@ -60,12 +60,13 @@ async function loadData() {
 let saveTimer = null;
 
 function saveData() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data, null, 2));
+  const replacer = (key, value) => (key === '_index' ? undefined : value);
+  const json = JSON.stringify(data, replacer, 2);
+  localStorage.setItem(STORAGE_KEY, json);
 
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
     saveTimer = null;
-    const json = JSON.stringify(data, null, 2);
     if (isNeutralinoEnv()) {
       Neutralino.filesystem.writeFile(`./${DATA_FILE}`, json).catch(() => {
         showToast('保存失败，数据已暂存本地');
@@ -149,9 +150,158 @@ function normalizeData() {
   if (typeof data.sidebarMini !== 'boolean') {
     data.sidebarMini = false;
   }
+
+  if (!data._index || typeof data._index !== 'object') {
+    data._index = { tagUndone: {}, tagTotal: {}, counts: { todo: 0, important: 0, all: 0, archived: 0 } };
+  }
+}
+
+/* --- 索引系统：避免每次 render 都重新计算标签/视图计数 --- */
+function ensureIndex() {
+  if (!data._index) {
+    data._index = { tagUndone: {}, tagTotal: {}, counts: { todo: 0, important: 0, all: 0, archived: 0 } };
+  }
+}
+
+function rebuildIndex() {
+  ensureIndex();
+  const idx = data._index;
+  idx.tagUndone = {};
+  idx.tagTotal = {};
+  idx.counts = { todo: 0, important: 0, all: 0, archived: 0 };
+  for (const t of data.todos) {
+    if (t.tag) {
+      idx.tagTotal[t.tag] = (idx.tagTotal[t.tag] || 0) + 1;
+      if (!t.done && !t.archived) {
+        idx.tagUndone[t.tag] = (idx.tagUndone[t.tag] || 0) + 1;
+      }
+    }
+    if (t.archived) {
+      idx.counts.archived++;
+    } else if (!t.done) {
+      idx.counts.all++;
+      if (t.todo) idx.counts.todo++;
+      if (t.important) idx.counts.important++;
+    }
+  }
+}
+
+function addTodoToIndex(todo) {
+  ensureIndex();
+  const idx = data._index;
+  if (todo.tag) {
+    idx.tagTotal[todo.tag] = (idx.tagTotal[todo.tag] || 0) + 1;
+    if (!todo.done && !todo.archived) {
+      idx.tagUndone[todo.tag] = (idx.tagUndone[todo.tag] || 0) + 1;
+    }
+  }
+  if (todo.archived) {
+    idx.counts.archived++;
+  } else if (!todo.done) {
+    idx.counts.all++;
+    if (todo.todo) idx.counts.todo++;
+    if (todo.important) idx.counts.important++;
+  }
+}
+
+function removeTodoFromIndex(todo) {
+  const idx = data._index;
+  if (todo.tag && idx.tagTotal[todo.tag]) {
+    idx.tagTotal[todo.tag]--;
+    if (idx.tagTotal[todo.tag] <= 0) delete idx.tagTotal[todo.tag];
+  }
+  if (todo.tag && idx.tagUndone[todo.tag] != null && !todo.done && !todo.archived) {
+    idx.tagUndone[todo.tag]--;
+    if (idx.tagUndone[todo.tag] <= 0) delete idx.tagUndone[todo.tag];
+  }
+  if (todo.archived) {
+    idx.counts.archived--;
+  } else if (!todo.done) {
+    idx.counts.all--;
+    if (todo.todo) idx.counts.todo--;
+    if (todo.important) idx.counts.important--;
+  }
+}
+
+function applyDelta(todo, field, oldVal, newVal) {
+  const idx = data._index;
+  if (field === 'tag') {
+    if (oldVal && idx.tagTotal[oldVal]) {
+      idx.tagTotal[oldVal]--;
+      if (idx.tagTotal[oldVal] <= 0) delete idx.tagTotal[oldVal];
+    }
+    if (oldVal && idx.tagUndone[oldVal] != null && !todo.done && !todo.archived) {
+      idx.tagUndone[oldVal]--;
+      if (idx.tagUndone[oldVal] <= 0) delete idx.tagUndone[oldVal];
+    }
+    if (newVal) {
+      idx.tagTotal[newVal] = (idx.tagTotal[newVal] || 0) + 1;
+      if (!todo.done && !todo.archived) {
+        idx.tagUndone[newVal] = (idx.tagUndone[newVal] || 0) + 1;
+      }
+    }
+  } else if (field === 'done') {
+    const wasUndone = !oldVal && !todo.archived;
+    const isUndone = !newVal && !todo.archived;
+    if (wasUndone && !isUndone) {
+      idx.counts.all--;
+      if (todo.todo) idx.counts.todo--;
+      if (todo.important) idx.counts.important--;
+      if (todo.tag && idx.tagUndone[todo.tag] != null) {
+        idx.tagUndone[todo.tag]--;
+        if (idx.tagUndone[todo.tag] <= 0) delete idx.tagUndone[todo.tag];
+      }
+    } else if (!wasUndone && isUndone) {
+      idx.counts.all++;
+      if (todo.todo) idx.counts.todo++;
+      if (todo.important) idx.counts.important++;
+      if (todo.tag) {
+        idx.tagUndone[todo.tag] = (idx.tagUndone[todo.tag] || 0) + 1;
+      }
+    }
+  } else if (field === 'archived') {
+    const wasUndone = !todo.done && !oldVal;
+    const isUndone = !todo.done && !newVal;
+    if (wasUndone && !isUndone) {
+      idx.counts.all--;
+      idx.counts.archived++;
+      if (todo.todo) idx.counts.todo--;
+      if (todo.important) idx.counts.important--;
+      if (todo.tag && idx.tagUndone[todo.tag] != null) {
+        idx.tagUndone[todo.tag]--;
+        if (idx.tagUndone[todo.tag] <= 0) delete idx.tagUndone[todo.tag];
+      }
+    } else if (!wasUndone && isUndone) {
+      idx.counts.all++;
+      idx.counts.archived--;
+      if (todo.todo) idx.counts.todo++;
+      if (todo.important) idx.counts.important++;
+      if (todo.tag) {
+        idx.tagUndone[todo.tag] = (idx.tagUndone[todo.tag] || 0) + 1;
+      }
+    } else if (!wasUndone && newVal) {
+      idx.counts.archived++;
+    } else if (!isUndone && oldVal) {
+      idx.counts.archived--;
+    }
+  } else if (field === 'important' || field === 'todo') {
+    if (!todo.done && !todo.archived) {
+      if (field === 'todo') {
+        if (newVal) idx.counts.todo++;
+        else idx.counts.todo--;
+      } else {
+        if (newVal) idx.counts.important++;
+        else idx.counts.important--;
+      }
+    }
+  }
 }
 
 function getTagTaskCount(tag) {
+  /* 优先使用 _index 索引 */
+  if (data._index && data._index.tagTotal) {
+    return data._index.tagTotal[tag] || 0;
+  }
   return data.todos.filter(t => t.tag === tag).length;
 }
 
@@ -186,6 +336,7 @@ function deleteTag(tag, onDeleted) {
       currentList = 'all';
     }
 
+    rebuildIndex();
     saveData();
     render();
     if (onDeleted) {
@@ -229,28 +380,35 @@ function getFilteredTodos() {
 
 // --- Render ---
 function render() {
+  /* 索引被外部置空时（如 settings 标签重命名/删除）自动重建 */
+  if (!data._index) rebuildIndex();
   renderSidebar();
   renderTodoList();
   renderStatus();
 }
 
 function renderSidebar() {
-  const counts = countByList(data.todos);
+  const counts = countByList(data);
   document.getElementById('count-todo').textContent = counts.todo;
   document.getElementById('count-important').textContent = counts.important;
   document.getElementById('count-all').textContent = counts.all;
-  document.getElementById('count-archived').textContent = data.todos.filter(t => t.archived).length;
+  document.getElementById('count-archived').textContent = counts.archived;
 
   const tagListEl = document.getElementById('tag-list');
+  /* 使用 tagTotal 索引判断 tag 是否有关联任务（O(T)） */
+  const tagTotalIdx = (data._index && data._index.tagTotal) || {};
   const visibleTags = data.tags.filter(tag => {
-    const tagTodos = data.todos.filter(t => t.tag === tag);
-    return tagTodos.length === 0 || tagTodos.some(t => !t.archived);
+    const total = tagTotalIdx[tag] || 0;
+    if (total === 0) return true;
+    /* 有任务时，tagUndone > 0 即未全部归档 */
+    const undone = (data._index && data._index.tagUndone && data._index.tagUndone[tag]) || 0;
+    return undone > 0;
   });
   tagListEl.innerHTML = visibleTags.map(tag => `
     <a href="#" class="tag-item ${currentTag === tag ? 'active' : ''}" data-tag="${escapeHtml(tag)}">
       <span class="tag-dot" ${getTagDotStyle(tag)}></span>
       <span class="tag-label">${escapeHtml(tag)}</span>
-      <span class="nav-count">${countTagUndone(data.todos, tag)}</span>
+      <span class="nav-count">${countTagUndone(data, tag)}</span>
     </a>
   `).join('');
 
@@ -344,15 +502,16 @@ function renderStatus() {
 
 // --- Calendar ---
 function renderCalendar() {
-  _renderCalendar({ currentMonth, selectedDate, data, getTodosForDate, onDetailRender: renderCalendarDetail });
+  const monthIndex = buildMonthIndex(currentMonth.getFullYear(), currentMonth.getMonth(), data);
+  _renderCalendar({ currentMonth, selectedDate, data, getTodosForDate, onDetailRender: renderCalendarDetail }, monthIndex);
 }
 
 function getTodosForDate(date) {
   return _getTodosForDate(date, data);
 }
 
-function renderCalendarDetail() {
-  _renderCalendarDetail({ selectedDate, data, renderTodoItem });
+function renderCalendarDetail(monthIndex) {
+  _renderCalendarDetail({ selectedDate, data, renderTodoItem }, monthIndex);
 }
 
 function showMonthPicker(currentMonth, onConfirm) {
@@ -411,6 +570,7 @@ function openDetail(id, triggerEl) {
 export async function initApp() {
   data = await loadData();
   normalizeData();
+  rebuildIndex();
 
   initDetailEditor({
     data,
@@ -474,7 +634,7 @@ export async function initApp() {
     sidebar.classList.toggle('mini', data.sidebarMini);
     const icon = toggleSidebarBtn.querySelector('.btn-icon');
     const text = toggleSidebarBtn.querySelector('.btn-text');
-    icon.textContent = data.sidebarMini ? '▶️' : '◀️';
+    icon.textContent = data.sidebarMini ? '▶' : '◀';
     text.textContent = data.sidebarMini ? ' 展开侧边栏' : ' 折叠侧边栏';
     toggleSidebarBtn.title = data.sidebarMini ? '展开侧边栏' : '折叠侧边栏';
   }
@@ -587,6 +747,7 @@ export async function initApp() {
         createdAt: Date.now()
       };
       data.todos.push(todo);
+      addTodoToIndex(todo);
       saveData();
       quickAdd.value = '';
       resetQuickAddPreset();
@@ -609,21 +770,23 @@ export async function initApp() {
       const todo = data.todos.find(t => t.id === id);
       if (todo) {
         const itemEl = target.closest('.todo-item');
+        const oldDone = todo.done;
         todo.done = !todo.done;
         todo.doneAt = todo.done ? new Date().toISOString() : null;
         if (todo.done && todo.reminderRepeat === 'none') {
           todo.reminder = null;
         }
+        applyDelta(todo, 'done', oldDone, todo.done);
         saveData();
         if (itemEl) {
           itemEl.classList.add('checking');
           itemEl.addEventListener('animationend', () => {
             render();
-            if (currentList === 'calendar') renderCalendarDetail();
+            if (currentList === 'calendar') renderCalendar();
           }, { once: true });
         } else {
           render();
-          if (currentList === 'calendar') renderCalendarDetail();
+          if (currentList === 'calendar') renderCalendar();
         }
       }
     } else if (action === 'edit') {
@@ -631,7 +794,9 @@ export async function initApp() {
     } else if (action === 'star') {
       const todo = data.todos.find(t => t.id === id);
       if (todo) {
+        const oldImp = todo.important;
         todo.important = !todo.important;
+        applyDelta(todo, 'important', oldImp, todo.important);
         saveData();
         render();
       }
@@ -683,7 +848,7 @@ export async function initApp() {
     const doneTodos = filtered.filter(t => t.done && !t.archived);
     if (doneTodos.length === 0) { showToast('没有可归档的任务'); return; }
     const now = new Date().toISOString();
-    doneTodos.forEach(t => { t.archived = true; t.archivedAt = now; });
+    doneTodos.forEach(t => { t.archived = true; t.archivedAt = now; applyDelta(t, 'archived', false, true); });
     saveData();
     render();
     showToast(`已归档 ${doneTodos.length} 个任务`);
@@ -696,6 +861,10 @@ export async function initApp() {
     const todo = data.todos.find(t => t.id === id);
     if (!todo) return;
 
+    const oldTag = todo.tag;
+    const oldTodo = todo.todo;
+    const oldImp = todo.important;
+
     todo.title = document.getElementById('detail-title').value.trim();
     todo.desc = document.getElementById('detail-desc').value.trim();
     todo.priority = document.getElementById('detail-priority').dataset.value || 'none';
@@ -706,6 +875,11 @@ export async function initApp() {
     todo.reminderRepeat = document.getElementById('detail-reminder-repeat').dataset.value || 'none';
     todo.todo = document.getElementById('detail-todo').checked;
     todo.important = document.getElementById('detail-important').checked;
+
+    /* 同步索引：tag / todo / important 变化 */
+    if (oldTag !== todo.tag) applyDelta(todo, 'tag', oldTag, todo.tag);
+    if (oldTodo !== todo.todo) applyDelta(todo, 'todo', oldTodo, todo.todo);
+    if (oldImp !== todo.important) applyDelta(todo, 'important', oldImp, todo.important);
 
     if (todo.tag && !data.tags.includes(todo.tag)) {
       data.tags.push(todo.tag);
@@ -820,6 +994,8 @@ export async function initApp() {
   function deleteTodoById(id, itemEl = null, animated = false) {
     showConfirmDialog('确定要删除这个任务吗？', () => {
       const removeTodo = () => {
+        const todo = data.todos.find(t => t.id === id);
+        if (todo) removeTodoFromIndex(todo);
         data.todos = data.todos.filter(t => t.id !== id);
         saveData();
         closeDetail();
@@ -835,16 +1011,17 @@ export async function initApp() {
   }
 
   function toggleDone(todo, doneState) {
+    const oldDone = todo.done;
     todo.done = doneState;
     todo.doneAt = doneState ? new Date().toISOString() : null;
     if (doneState && todo.reminderRepeat === 'none') {
       todo.reminder = null;
     }
+    applyDelta(todo, 'done', oldDone, todo.done);
     saveData();
     render();
     if (currentList === 'calendar') {
       renderCalendar();
-      renderCalendarDetail();
     }
   }
 
@@ -859,6 +1036,7 @@ export async function initApp() {
     if (doneTodos.length === 0) { showToast('没有已完成的任务'); return; }
     const doneIds = new Set(doneTodos.map(t => t.id));
     showConfirmDialog(`确定要清空 ${doneTodos.length} 个已完成任务？`, () => {
+      doneTodos.forEach(t => removeTodoFromIndex(t));
       data.todos = data.todos.filter(t => !doneIds.has(t.id));
       saveData();
       render();

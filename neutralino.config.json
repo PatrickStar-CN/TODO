@@ -1,6 +1,6 @@
 {
   "applicationId": "app.todotools",
-  "version": "1.0.1",
+  "version": "1.0.3",
   "defaultMode": "window",
   "documentRoot": "/dist/",
   "url": "/",

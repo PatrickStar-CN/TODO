@@ -15,6 +15,10 @@ function getTagColor(tag) {
 }
 
 function getTagTaskCount(tag) {
+  /* 优先使用 _index 索引（O(1)） */
+  if (data._index && data._index.tagTotal) {
+    return data._index.tagTotal[tag] || 0;
+  }
   return data.todos.filter(t => t.tag === tag).length;
 }
 
@@ -195,6 +199,7 @@ function openPanel() {
       const idx = data.tags.indexOf(oldTag);
       if (idx !== -1) data.tags[idx] = newName;
       data.todos.forEach(todo => { if (todo.tag === oldTag) todo.tag = newName; });
+      if (data._index) data._index = null; /* 强制下次 render 时重建（重命名不增删，但确保一致） */
       saveData();
       render();
       renderTagList(overlay);
@@ -270,6 +275,7 @@ function deleteTag(tag, overlay) {
   showConfirmDialog(message, () => {
     data.tags = data.tags.filter(t => t !== tag);
     data.todos.forEach(todo => { if (todo.tag === tag) todo.tag = ''; });
+    if (data._index) data._index = null; /* 强制下次 render 时重建 */
     saveData();
     render();
     renderTagList(overlay);

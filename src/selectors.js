@@ -28,19 +28,32 @@ export function getFilteredTodos(data, currentList, currentTag) {
 }
 
 export function countByList(todos) {
+  /* 优先使用 data._index 索引（O(1)），旧版兼容回退到遍历 */
+  if (todos && todos._index && todos._index.counts) {
+    return { ...todos._index.counts };
+  }
   let todo = 0;
   let important = 0;
   let all = 0;
+  let archived = 0;
   for (const t of todos) {
-    if (t.done || t.archived) continue;
+    if (t.archived) {
+      archived++;
+      continue;
+    }
+    if (t.done) continue;
     all++;
     if (t.todo) todo++;
     if (t.important) important++;
   }
-  return { todo, important, all };
+  return { todo, important, all, archived };
 }
 
 export function countTagUndone(todos, tag) {
+  /* 优先使用 data._index 索引 */
+  if (todos && todos._index && todos._index.tagUndone) {
+    return todos._index.tagUndone[tag] || 0;
+  }
   let count = 0;
   for (const t of todos) {
     if (t.tag === tag && !t.done && !t.archived) count++;
