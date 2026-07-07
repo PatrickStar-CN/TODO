@@ -73,7 +73,10 @@ export function renderCalendar({ currentMonth, selectedDate, data, getTodosForDa
   let html = '';
 
   for (let i = firstDay - 1; i >= 0; i--) {
-    html += `<div class="calendar-day other-month">${daysInPrev - i}</div>`;
+    const d = daysInPrev - i;
+    const prevMonth = month === 0 ? 11 : month - 1;
+    const prevYear = month === 0 ? year - 1 : year;
+    html += `<div class="calendar-day other-month" data-date="${prevYear}-${String(prevMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}">${d}</div>`;
   }
 
   for (let d = 1; d <= daysInMonth; d++) {
@@ -91,7 +94,9 @@ export function renderCalendar({ currentMonth, selectedDate, data, getTodosForDa
   const totalCells = firstDay + daysInMonth;
   const remaining = (7 - totalCells % 7) % 7;
   for (let i = 1; i <= remaining; i++) {
-    html += `<div class="calendar-day other-month">${i}</div>`;
+    const nextMonth = month === 11 ? 0 : month + 1;
+    const nextYear = month === 11 ? year + 1 : year;
+    html += `<div class="calendar-day other-month" data-date="${nextYear}-${String(nextMonth + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}">${i}</div>`;
   }
 
   calendarDays.innerHTML = html;

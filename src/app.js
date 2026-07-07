@@ -385,6 +385,8 @@ function render() {
   renderSidebar();
   renderTodoList();
   renderStatus();
+  /* 日历视图：统一在此分发，避免各 CRUD 点遗漏 */
+  if (currentList === 'calendar') renderCalendar();
 }
 
 function renderSidebar() {
@@ -780,13 +782,9 @@ export async function initApp() {
         saveData();
         if (itemEl) {
           itemEl.classList.add('checking');
-          itemEl.addEventListener('animationend', () => {
-            render();
-            if (currentList === 'calendar') renderCalendar();
-          }, { once: true });
+          itemEl.addEventListener('animationend', () => render(), { once: true });
         } else {
           render();
-          if (currentList === 'calendar') renderCalendar();
         }
       }
     } else if (action === 'edit') {
@@ -930,10 +928,14 @@ export async function initApp() {
 
   calendarDays.addEventListener('click', (e) => {
     const dayEl = e.target.closest('.calendar-day');
-    if (!dayEl || dayEl.classList.contains('other-month')) return;
+    if (!dayEl) return;
     const dateStr = dayEl.dataset.date;
     if (!dateStr) return;
     selectedDate = new Date(dateStr);
+    /* 点击上/下月日期时，切换到对应月份 */
+    if (dayEl.classList.contains('other-month')) {
+      currentMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+    }
     renderCalendar();
   });
 
@@ -1020,9 +1022,6 @@ export async function initApp() {
     applyDelta(todo, 'done', oldDone, todo.done);
     saveData();
     render();
-    if (currentList === 'calendar') {
-      renderCalendar();
-    }
   }
 
   function deleteTagFromMenu(tag) {
