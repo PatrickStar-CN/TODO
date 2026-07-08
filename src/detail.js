@@ -81,7 +81,9 @@ function createDetailDropdown(selectEl, options, getOptionHtml) {
 
 export function initDetailEditor(callbacks) {
   onDoneTimeChange = callbacks.onDoneTimeChange || null;
-  const { data } = callbacks;
+  const { data, getTagColor: getColor } = callbacks;
+  /* 与列表/侧边栏共用同一套标签取色规则（由 app.js 注入） */
+  const getTagColor = getColor || (() => '#6366f1');
 
   /* 优先级下拉 */
   document.getElementById('detail-priority').addEventListener('click', function (e) {
@@ -114,13 +116,7 @@ export function initDetailEditor(callbacks) {
   });
 }
 
-/** 根据标签名生成圆点颜色（与 renderTodoItem 保持一致） */
-function getTagColor(tag) {
-  let hash = 0;
-  for (let i = 0; i < tag.length; i++) hash = tag.charCodeAt(i) + ((hash << 5) - hash);
-  const colors = ['#6366f1', '#ec4899', '#14b8a6', '#f59e0b', '#8b5cf6', '#06b6d4', '#ef4444', '#22c55e'];
-  return colors[Math.abs(hash) % colors.length];
-}
+/** 标签取色由 app.js 注入，保证详情与列表/侧边栏颜色一致 */
 
 export function openDetail(todo, triggerEl) {
   if (!todo) return;

@@ -285,33 +285,72 @@ function deleteTag(tag, overlay) {
 
 function openCreateTagInline(overlay) {
   const container = overlay.querySelector('#settings-tag-list');
+
+  /* 防止重复创建 */
+  if (container.querySelector('.tag-create-row')) {
+    const existing = container.querySelector('.tag-create-input');
+    if (existing) existing.focus();
+    return;
+  }
+
+  /* 预览色：即将分配给新标签的颜色（追加到队尾） */
+  const previewColor = TAG_COLORS[data.tags.length % TAG_COLORS.length];
+
+  const row = document.createElement('div');
+  row.className = 'tag-manage-item tag-create-row';
+
+  const dot = document.createElement('span');
+  dot.className = 'tag-dot';
+  dot.style.background = previewColor;
+
   const input = document.createElement('input');
   input.type = 'text';
-  input.className = 'tag-rename-input';
-  input.placeholder = '输入标签名称';
-  container.insertBefore(input, container.firstChild);
+  input.className = 'tag-create-input';
+  input.placeholder = '输入标签名称…';
+  input.maxLength = 20;
+  input.autocomplete = 'off';
+  input.spellcheck = false;
+
+  const hint = document.createElement('span');
+  hint.className = 'tag-create-hint';
+  hint.textContent = '↵ 保存';
+
+  row.appendChild(dot);
+  row.appendChild(input);
+  row.appendChild(hint);
+  container.insertBefore(row, container.firstChild);
   input.focus();
 
+  let done = false;
   const finish = () => {
+    if (done) return;
+    done = true;
     const name = input.value.trim();
     if (name) {
       if (data.tags.includes(name)) {
         showToast('标签已存在');
-      } else {
-        data.tags.push(name);
-        saveData();
-        render();
-        renderTagList(overlay);
-        showToast('标签创建成功');
+        done = false; /* 允许再次输入 */
+        return;
       }
+      data.tags.push(name);
+      saveData();
+      render();
+      renderTagList(overlay);
+      showToast('标签创建成功');
     }
-    input.remove();
+    row.remove();
+  };
+
+  const cancel = () => {
+    if (done) return;
+    done = true;
+    row.remove();
   };
 
   input.addEventListener('blur', finish);
   input.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
-    if (e.key === 'Escape') { input.remove(); }
+    if (e.key === 'Escape') { e.preventDefault(); cancel(); }
   });
 }
 

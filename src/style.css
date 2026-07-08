@@ -2029,6 +2029,48 @@ body::before {
 .settings-pane[data-pane="tags"] .tag-delete-btn { opacity: 0.6; }
 .settings-pane[data-pane="tags"] .tag-delete-btn:hover { opacity: 1; }
 
+/* 新建标签输入行 — 与 .tag-manage-item 同款外观 */
+.settings-pane[data-pane="tags"] .tag-create-row {
+  border-color: var(--accent);
+  background: var(--bg-elevated);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+  animation: tagCreateIn 0.18s ease-out;
+}
+.settings-pane[data-pane="tags"] .tag-create-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 500;
+  padding: 0;
+  min-width: 0;
+}
+.settings-pane[data-pane="tags"] .tag-create-input::placeholder {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+.settings-pane[data-pane="tags"] .tag-create-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 2px 8px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  white-space: nowrap;
+  user-select: none;
+}
+.settings-pane[data-pane="tags"] .tag-create-row:focus-within .tag-create-hint {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: rgba(99, 102, 241, 0.08);
+}
+@keyframes tagCreateIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
 /* 新建标签按钮 — 自适应整个窗口宽度 */
 .settings-pane[data-pane="tags"] #set-add-tag-btn {
   display: flex;

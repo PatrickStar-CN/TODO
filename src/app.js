@@ -601,6 +601,7 @@ export async function initApp() {
 
   initDetailEditor({
     data,
+    getTagColor,
     onDoneTimeChange: (id, newDoneAt) => {
       const todo = data.todos.find(t => t.id === id);
       if (!todo) return;
