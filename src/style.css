@@ -1233,8 +1233,19 @@ body::before {
 }
 
 .badge-tag {
-  background: var(--tag-bg);
-  color: var(--tag-text);
+  /* 用 rgba + CSS 变量控制 alpha，避免 backdrop-filter 在父级 hover 时
+     重新采样玻璃背景形成"半浅色块"残留。
+     限定在 .badge-tag 自身，不影响其他 .badge（date/priority/todo/reminder）。 */
+  background: rgba(var(--tag-color-rgb), 0.22);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  transition: background-color 0.15s ease;
+}
+
+/* 父级 hover 时把标签 alpha 提升，抵消玻璃背景变亮带来的"透出"，
+   选择器只匹配 .todo-item:hover 直接后代，不影响其他行/其他元素。 */
+.todo-item:hover > .todo-body .badge-tag {
+  background: rgba(var(--tag-color-rgb), 0.32);
 }
 
 .badge-priority-high {
