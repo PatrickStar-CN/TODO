@@ -21,12 +21,18 @@ const REPEAT_OPTIONS = [
 ];
 
 let activeDropdown = null;
+let activeSelect = null;
 
 /** 关闭所有详情下拉弹窗 */
 function closeDetailDropdowns() {
   if (activeDropdown) {
     activeDropdown.remove();
     activeDropdown = null;
+  }
+  if (activeSelect) {
+    activeSelect.classList.remove('is-open');
+    activeSelect.setAttribute('aria-expanded', 'false');
+    activeSelect = null;
   }
 }
 
@@ -37,10 +43,11 @@ function createDetailDropdown(selectEl, options, getOptionHtml) {
   const rect = selectEl.getBoundingClientRect();
   const popup = document.createElement('div');
   popup.className = 'detail-dropdown';
+  popup.setAttribute('role', 'listbox');
 
   const itemsHtml = options.map(opt => {
     const isSelected = selectEl.dataset.value === opt.value;
-    return `<div class="detail-dropdown-item${isSelected ? ' selected' : ''}" data-value="${opt.value}">${getOptionHtml(opt)}</div>`;
+    return `<div class="detail-dropdown-item${isSelected ? ' selected' : ''}" data-value="${opt.value}" role="option" tabindex="-1" aria-selected="${isSelected}">${getOptionHtml(opt)}</div>`;
   }).join('');
 
   popup.innerHTML = itemsHtml;
@@ -60,9 +67,13 @@ function createDetailDropdown(selectEl, options, getOptionHtml) {
   }
 
   activeDropdown = popup;
+  activeSelect = selectEl;
+  selectEl.classList.add('is-open');
+  selectEl.setAttribute('aria-expanded', 'true');
 
   /* 点击选项 */
-  popup.querySelectorAll('.detail-dropdown-item').forEach(item => {
+  const items = [...popup.querySelectorAll('.detail-dropdown-item')];
+  items.forEach((item, index) => {
     item.addEventListener('click', () => {
       const val = item.dataset.value;
       selectEl.dataset.value = val;
@@ -72,11 +83,40 @@ function createDetailDropdown(selectEl, options, getOptionHtml) {
         trigger.textContent = opt ? opt.label : val;
       }
       /* 更新选中态 */
-      popup.querySelectorAll('.detail-dropdown-item').forEach(i => i.classList.remove('selected'));
+      items.forEach(i => {
+        i.classList.remove('selected');
+        i.setAttribute('aria-selected', 'false');
+      });
       item.classList.add('selected');
+      item.setAttribute('aria-selected', 'true');
       closeDetailDropdowns();
+      selectEl.focus();
+    });
+    item.addEventListener('keydown', (event) => {
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault();
+        event.stopPropagation();
+        const offset = event.key === 'ArrowDown' ? 1 : -1;
+        items[(index + offset + items.length) % items.length].focus();
+      } else if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        event.stopPropagation();
+        item.click();
+      } else if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();
+        closeDetailDropdowns();
+        selectEl.focus();
+      }
     });
   });
+
+  const selectedItem = popup.querySelector('.detail-dropdown-item.selected') || items[0];
+  selectedItem?.scrollIntoView({ block: 'nearest' });
+  if (selectEl.dataset.keyboardOpen === 'true') {
+    delete selectEl.dataset.keyboardOpen;
+    requestAnimationFrame(() => selectedItem?.focus());
+  }
 }
 
 export function initDetailEditor(callbacks) {
@@ -84,6 +124,16 @@ export function initDetailEditor(callbacks) {
   const { data, getTagColor: getColor } = callbacks;
   /* 与列表/侧边栏共用同一套标签取色规则（由 app.js 注入） */
   const getTagColor = getColor || (() => '#6366f1');
+
+  document.querySelectorAll('.detail-select').forEach(select => {
+    select.addEventListener('keydown', (event) => {
+      if (!['Enter', ' ', 'ArrowDown', 'ArrowUp'].includes(event.key)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      select.dataset.keyboardOpen = 'true';
+      select.click();
+    });
+  });
 
   /* 优先级下拉 */
   document.getElementById('detail-priority').addEventListener('click', function (e) {

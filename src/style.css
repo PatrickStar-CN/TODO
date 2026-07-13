@@ -44,6 +44,7 @@
   --checkbox-border: #384358;
   --scrollbar: #1e2535;
   --scrollbar-hover: #2d3850;
+  --scrollbar-size: 10px;
   --overlay: rgba(10, 15, 25, 0.75);
   --shadow: rgba(0, 0, 0, 0.35);
   --toast-shadow: rgba(52, 211, 153, 0.2);
@@ -199,7 +200,6 @@
 /* 共享的玻璃按钮基础属性 */
 .btn-glass,
 .btn-header-action,
-.btn-mini-mode,
 .icon-btn,
 .btn-ai-summary,
 .btn-cancel,
@@ -223,7 +223,6 @@
 
 .btn-glass::before,
 .btn-header-action::before,
-.btn-mini-mode::before,
 .icon-btn::before,
 .btn-ai-summary::before,
 .btn-cancel::before,
@@ -256,7 +255,6 @@
 
 .btn-glass.is-pressing::before,
 .btn-header-action.is-pressing::before,
-.btn-mini-mode.is-pressing::before,
 .icon-btn.is-pressing::before,
 .btn-ai-summary.is-pressing::before,
 .btn-cancel.is-pressing::before,
@@ -288,7 +286,6 @@
 /* 按钮文字内容在涟漪之上 */
 .btn-glass > *,
 .btn-header-action > *,
-.btn-mini-mode > *,
 .icon-btn > *,
 .btn-ai-summary > *,
 .btn-archive-all > *,
@@ -413,27 +410,6 @@ body::before {
   box-shadow: var(--glass-btn-shadow-hover);
 }
 
-.btn-mini-mode {
-  background: var(--glass-btn-bg);
-  backdrop-filter: var(--glass-btn-blur);
-  -webkit-backdrop-filter: var(--glass-btn-blur);
-  border: 1px solid var(--glass-btn-border);
-  color: var(--text-muted);
-  font-size: 16px;
-  cursor: pointer;
-  padding: 6px 8px;
-  border-radius: 10px;
-  transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), color 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: var(--glass-btn-shadow);
-}
-
-.btn-mini-mode:hover {
-  background: var(--glass-btn-bg-hover);
-  border-color: var(--glass-btn-border-hover);
-  color: var(--accent-text);
-  box-shadow: var(--glass-btn-shadow-hover);
-}
-
 .sidebar-header .date {
   width: 100%;
   font-size: 12px;
@@ -443,6 +419,9 @@ body::before {
 
 .sidebar-nav {
   padding: 0 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .nav-item {
@@ -456,7 +435,8 @@ body::before {
   font-size: 14px;
   cursor: pointer;
   transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1), color 0.2s cubic-bezier(0.4, 0, 0.2, 1), transform 0.15s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  margin-bottom: 3px;
+  margin-bottom: 0;
+  min-height: 40px;
 }
 
 .nav-item:hover {
@@ -478,6 +458,10 @@ body::before {
 
 .nav-text {
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .nav-count {
@@ -488,13 +472,18 @@ body::before {
   color: var(--accent-text);
   padding: 2px 8px;
   border-radius: 10px;
-  min-width: 20px;
+  min-width: 24px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   text-align: center;
   font-weight: 500;
+  font-variant-numeric: tabular-nums;
 }
 
 .sidebar-section {
-  margin-top: 24px;
+  margin-top: 18px;
   padding: 0 8px;
   flex: 1;
   overflow: hidden;
@@ -520,7 +509,7 @@ body::before {
   overflow-y: auto;
   flex: 1;
   min-height: 0;
-  gap: 3px;
+  gap: 4px;
 }
 
 .tag-actions {
@@ -541,7 +530,8 @@ body::before {
   cursor: pointer;
   text-decoration: none;
   transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1), color 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  margin-bottom: 3px;
+  margin-bottom: 0;
+  min-height: 36px;
 }
 
 .tag-item:hover {
@@ -593,7 +583,7 @@ body::before {
 }
 
 .badge-tag {
-  color: #fff;
+  color: var(--info-text);
 }
 
 .mini-tooltip-row .tag-dot,
@@ -609,26 +599,68 @@ body::before {
 }
 
 .sidebar-footer {
-  padding: 16px;
-  border-top: 1px solid var(--border);
+  padding: 12px;
+  border-top: 1px solid var(--glass-divider);
   margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .sidebar-footer button {
-  background: none;
-  border: none;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 38px;
+  background: var(--glass-control-bg);
+  border: 1px solid var(--glass-control-border);
   color: var(--text-muted);
   font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
-  padding: 8px;
-  border-radius: 6px;
+  padding: 8px 10px;
+  border-radius: 10px;
   width: 100%;
   text-align: left;
+  box-shadow: var(--glass-control-shadow), var(--glass-inset-highlight);
+  overflow: hidden;
+}
+
+.sidebar-footer button .btn-icon {
+  width: 20px;
+  min-width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.sidebar-footer button .btn-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sidebar-footer button:hover {
-  background: var(--bg-elevated);
+  background: var(--glass-control-bg-hover);
+  border-color: var(--glass-control-border-hover);
   color: var(--text-primary);
+  box-shadow: var(--glass-control-shadow-hover), var(--glass-inset-highlight);
+}
+
+.sidebar-footer #btn-clear-done {
+  color: var(--danger-text);
+  background: color-mix(in srgb, var(--danger-bg) 44%, var(--glass-control-bg));
+  border-color: color-mix(in srgb, var(--danger-text) 20%, var(--glass-control-border));
+}
+
+.sidebar-footer #btn-clear-done:hover {
+  background: color-mix(in srgb, var(--danger-bg) 58%, var(--glass-control-bg-hover));
+  border-color: color-mix(in srgb, var(--danger-text) 34%, var(--glass-control-border-hover));
+  color: var(--danger-text);
 }
 
 .sidebar.mini {
@@ -663,16 +695,16 @@ body::before {
   width: auto;
 }
 
-.sidebar.mini .btn-mini-mode,
 .sidebar.mini .btn-theme-toggle,
 .sidebar.mini .header-actions {
   display: none;
 }
 
 .sidebar.mini .sidebar-footer {
-  padding: 16px 8px;
-  border-top: 1px solid var(--border);
+  padding: 12px 8px;
+  border-top: 1px solid var(--glass-divider);
   margin-top: auto;
+  gap: 8px;
 }
 
 .sidebar.mini .sidebar-footer .btn-text {
@@ -680,7 +712,19 @@ body::before {
 }
 
 .sidebar.mini .sidebar-footer button {
+  width: 40px;
+  min-height: 40px;
+  padding: 0;
+  justify-content: center;
   text-align: center;
+  border-radius: 12px;
+}
+
+.sidebar.mini .sidebar-footer button .btn-icon {
+  width: 20px;
+  min-width: 20px;
+  margin: 0;
+  font-size: 15px;
 }
 
 .btn-mini-mode-footer {
@@ -1021,11 +1065,24 @@ body::before {
 }
 
 /* Add Task Bar */
+.task-scroll-area {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  position: relative;
+  padding-bottom: calc(16px + var(--done-panel-space, 0px));
+  scrollbar-gutter: stable;
+}
+
 .add-task-bar {
-  margin: 16px 32px;
-  background: var(--glass-bg);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
+  position: sticky;
+  top: 16px;
+  z-index: 10;
+  margin: 16px 32px 18px;
+  background: color-mix(in srgb, var(--glass-surface-strong) 72%, transparent);
+  backdrop-filter: blur(18px) saturate(135%);
+  -webkit-backdrop-filter: blur(18px) saturate(135%);
   border: 1px solid var(--glass-border);
   border-radius: 12px;
   display: flex;
@@ -1033,7 +1090,6 @@ body::before {
   padding: 12px 16px;
   gap: 12px;
   transition: border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
 }
 
 .add-task-bar:focus-within {
@@ -1117,8 +1173,7 @@ body::before {
 /* Todo List */
 .todo-list {
   padding: 0 32px;
-  overflow-y: auto;
-  flex: 1;
+  overflow: visible;
 }
 
 .todo-item {
@@ -1236,16 +1291,18 @@ body::before {
   /* 用 rgba + CSS 变量控制 alpha，避免 backdrop-filter 在父级 hover 时
      重新采样玻璃背景形成"半浅色块"残留。
      限定在 .badge-tag 自身，不影响其他 .badge（date/priority/todo/reminder）。 */
-  background: rgba(var(--tag-color-rgb), 0.22);
+  background: var(--info-bg);
+  color: var(--info-text);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
-  transition: background-color 0.15s ease;
+  transition: none;
 }
 
 /* 父级 hover 时把标签 alpha 提升，抵消玻璃背景变亮带来的"透出"，
    选择器只匹配 .todo-item:hover 直接后代，不影响其他行/其他元素。 */
 .todo-item:hover > .todo-body .badge-tag {
-  background: rgba(var(--tag-color-rgb), 0.32);
+  background: var(--info-bg);
+  color: var(--info-text);
 }
 
 .badge-priority-high {
@@ -1301,8 +1358,20 @@ body::before {
 
 /* Done Section */
 .done-section {
-  padding: 0 32px;
-  margin-top: 16px;
+  position: absolute;
+  left: 32px;
+  right: calc(32px + var(--scrollbar-size));
+  bottom: 16px;
+  z-index: 9;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: transparent;
+  backdrop-filter: blur(18px) saturate(135%);
+  -webkit-backdrop-filter: blur(18px) saturate(135%);
+  border: 1px solid var(--glass-stroke-strong);
+  border-radius: 12px;
+  box-shadow: var(--glass-soft-shadow), var(--glass-inset-highlight);
 }
 
 .done-header {
@@ -1310,11 +1379,21 @@ body::before {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 8px 0;
+  min-height: 50px;
+  padding: 10px 16px;
   font-size: 13px;
   color: var(--text-secondary);
   cursor: pointer;
   user-select: none;
+  transition: background var(--motion-normal), border-color var(--motion-normal);
+}
+
+.done-header:hover {
+  background: var(--glass-control-bg-hover);
+}
+
+.done-header:not(.collapsed) {
+  border-bottom: 1px solid var(--glass-divider);
 }
 
 .done-header-actions {
@@ -1362,7 +1441,7 @@ body::before {
 }
 
 .done-section .todo-list {
-  padding: 0;
+  padding: 10px 12px 12px;
 }
 
 /* Detail Panel */
@@ -1509,7 +1588,6 @@ body::before {
 .detail-select {
   width: 100%;
   padding: 10px 12px;
-  padding-right: 32px;
   background: var(--glass-bg-input);
   backdrop-filter: var(--glass-blur-light);
   -webkit-backdrop-filter: var(--glass-blur-light);
@@ -2124,6 +2202,7 @@ body::before {
   flex-direction: column;
   flex: 1;
   overflow: hidden;
+  position: relative;
 }
 
 .view.active {
@@ -2139,24 +2218,39 @@ body::before {
 }
 
 .calendar-nav {
-  display: flex;
+  display: grid;
+  grid-template-columns: 40px minmax(128px, 168px) 40px 40px;
   align-items: center;
   justify-content: center;
-  gap: 20px;
-  margin-bottom: 12px;
+  gap: 8px;
+  margin-bottom: 14px;
   font-size: 16px;
   font-weight: 600;
 }
 
+.calendar-nav .icon-btn {
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
+  padding: 0;
+}
+
 .calendar-title-btn {
+  width: 100%;
+  min-width: 0;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: none;
-  border: none;
-  font-size: 16px;
+  border: 1px solid transparent;
+  font-size: 15px;
   font-weight: 600;
   color: var(--text-primary);
   cursor: pointer;
-  padding: 4px 12px;
-  border-radius: 8px;
+  padding: 0 14px;
+  border-radius: 10px;
+  white-space: nowrap;
   transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -2165,17 +2259,292 @@ body::before {
 }
 
 .month-picker {
-  padding: 8px 0;
+  padding: 4px 0 8px;
 }
 
 .month-picker-row {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 16px;
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  gap: 10px;
 }
 
 .month-picker-row select {
+  width: 100%;
+  min-width: 0;
+  height: 42px;
+}
+
+.month-picker-field {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.month-picker-field > span {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.month-picker-select {
+  position: relative;
+  min-width: 0;
+}
+
+.month-picker-dialog .month-picker-trigger {
+  width: 100%;
+  min-width: 0;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 11px;
+  background: var(--glass-surface-input);
+  backdrop-filter: var(--glass-blur-light);
+  -webkit-backdrop-filter: var(--glass-blur-light);
+  border: 1px solid var(--glass-stroke);
+  border-radius: 9px;
+  color: var(--text-primary);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: var(--glass-inset-highlight);
+  transition: background var(--motion-normal), border-color var(--motion-normal), box-shadow var(--motion-normal);
+}
+
+.month-picker-dialog .month-picker-trigger:hover,
+.month-picker-dialog .month-picker-select.is-open .month-picker-trigger {
+  background: var(--glass-surface-hover);
+  border-color: var(--glass-stroke-strong);
+  box-shadow: var(--glass-control-shadow-hover), var(--glass-inset-highlight);
+}
+
+.month-picker-dialog .month-picker-trigger:focus-visible {
+  outline: none;
+  border-color: color-mix(in srgb, var(--accent) 68%, var(--glass-stroke-strong));
+  box-shadow: 0 0 0 3px var(--focus-ring), var(--glass-inset-highlight);
+}
+
+.month-picker-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.month-picker-select.is-open .detail-select-arrow {
+  color: var(--accent-text);
+  transform: rotate(180deg);
+}
+
+.month-picker-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  max-height: 214px;
+  padding: 5px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  background: var(--glass-surface-strong);
+  backdrop-filter: var(--glass-blur-strong);
+  -webkit-backdrop-filter: var(--glass-blur-strong);
+  border: 1px solid var(--glass-stroke-strong);
+  border-radius: 10px;
+  box-shadow: var(--glass-panel-shadow), var(--glass-inset-highlight);
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
+  animation: popupFadeIn var(--motion-fast);
+}
+
+.month-picker-menu.hidden {
+  display: none;
+}
+
+.month-picker-dialog .month-picker-option {
+  width: 100%;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  padding: 7px 9px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--motion-fast), border-color var(--motion-fast), color var(--motion-fast);
+}
+
+.month-picker-dialog .month-picker-option:hover,
+.month-picker-dialog .month-picker-option:focus-visible {
+  outline: none;
+  background: var(--glass-control-bg-hover);
+  border-color: var(--glass-control-border-hover);
+  color: var(--text-primary);
+}
+
+.month-picker-dialog .month-picker-option.selected {
+  background: color-mix(in srgb, var(--accent) 18%, var(--glass-control-bg));
+  border-color: color-mix(in srgb, var(--accent) 42%, transparent);
+  color: var(--accent-text);
+  font-weight: 600;
+}
+
+.tag-input-box.month-picker-dialog {
+  width: min(320px, calc(100vw - 32px));
+}
+
+.month-picker-dialog .btn-row {
+  margin-top: 10px;
+}
+
+.month-picker-dialog .btn-row button {
   flex: 1;
+  min-width: 0;
+}
+
+/* Shared glass dropdowns used by calendar and time controls. */
+.glass-select {
+  position: relative;
+  min-width: 0;
+}
+
+.glass-select .glass-select-trigger {
+  width: 100%;
+  min-width: 0;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 11px;
+  background: var(--glass-surface-input);
+  backdrop-filter: var(--glass-blur-light);
+  -webkit-backdrop-filter: var(--glass-blur-light);
+  border: 1px solid var(--glass-stroke);
+  border-radius: 9px;
+  color: var(--text-primary);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: var(--glass-inset-highlight);
+  transition: background var(--motion-normal), border-color var(--motion-normal), box-shadow var(--motion-normal);
+}
+
+.glass-select .glass-select-trigger:hover,
+.glass-select.is-open .glass-select-trigger {
+  background: var(--glass-surface-hover);
+  border-color: var(--glass-stroke-strong);
+  box-shadow: var(--glass-control-shadow-hover), var(--glass-inset-highlight);
+}
+
+.glass-select .glass-select-trigger:focus-visible {
+  outline: none;
+  border-color: color-mix(in srgb, var(--accent) 68%, var(--glass-stroke-strong));
+  box-shadow: 0 0 0 3px var(--focus-ring), var(--glass-inset-highlight);
+}
+
+.glass-select-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.glass-select.is-open .detail-select-arrow {
+  color: var(--accent-text);
+  transform: rotate(180deg);
+}
+
+.glass-select-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 80;
+  max-height: 214px;
+  padding: 5px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  background: rgba(18, 23, 35, 0.985);
+  backdrop-filter: var(--glass-blur-strong);
+  -webkit-backdrop-filter: var(--glass-blur-strong);
+  border: 1px solid var(--glass-stroke-strong);
+  border-radius: 10px;
+  box-shadow: var(--glass-panel-shadow), var(--glass-inset-highlight);
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
+  animation: popupFadeIn var(--motion-fast);
+}
+
+[data-theme="light"] .glass-select-menu {
+  background: rgba(255, 255, 255, 0.985);
+}
+
+.glass-select-menu.hidden {
+  display: none;
+}
+
+.glass-select .glass-select-option {
+  width: 100%;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  padding: 7px 9px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--motion-fast), border-color var(--motion-fast), color var(--motion-fast);
+}
+
+.glass-select .glass-select-option:hover,
+.glass-select .glass-select-option:focus-visible {
+  outline: none;
+  background: var(--glass-control-bg-hover);
+  border-color: var(--glass-control-border-hover);
+  color: var(--text-primary);
+}
+
+.glass-select .glass-select-option.selected {
+  background: color-mix(in srgb, var(--accent) 18%, var(--glass-control-bg));
+  border-color: color-mix(in srgb, var(--accent) 42%, transparent);
+  color: var(--accent-text);
+  font-weight: 600;
+}
+
+@media (max-width: 640px) {
+  .calendar-container {
+    padding-inline: 16px;
+  }
+
+  .calendar-nav {
+    grid-template-columns: 36px minmax(108px, 1fr) 36px 36px;
+    gap: 6px;
+  }
+
+  .calendar-nav .icon-btn,
+  .calendar-title-btn {
+    height: 36px;
+  }
+
+  .calendar-nav .icon-btn {
+    width: 36px;
+    min-width: 36px;
+  }
+
+  .calendar-title-btn {
+    font-size: 14px;
+    padding-inline: 8px;
+  }
 }
 
 .month-picker-actions {
@@ -2301,23 +2670,15 @@ body::before {
   margin-bottom: 12px;
 }
 
-/* Status Bar */
-.status-bar {
-  padding: 10px 32px;
-  border-top: 1px solid var(--border);
-  font-size: 12px;
-  color: var(--text-muted);
-  text-align: center;
-  flex-shrink: 0;
-}
-
 /* Scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
+  width: var(--scrollbar-size);
+  height: var(--scrollbar-size);
 }
 
 ::-webkit-scrollbar-track {
   background: transparent;
+  margin-block: 8px;
 }
 
 ::-webkit-scrollbar-thumb {
@@ -2396,11 +2757,6 @@ body::before {
 }
 
 /* Quick Add Popups */
-.add-task-bar {
-  position: relative;
-  z-index: 10;
-}
-
 .quick-popup {
   position: absolute;
   top: calc(100% + 8px);
@@ -2653,7 +3009,8 @@ body::before {
 }
 
 .dp-time-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(68px, 1fr) auto minmax(68px, 1fr);
   align-items: center;
   gap: 8px;
   margin-top: 10px;
@@ -2667,8 +3024,19 @@ body::before {
   white-space: nowrap;
 }
 
-.dp-time-row select {
-  flex: 1;
+.dp-time-row .glass-select {
+  width: 100%;
+}
+
+.dp-time-row .glass-select-trigger {
+  height: 36px;
+  padding-inline: 10px;
+}
+
+.dp-time-row .glass-select-menu {
+  top: auto;
+  bottom: calc(100% + 6px);
+  max-height: 180px;
 }
 
 .dp-actions {
@@ -2855,7 +3223,7 @@ body::before {
 @keyframes modalExpandIn {
   from {
     opacity: 0;
-    transform: translate(calc(var(--origin-x, 0px) - 50%), calc(var(--origin-y, 0px) - 50%)) scale(0.2);
+    transform: translate(-50%, calc(-50% + 8px)) scale(0.96);
   }
   to {
     opacity: 1;
@@ -2870,7 +3238,7 @@ body::before {
   }
   to {
     opacity: 0;
-    transform: translate(calc(var(--origin-x, 0px) - 50%), calc(var(--origin-y, 0px) - 50%)) scale(0.2);
+    transform: translate(-50%, calc(-50% + 8px)) scale(0.96);
   }
 }
 
@@ -3033,6 +3401,13 @@ body::before {
   max-height: min(35vh, 280px);
   overflow-x: hidden;
   overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.done-header.collapsed + .done-list-wrapper {
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
 }
 
 .done-list-wrapper.expanding {
@@ -3305,4 +3680,762 @@ body::before {
   color: var(--text-nav);
   font-size: 14px;
   margin-top: 8px;
+}
+
+/* ========== Unified restrained glass finish ========== */
+:root {
+  --glass-surface: rgba(22, 27, 40, 0.58);
+  --glass-surface-hover: rgba(34, 42, 60, 0.66);
+  --glass-surface-strong: rgba(18, 23, 35, 0.84);
+  --glass-surface-input: rgba(16, 21, 32, 0.54);
+  --glass-stroke: rgba(166, 176, 205, 0.10);
+  --glass-stroke-strong: rgba(184, 194, 220, 0.18);
+  --glass-divider: rgba(166, 176, 205, 0.10);
+  --glass-inset-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --glass-soft-shadow: 0 12px 34px rgba(0, 0, 0, 0.22), 0 2px 8px rgba(0, 0, 0, 0.12);
+  --glass-panel-shadow: 0 18px 54px rgba(0, 0, 0, 0.34), 0 4px 12px rgba(0, 0, 0, 0.16);
+  --glass-control-shadow: 0 2px 8px rgba(0, 0, 0, 0.14);
+  --glass-control-shadow-hover: 0 5px 16px rgba(0, 0, 0, 0.20);
+  --glass-control-bg: rgba(255, 255, 255, 0.055);
+  --glass-control-bg-hover: rgba(255, 255, 255, 0.095);
+  --glass-control-border: rgba(166, 176, 205, 0.13);
+  --glass-control-border-hover: rgba(184, 194, 220, 0.24);
+  --motion-fast: 140ms cubic-bezier(0.2, 0, 0.2, 1);
+  --motion-normal: 220ms cubic-bezier(0.2, 0, 0.2, 1);
+  --motion-panel: 280ms cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-fast: 140ms;
+  --duration-panel: 280ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0.2, 1);
+  --ease-panel: cubic-bezier(0.16, 1, 0.3, 1);
+  --lift-subtle: translateY(-1px);
+  --press-subtle: translateY(0) scale(0.985);
+}
+
+[data-theme="light"] {
+  --glass-surface: rgba(255, 255, 255, 0.66);
+  --glass-surface-hover: rgba(255, 255, 255, 0.80);
+  --glass-surface-strong: rgba(255, 255, 255, 0.88);
+  --glass-surface-input: rgba(255, 255, 255, 0.58);
+  --glass-stroke: rgba(150, 164, 190, 0.32);
+  --glass-stroke-strong: rgba(132, 148, 178, 0.48);
+  --glass-divider: rgba(150, 164, 190, 0.28);
+  --glass-inset-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.78);
+  --glass-soft-shadow: 0 12px 34px rgba(90, 102, 130, 0.10), 0 2px 8px rgba(42, 50, 70, 0.05);
+  --glass-panel-shadow: 0 20px 58px rgba(78, 92, 124, 0.16), 0 4px 14px rgba(36, 45, 70, 0.07);
+  --glass-control-shadow: 0 2px 8px rgba(70, 84, 114, 0.07);
+  --glass-control-shadow-hover: 0 6px 18px rgba(70, 84, 114, 0.12);
+  --glass-control-bg: rgba(255, 255, 255, 0.54);
+  --glass-control-bg-hover: rgba(255, 255, 255, 0.76);
+  --glass-control-border: rgba(150, 164, 190, 0.34);
+  --glass-control-border-hover: rgba(128, 144, 176, 0.52);
+}
+
+.sidebar,
+.add-task-bar,
+.todo-item,
+.calendar-detail,
+.tag-input-box,
+.detail-panel,
+.summary-panel,
+.settings-modal,
+.quick-popup,
+.context-menu,
+.mini-panel,
+.mini-tooltip,
+.dp-panel,
+.date-picker {
+  background: var(--glass-surface);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-color: var(--glass-stroke);
+  box-shadow: var(--glass-soft-shadow), var(--glass-inset-highlight);
+}
+
+.detail-panel,
+.summary-panel,
+.settings-modal,
+.tag-input-box,
+.quick-popup,
+.context-menu,
+.mini-panel,
+.dp-panel,
+.date-picker {
+  background: var(--glass-surface-strong);
+  backdrop-filter: var(--glass-blur-strong);
+  -webkit-backdrop-filter: var(--glass-blur-strong);
+  border: 1px solid var(--glass-stroke-strong);
+  box-shadow: var(--glass-panel-shadow), var(--glass-inset-highlight);
+}
+
+.add-task-bar {
+  background: color-mix(in srgb, var(--glass-surface-strong) 72%, transparent);
+  backdrop-filter: blur(18px) saturate(135%);
+  -webkit-backdrop-filter: blur(18px) saturate(135%);
+  border-color: var(--glass-stroke-strong);
+  box-shadow: var(--glass-soft-shadow), var(--glass-inset-highlight);
+}
+
+.add-task-bar:focus-within {
+  box-shadow: var(--glass-soft-shadow), 0 0 0 3px var(--focus-ring), var(--glass-inset-highlight);
+}
+
+.nav-item:hover,
+.tag-item:hover,
+.sidebar-footer button:hover,
+.todo-item:hover,
+.calendar-day:hover,
+.calendar-title-btn:hover,
+.context-menu-item:hover,
+.quick-option:hover,
+.popup-option:hover,
+.dp-day:hover,
+.mini-btn:hover,
+.mini-todo-item:hover,
+.settings-tab:hover:not(.active),
+.theme-opt:hover:not(.active),
+.settings-pane[data-pane="tags"] .tag-manage-item:hover {
+  background: var(--glass-surface-hover);
+  border-color: var(--glass-stroke-strong);
+  box-shadow: var(--glass-inset-highlight);
+}
+
+.nav-item.active,
+.tag-item.active {
+  background: var(--glass-surface-hover);
+  border-color: var(--glass-stroke-strong);
+  box-shadow: var(--glass-inset-highlight), var(--glass-control-shadow);
+}
+
+.icon-btn,
+.btn-header-action,
+.btn-mini-mode-footer,
+.btn-toggle-sidebar,
+.sidebar-footer button,
+.btn-ai-summary,
+.btn-copy,
+.btn-theme-toggle,
+.btn-archive-all,
+.summary-tab,
+.settings-tab,
+.theme-opt,
+.calendar-title-btn,
+.mini-btn,
+.dp-btn,
+.month-picker-actions button {
+  background: var(--glass-control-bg);
+  backdrop-filter: var(--glass-btn-blur);
+  -webkit-backdrop-filter: var(--glass-btn-blur);
+  border-color: var(--glass-control-border);
+  box-shadow: var(--glass-control-shadow);
+  transition:
+    background var(--motion-normal),
+    border-color var(--motion-normal),
+    color var(--motion-normal),
+    box-shadow var(--motion-normal),
+    transform var(--motion-fast);
+}
+
+.icon-btn:hover,
+.btn-header-action:hover,
+.btn-mini-mode-footer:hover,
+.btn-toggle-sidebar:hover,
+.sidebar-footer button:hover,
+.btn-ai-summary:hover,
+.btn-copy:hover,
+.btn-theme-toggle:hover,
+.btn-archive-all:hover,
+.summary-tab:hover:not(.active),
+.settings-tab:hover:not(.active),
+.theme-opt:hover:not(.active),
+.calendar-title-btn:hover,
+.mini-btn:hover,
+.dp-btn:hover,
+.month-picker-actions button:hover {
+  background: var(--glass-control-bg-hover);
+  border-color: var(--glass-control-border-hover);
+  box-shadow: var(--glass-control-shadow-hover), var(--glass-inset-highlight);
+  transform: var(--lift-subtle);
+}
+
+.icon-btn:active,
+.btn-header-action:active,
+.btn-mini-mode-footer:active,
+.btn-toggle-sidebar:active,
+.sidebar-footer button:active,
+.btn-ai-summary:active,
+.btn-copy:active,
+.btn-theme-toggle:active,
+.btn-archive-all:active,
+.summary-tab:active,
+.settings-tab:active,
+.theme-opt:active,
+.calendar-title-btn:active,
+.mini-btn:active,
+.dp-btn:active,
+.month-picker-actions button:active {
+  transform: var(--press-subtle);
+  box-shadow: var(--glass-control-shadow), var(--glass-inset-highlight);
+}
+
+.search-bar input,
+.tag-input-box input,
+.summary-date-row input,
+.settings-row input,
+.settings-row textarea,
+.detail-row input,
+.detail-row textarea,
+.detail-select,
+.popup-date-input,
+.popup-option,
+.quick-option,
+.mini-input-row input {
+  background: var(--glass-surface-input);
+  backdrop-filter: var(--glass-blur-light);
+  -webkit-backdrop-filter: var(--glass-blur-light);
+  border: 1px solid var(--glass-stroke);
+  box-shadow: var(--glass-inset-highlight);
+  transition:
+    background var(--motion-normal),
+    border-color var(--motion-normal),
+    box-shadow var(--motion-normal);
+}
+
+.search-bar input:focus,
+.tag-input-box input:focus,
+.summary-date-row input:focus,
+.settings-row input:focus,
+.settings-row textarea:focus,
+.detail-row input:focus,
+.detail-row textarea:focus,
+.detail-select:focus-within,
+.popup-date-input:focus,
+.mini-input-row input:focus {
+  background: var(--glass-surface-hover);
+  border-color: color-mix(in srgb, var(--accent) 68%, var(--glass-stroke-strong));
+  box-shadow: 0 0 0 3px var(--focus-ring), var(--glass-inset-highlight);
+}
+
+.summary-header,
+.summary-controls,
+.summary-footer,
+.settings-header,
+.settings-tabs,
+.mini-stats,
+.mini-input-row,
+.done-header,
+.detail-header,
+.detail-actions,
+.dp-actions {
+  border-color: var(--glass-divider);
+}
+
+.settings-tag-empty,
+.settings-pane[data-pane="tags"] .tag-manage-item,
+.settings-pane[data-pane="tags"] .tag-create-row,
+.settings-pane[data-pane="tags"] .tag-manage-count,
+.settings-pane[data-pane="tags"] .tag-create-hint,
+.tag-manage-item,
+.tag-manage-input,
+.tag-rename-input,
+.date-suggestion,
+.detail-dropdown,
+.detail-dropdown-item,
+.calendar-day,
+.calendar-grid,
+.summary-output {
+  background: color-mix(in srgb, var(--glass-surface-input) 72%, transparent);
+  border-color: var(--glass-stroke);
+}
+
+.todo-item,
+.add-task-bar,
+.calendar-detail,
+.calendar-day,
+.settings-pane[data-pane="tags"] .tag-manage-item,
+.mini-todo-item,
+.context-menu-item,
+.popup-option,
+.quick-option,
+.detail-dropdown-item {
+  transition:
+    background var(--motion-normal),
+    border-color var(--motion-normal),
+    color var(--motion-normal),
+    box-shadow var(--motion-normal),
+    transform var(--motion-fast),
+    opacity var(--motion-fast);
+}
+
+.todo-item:hover,
+.add-task-bar:focus-within,
+.settings-pane[data-pane="tags"] .tag-manage-item:hover,
+.mini-todo-item:hover {
+  transform: var(--lift-subtle);
+}
+
+.todo-item:focus-within {
+  border-color: var(--glass-stroke-strong);
+  box-shadow: var(--glass-soft-shadow), 0 0 0 3px var(--focus-ring), var(--glass-inset-highlight);
+}
+
+.todo-item:active {
+  transform: var(--press-subtle);
+}
+
+.todo-actions {
+  transform: translateX(3px);
+  transition: opacity var(--motion-fast), transform var(--motion-fast);
+}
+
+.todo-item:hover .todo-actions,
+.todo-item:focus-within .todo-actions {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.context-menu {
+  transform-origin: top left;
+}
+
+.context-menu-submenu .context-menu {
+  transform-origin: top left;
+}
+
+.toast-msg {
+  box-shadow: var(--glass-panel-shadow), var(--glass-inset-highlight);
+}
+
+.detail-panel,
+.summary-panel,
+.settings-modal,
+.tag-input-box {
+  animation-duration: var(--duration-panel);
+  animation-timing-function: var(--ease-panel);
+}
+
+.quick-popup,
+.context-menu,
+.date-picker,
+.mini-tooltip,
+.detail-dropdown {
+  animation-duration: var(--duration-fast);
+  animation-timing-function: var(--ease-standard);
+}
+
+.calendar-day.today:not(.selected) {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 70%, transparent), var(--glass-inset-highlight);
+}
+
+.calendar-day.selected {
+  transform: none;
+}
+
+.empty-state,
+.empty-state-sm,
+.empty-state-hint,
+.summary-placeholder {
+  opacity: 0.82;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .todo-item:hover,
+  .add-task-bar:focus-within,
+  .settings-pane[data-pane="tags"] .tag-manage-item:hover,
+  .mini-todo-item:hover,
+  .icon-btn:hover,
+  .btn-header-action:hover,
+  .btn-mini-mode-footer:hover,
+  .btn-toggle-sidebar:hover,
+  .sidebar-footer button:hover,
+  .btn-ai-summary:hover,
+  .btn-copy:hover,
+  .btn-theme-toggle:hover,
+  .btn-archive-all:hover,
+  .summary-tab:hover:not(.active),
+  .settings-tab:hover:not(.active),
+  .theme-opt:hover:not(.active),
+  .calendar-title-btn:hover,
+  .mini-btn:hover,
+  .dp-btn:hover {
+    transform: none;
+  }
+}
+
+.summary-tab.active,
+.settings-tab.active,
+.theme-opt.active,
+.calendar-day.selected,
+.btn-primary,
+.btn-ok {
+  box-shadow: 0 6px 18px rgba(99, 102, 241, 0.24), var(--glass-inset-highlight);
+}
+
+.badge-tag,
+.badge-todo {
+  background: var(--info-bg);
+  color: var(--info-text);
+  transition: none;
+}
+
+.todo-item:hover > .todo-body .badge-tag,
+.todo-item:hover > .todo-body .badge-todo {
+  background: var(--info-bg);
+  color: var(--info-text);
+}
+
+.todo-meta .badge {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--glass-stroke-strong) 72%, transparent);
+  background-clip: padding-box;
+  border: 3px solid transparent;
+  border-radius: 999px;
+  min-height: 32px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--accent) 32%, var(--glass-stroke-strong));
+  background-clip: padding-box;
+}
+
+.tag-list,
+.tag-manage-list,
+.task-scroll-area,
+.detail-panel,
+.summary-output,
+.settings-body,
+.calendar-container,
+.calendar-detail,
+.done-list-wrapper,
+.mini-list {
+  scrollbar-gutter: stable;
+  scrollbar-color: color-mix(in srgb, var(--glass-stroke-strong) 72%, transparent) transparent;
+  scrollbar-width: thin;
+  overscroll-behavior: contain;
+}
+
+.tag-delete-btn:hover,
+.todo-actions button:hover,
+.dp-clear-btn:hover,
+.popup-clear:hover,
+.settings-pane[data-pane="tags"] #set-add-tag-btn:hover,
+.tag-manage-name:hover,
+.detail-done-value:hover {
+  background: var(--glass-control-bg-hover);
+  border-color: var(--glass-control-border-hover);
+  box-shadow: var(--glass-inset-highlight);
+}
+
+.todo-actions button,
+.tag-delete-btn,
+.dp-clear-btn,
+.popup-clear,
+.settings-pane[data-pane="tags"] #set-add-tag-btn {
+  transition:
+    background var(--motion-fast),
+    border-color var(--motion-fast),
+    color var(--motion-fast),
+    box-shadow var(--motion-fast),
+    transform var(--motion-fast),
+    opacity var(--motion-fast);
+}
+
+.todo-actions button:active,
+.tag-delete-btn:active,
+.dp-clear-btn:active,
+.popup-clear:active,
+.settings-pane[data-pane="tags"] #set-add-tag-btn:active {
+  transform: var(--press-subtle);
+}
+
+.badge-start,
+.badge-date,
+.badge-priority-high,
+.badge-priority-medium,
+.badge-priority-low,
+.badge-reminder {
+  box-shadow: var(--glass-inset-highlight);
+}
+
+.done-header,
+.summary-header,
+.summary-controls,
+.summary-footer,
+.settings-header,
+.settings-tabs,
+.mini-stats,
+.mini-input-row,
+.dp-actions,
+.dp-time-row {
+  border-color: var(--glass-divider) !important;
+}
+
+.tag-input-overlay,
+.detail-overlay,
+.summary-overlay,
+.settings-overlay {
+  background: color-mix(in srgb, var(--overlay) 72%, transparent);
+  backdrop-filter: blur(10px) saturate(130%);
+  -webkit-backdrop-filter: blur(10px) saturate(130%);
+}
+
+.view.active {
+  animation: viewFadeIn var(--motion-normal);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .todo-actions {
+    transform: none;
+  }
+}
+
+/* Edge controls: keep older component rules visually aligned with the glass system. */
+.tag-manage-input,
+.tag-rename-input,
+.detail-done-input,
+.dp-trigger,
+.dp-clear-btn,
+.dp-nav-btn,
+.dp-today-btn,
+.dp-day:not(.dp-other),
+.settings-pane[data-pane="tags"] #set-add-tag-btn,
+.tag-input-box input:not(.tag-manage-input):not(.tag-rename-input),
+.month-picker-actions #picker-cancel,
+.mini-todo-item .mini-checkbox {
+  background: var(--glass-surface-input);
+  border-color: var(--glass-stroke);
+  box-shadow: var(--glass-inset-highlight);
+}
+
+.tag-manage-input:focus,
+.tag-rename-input:focus,
+.detail-done-input:focus,
+.dp-trigger:focus,
+.dp-trigger:hover,
+.dp-nav-btn:hover,
+.dp-today-btn:hover,
+.dp-day:not(.dp-other):not(.dp-selected):hover,
+.settings-pane[data-pane="tags"] #set-add-tag-btn:hover,
+.tag-input-box input:not(.tag-manage-input):not(.tag-rename-input):focus,
+.month-picker-actions #picker-cancel:hover,
+.mini-todo-item .mini-checkbox:hover {
+  background: var(--glass-surface-hover);
+  border-color: var(--glass-stroke-strong);
+  box-shadow: var(--glass-control-shadow-hover), var(--glass-inset-highlight);
+}
+
+.todo-checkbox,
+.mini-todo-item .mini-checkbox,
+.summary-tab,
+.settings-tab,
+.theme-opt,
+.settings-pane[data-pane="tags"] #set-add-tag-btn,
+.month-picker-actions button,
+.dp-today-btn,
+.dp-btn,
+.dp-nav-btn {
+  transition:
+    background var(--motion-normal),
+    border-color var(--motion-normal),
+    color var(--motion-normal),
+    box-shadow var(--motion-normal),
+    transform var(--motion-fast),
+    opacity var(--motion-fast);
+}
+
+.todo-checkbox:active,
+.mini-todo-item .mini-checkbox:active,
+.dp-clear-btn:active,
+.dp-nav-btn:active,
+.dp-today-btn:active {
+  transform: var(--press-subtle);
+}
+
+.dp-clear-btn:hover {
+  color: var(--danger-text);
+}
+
+.todo-actions button:hover {
+  color: var(--text-primary);
+}
+
+.badge-start {
+  background: var(--glass-surface-input);
+  color: var(--text-secondary);
+}
+
+/* Dropdown interaction and popup alignment. */
+.detail-select.is-open,
+.detail-select:focus-visible {
+  outline: none;
+  background: var(--glass-surface-hover);
+  border-color: color-mix(in srgb, var(--accent) 68%, var(--glass-stroke-strong));
+  box-shadow: 0 0 0 3px var(--focus-ring), var(--glass-inset-highlight);
+}
+
+.detail-select.is-open .detail-select-arrow {
+  color: var(--accent-text);
+  transform: rotate(180deg);
+}
+
+.detail-dropdown {
+  scrollbar-color: color-mix(in srgb, var(--glass-stroke-strong) 72%, transparent) transparent;
+  scrollbar-width: thin;
+  overscroll-behavior: contain;
+}
+
+.detail-dropdown-item {
+  min-height: 36px;
+  border: 1px solid transparent;
+}
+
+.detail-dropdown-item:hover,
+.detail-dropdown-item:focus-visible {
+  outline: none;
+  background: var(--glass-control-bg-hover);
+  border-color: var(--glass-control-border-hover);
+}
+
+.detail-dropdown-item.selected {
+  background: color-mix(in srgb, var(--accent) 18%, var(--glass-control-bg));
+  border-color: color-mix(in srgb, var(--accent) 42%, transparent);
+  color: var(--accent-text);
+}
+
+.quick-popup {
+  max-height: min(320px, calc(100vh - 32px));
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.popup-option {
+  min-height: 36px;
+  border: 1px solid transparent;
+}
+
+.popup-option:hover,
+.popup-option:focus-visible {
+  outline: none;
+  background: var(--glass-control-bg-hover);
+  border-color: var(--glass-control-border-hover);
+}
+
+.popup-option.selected {
+  background: color-mix(in srgb, var(--accent) 18%, var(--glass-control-bg));
+  border-color: color-mix(in srgb, var(--accent) 42%, transparent);
+  color: var(--accent-text);
+}
+
+.quick-popup {
+  box-sizing: border-box;
+  padding: 6px;
+  background: rgba(18, 23, 35, 0.965);
+  border-radius: 10px;
+  box-shadow: var(--glass-panel-shadow), var(--glass-inset-highlight);
+  max-width: calc(100% - 16px);
+}
+
+[data-theme="light"] .quick-popup {
+  background: rgba(255, 255, 255, 0.97);
+}
+
+.quick-popup-date {
+  width: 224px;
+}
+
+.quick-popup-priority {
+  width: 176px;
+}
+
+.quick-popup-tag {
+  width: 200px;
+}
+
+.quick-popup-date,
+.quick-popup-priority {
+  overflow: visible;
+}
+
+.quick-popup .popup-title {
+  margin: 0 2px 4px;
+  padding: 5px 8px 8px;
+  border-bottom: 1px solid var(--glass-divider);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.quick-popup .popup-option {
+  width: 100%;
+  min-width: 0;
+  min-height: 36px;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 8px 10px;
+  gap: 9px;
+}
+
+.quick-popup .popup-divider {
+  margin: 5px 8px;
+  background: var(--glass-divider);
+}
+
+.quick-popup .popup-empty {
+  margin: 2px 0;
+  padding: 12px 10px;
+  text-align: center;
+  border: 1px dashed var(--glass-stroke);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--glass-surface-input) 68%, transparent);
+}
+
+.quick-popup .popup-custom-date {
+  min-height: 0;
+  margin-top: 2px;
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  cursor: default;
+}
+
+.quick-popup .popup-custom-date:hover {
+  background: transparent;
+  border-color: transparent;
+}
+
+.popup-custom-date .dp-wrapper {
+  width: 100%;
+  min-width: 0;
+}
+
+.popup-custom-date .dp-trigger {
+  min-height: 38px;
+  padding: 8px 32px 8px 10px;
+  background: var(--glass-surface-input);
+  backdrop-filter: var(--glass-blur-light);
+  -webkit-backdrop-filter: var(--glass-blur-light);
+  border-color: var(--glass-stroke);
+  border-radius: 8px;
+  box-shadow: var(--glass-inset-highlight);
+}
+
+.popup-custom-date .dp-trigger:hover,
+.popup-custom-date .dp-trigger:focus-visible {
+  outline: none;
+  background: var(--glass-surface-hover);
+  border-color: var(--glass-stroke-strong);
 }

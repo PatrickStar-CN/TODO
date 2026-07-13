@@ -1,5 +1,9 @@
 const PRIORITY_ORDER = { high: 0, medium: 1, low: 2, none: 3 };
 
+function getTodoArray(source) {
+  return Array.isArray(source) ? source : (source?.todos || []);
+}
+
 export function sortByPriority(todos) {
   return todos.slice().sort((a, b) => {
     const pa = PRIORITY_ORDER[a.priority || 'none'];
@@ -28,7 +32,6 @@ export function getFilteredTodos(data, currentList, currentTag) {
 }
 
 export function countByList(todos) {
-  /* 优先使用 data._index 索引（O(1)），旧版兼容回退到遍历 */
   if (todos && todos._index && todos._index.counts) {
     return { ...todos._index.counts };
   }
@@ -36,7 +39,7 @@ export function countByList(todos) {
   let important = 0;
   let all = 0;
   let archived = 0;
-  for (const t of todos) {
+  for (const t of getTodoArray(todos)) {
     if (t.archived) {
       archived++;
       continue;
@@ -50,12 +53,11 @@ export function countByList(todos) {
 }
 
 export function countTagUndone(todos, tag) {
-  /* 优先使用 data._index 索引 */
   if (todos && todos._index && todos._index.tagUndone) {
     return todos._index.tagUndone[tag] || 0;
   }
   let count = 0;
-  for (const t of todos) {
+  for (const t of getTodoArray(todos)) {
     if (t.tag === tag && !t.done && !t.archived) count++;
   }
   return count;

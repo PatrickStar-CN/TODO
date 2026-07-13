@@ -20,6 +20,7 @@ import { initSettings } from './settings.js';
 const TAG_COLORS = ['#4f46e5', '#06b6d4', '#f59e0b', '#ef4444', '#10b981', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#6366f1'];
 const STORAGE_KEY = 'todo_app_data';
 const DATA_FILE = 'todo_data.json';
+let persistenceWriteBlocked = false;
 
 function getTagColor(tag) {
   if (!tag) return TAG_COLORS[0];
@@ -41,7 +42,7 @@ function getTagBadgeStyle(tag) {
   const rgb = hexToRgb(color);
   /* 颜色写入 --tag-color-rgb 变量；背景由 CSS .badge-tag 规则用 rgba() 控制，
      避免内联 background 与 hover 态冲突，无需 !important。 */
-  return `style="--tag-color-rgb:${rgb};color:${color};"`;
+  return '';
 }
 
 function getTagDotStyle(tag) {
@@ -52,24 +53,86 @@ function isNeutralinoEnv() {
   return typeof Neutralino !== 'undefined' && typeof NL_PORT !== 'undefined';
 }
 
+function createEmptyData() {
+  return { todos: [], tags: [] };
+}
+
+function safeLocalStorageData() {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch (err) {
+    console.warn('[loadData] localStorage data is invalid:', err);
+    return null;
+  }
+}
+
+function createPersistenceSnapshot({ includeSecrets }) {
+  const replacer = (key, value) => (key === '_index' ? undefined : value);
+  const snapshot = JSON.parse(JSON.stringify(data, replacer));
+  if (!includeSecrets && snapshot.aiConfig) {
+    snapshot.aiConfig.apiKey = '';
+  }
+  return snapshot;
+}
+
+async function parseStoredData(content) {
+  if (typeof content !== 'string' || !content.trim()) {
+    return createEmptyData();
+  }
+  const plain = await tryDecrypt(content);
+  return JSON.parse(plain);
+}
+
+async function backupCorruptDataFile(content) {
+  if (!isNeutralinoEnv() || typeof content !== 'string') return;
+  try {
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    await Neutralino.filesystem.writeFile(`./${DATA_FILE}.corrupt-${stamp}.bak`, content);
+  } catch (err) {
+    console.warn('[loadData] failed to back up corrupt data file:', err);
+  }
+}
+
+function handleCorruptData(err, content, source) {
+  persistenceWriteBlocked = true;
+  console.error(`[loadData] ${source} data is invalid; file writes are blocked to avoid overwriting it.`, err);
+  backupCorruptDataFile(content);
+  setTimeout(() => {
+    showToast('数据文件异常，已暂停覆盖保存');
+  }, 0);
+  return safeLocalStorageData() || createEmptyData();
+}
+
 async function loadData() {
   if (isNeutralinoEnv()) {
+    let content = '';
     try {
-      const content = await Neutralino.filesystem.readFile(`./${DATA_FILE}`);
-      const plain = await tryDecrypt(content);
-      return JSON.parse(plain);
+      content = await Neutralino.filesystem.readFile(`./${DATA_FILE}`);
     } catch {
-      return { todos: [], tags: [] };
+      return safeLocalStorageData() || createEmptyData();
+    }
+    try {
+      return await parseStoredData(content);
+    } catch (err) {
+      return handleCorruptData(err, content, DATA_FILE);
     }
   }
   try {
     const res = await fetch('/api/data');
     const content = await res.text();
-    const plain = await tryDecrypt(content);
-    return JSON.parse(plain);
-  } catch {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : { todos: [], tags: [] };
+    if (!content.trim()) {
+      return safeLocalStorageData() || createEmptyData();
+    }
+    try {
+      return await parseStoredData(content);
+    } catch (err) {
+      return handleCorruptData(err, content, 'development data.json');
+    }
+  } catch (err) {
+    console.warn('[loadData] file data unavailable, falling back to localStorage:', err);
+    return safeLocalStorageData() || createEmptyData();
   }
 }
 
@@ -77,9 +140,15 @@ let saveTimer = null;
 
 async function saveData() {
   const replacer = (key, value) => (key === '_index' ? undefined : value);
-  const json = JSON.stringify(data, replacer, 2);
+  const json = JSON.stringify(createPersistenceSnapshot({ includeSecrets: true }), replacer, 2);
+  const localJson = JSON.stringify(createPersistenceSnapshot({ includeSecrets: false }), null, 2);
   /* localStorage 保持明文（用户选择的离线降级方式） */
-  localStorage.setItem(STORAGE_KEY, json);
+  localStorage.setItem(STORAGE_KEY, localJson);
+
+  if (persistenceWriteBlocked) {
+    showToast('数据文件异常，已暂停覆盖保存');
+    return;
+  }
 
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = setTimeout(async () => {
@@ -462,7 +531,6 @@ function renderTodoList() {
   const doneSection = document.getElementById('done-section');
   const doneToggleEl = document.getElementById('done-toggle');
   const taskSummary = document.getElementById('task-summary');
-  const statusText = document.getElementById('status-text');
 
   const filtered = getFilteredTodos();
   const addTaskBar = document.querySelector('.add-task-bar');
@@ -482,7 +550,6 @@ function renderTodoList() {
     }
     doneSection.style.display = 'none';
     taskSummary.textContent = `${sorted.length} 个归档`;
-    statusText.textContent = `共 ${sorted.length} 项归档任务`;
     return;
   }
 
@@ -497,7 +564,6 @@ function renderTodoList() {
     }
     doneSection.style.display = 'none';
     taskSummary.textContent = `搜索到 ${sorted.length} 个任务`;
-    statusText.textContent = `搜索: "${searchKeyword}"`;
     return;
   }
 
@@ -521,7 +587,6 @@ function renderTodoList() {
   }
 
   taskSummary.textContent = `${sorted.length} 个任务`;
-  statusText.textContent = `共 ${filtered.length} 项任务 · ${done.length} 已完成`;
 }
 
 function renderTodoItem(t) {
@@ -562,34 +627,140 @@ function showMonthPicker(currentMonth, onConfirm) {
 
   const monthNames = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
 
+  const renderPickerSelect = (id, value, options, ariaLabel) => {
+    const selected = options.find(option => option.value === value) || options[0];
+    return `
+      <div class="month-picker-select" id="${id}" data-value="${selected.value}">
+        <button class="month-picker-trigger" type="button" aria-label="${ariaLabel}" aria-haspopup="listbox" aria-expanded="false" aria-controls="${id}-menu">
+          <span class="month-picker-value">${selected.label}</span>
+          <svg class="detail-select-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
+        </button>
+        <div class="month-picker-menu hidden" id="${id}-menu" role="listbox">
+          ${options.map(option => `
+            <button class="month-picker-option${option.value === selected.value ? ' selected' : ''}" type="button" role="option" data-value="${option.value}" aria-selected="${option.value === selected.value}">${option.label}</button>
+          `).join('')}
+        </div>
+      </div>`;
+  };
+
+  const yearPickerOptions = yearOptions.map(value => ({ value, label: `${value}年` }));
+  const monthPickerOptions = monthNames.map((label, value) => ({ value, label }));
+
   const contentHtml = `
     <div class="month-picker">
       <div class="month-picker-row">
-        <select id="picker-year">${yearOptions.map(y => `<option value="${y}" ${y === year ? 'selected' : ''}>${y}年</option>`).join('')}</select>
-        <select id="picker-month">${monthNames.map((n, i) => `<option value="${i}" ${i === month ? 'selected' : ''}>${n}</option>`).join('')}</select>
+        <label class="month-picker-field">
+          <span>年份</span>
+          ${renderPickerSelect('picker-year', year, yearPickerOptions, '选择年份')}
+        </label>
+        <label class="month-picker-field">
+          <span>月份</span>
+          ${renderPickerSelect('picker-month', month, monthPickerOptions, '选择月份')}
+        </label>
       </div>
     </div>`;
 
   const actionsHtml = '<button class="btn-cancel" id="picker-cancel">取消</button><button class="btn-primary" id="picker-confirm">确定</button>';
 
-  const overlay = createOverlay('选择月份', contentHtml, actionsHtml);
+  const overlay = createOverlay('选择年月', contentHtml, actionsHtml, document.getElementById('calendar-title'));
+  overlay.querySelector('.tag-input-box').classList.add('month-picker-dialog');
   const close = () => closeOverlay(overlay);
+  const pickerSelects = [...overlay.querySelectorAll('.month-picker-select')];
 
-  overlay.querySelector('#picker-cancel').addEventListener('click', close);
-  overlay.querySelector('#picker-confirm').addEventListener('click', () => {
-    const y = parseInt(document.getElementById('picker-year').value);
-    const m = parseInt(document.getElementById('picker-month').value);
+  const closePickerMenus = (except = null) => {
+    pickerSelects.forEach(select => {
+      if (select === except) return;
+      select.classList.remove('is-open');
+      select.querySelector('.month-picker-trigger').setAttribute('aria-expanded', 'false');
+      select.querySelector('.month-picker-menu').classList.add('hidden');
+    });
+  };
+
+  const openPickerMenu = (select, focusSelected = false) => {
+    closePickerMenus(select);
+    select.classList.add('is-open');
+    select.querySelector('.month-picker-trigger').setAttribute('aria-expanded', 'true');
+    select.querySelector('.month-picker-menu').classList.remove('hidden');
+    const selectedOption = select.querySelector('.month-picker-option.selected');
+    selectedOption?.scrollIntoView({ block: 'nearest' });
+    if (focusSelected) selectedOption?.focus();
+  };
+
+  const selectPickerOption = (select, option) => {
+    select.dataset.value = option.dataset.value;
+    select.querySelector('.month-picker-value').textContent = option.textContent;
+    select.querySelectorAll('.month-picker-option').forEach(item => {
+      const isSelected = item === option;
+      item.classList.toggle('selected', isSelected);
+      item.setAttribute('aria-selected', String(isSelected));
+    });
+    closePickerMenus();
+    select.querySelector('.month-picker-trigger').focus();
+  };
+
+  pickerSelects.forEach(select => {
+    const trigger = select.querySelector('.month-picker-trigger');
+    const menu = select.querySelector('.month-picker-menu');
+    const options = [...select.querySelectorAll('.month-picker-option')];
+
+    trigger.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      if (select.classList.contains('is-open')) closePickerMenus();
+      else openPickerMenu(select);
+    });
+
+    trigger.addEventListener('keydown', (ev) => {
+      if (ev.key !== 'ArrowDown' && ev.key !== 'ArrowUp') return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      openPickerMenu(select, true);
+    });
+
+    options.forEach((option, index) => {
+      option.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        selectPickerOption(select, option);
+      });
+      option.addEventListener('keydown', (ev) => {
+        if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+          ev.preventDefault();
+          ev.stopPropagation();
+          const offset = ev.key === 'ArrowDown' ? 1 : -1;
+          options[(index + offset + options.length) % options.length].focus();
+        } else if (ev.key === 'Enter' || ev.key === ' ') {
+          ev.preventDefault();
+          ev.stopPropagation();
+          selectPickerOption(select, option);
+        } else if (ev.key === 'Escape') {
+          ev.preventDefault();
+          ev.stopPropagation();
+          closePickerMenus();
+          trigger.focus();
+        }
+      });
+    });
+
+    menu.addEventListener('click', ev => ev.stopPropagation());
+  });
+
+  const confirmSelection = () => {
+    const y = parseInt(document.getElementById('picker-year').dataset.value);
+    const m = parseInt(document.getElementById('picker-month').dataset.value);
     close();
     onConfirm(y, m);
+  };
+
+  overlay.querySelector('#picker-cancel').addEventListener('click', close);
+  overlay.querySelector('#picker-confirm').addEventListener('click', confirmSelection);
+  overlay.addEventListener('click', (ev) => {
+    if (ev.target === overlay) close();
+    else if (!ev.target.closest('.month-picker-select')) closePickerMenus();
   });
-  overlay.addEventListener('click', (ev) => { if (ev.target === overlay) close(); });
   overlay.addEventListener('keydown', (ev) => {
+    if (ev.target.closest('.month-picker-select')) return;
     if (ev.key === 'Enter') {
       ev.preventDefault();
-      const y = parseInt(document.getElementById('picker-year').value);
-      const m = parseInt(document.getElementById('picker-month').value);
-      close();
-      onConfirm(y, m);
+      confirmSelection();
     } else if (ev.key === 'Escape') {
       ev.preventDefault();
       close();
@@ -689,8 +860,32 @@ export async function initApp() {
 
   const quickAdd = document.getElementById('quick-add');
   const doneToggle = document.getElementById('done-toggle');
+  const listView = document.getElementById('view-list');
+  const doneSection = document.getElementById('done-section');
+  const taskScrollArea = document.querySelector('.task-scroll-area');
+  const addTaskBar = document.querySelector('.add-task-bar');
   const detailForm = document.getElementById('detail-form');
   const calendarDays = document.getElementById('calendar-days');
+
+  const syncDonePanelLayout = () => {
+    const isVisible = getComputedStyle(doneSection).display !== 'none';
+    const reservedSpace = isVisible ? doneSection.offsetHeight + 12 : 0;
+    listView.style.setProperty('--done-panel-space', `${reservedSpace}px`);
+
+    const listRect = listView.getBoundingClientRect();
+    const addBarRect = addTaskBar.getBoundingClientRect();
+    if (addBarRect.width > 0) {
+      doneSection.style.left = `${addBarRect.left - listRect.left}px`;
+      doneSection.style.right = `${listRect.right - addBarRect.right}px`;
+    }
+  };
+
+  if (typeof ResizeObserver !== 'undefined') {
+    const donePanelObserver = new ResizeObserver(syncDonePanelLayout);
+    donePanelObserver.observe(doneSection);
+    donePanelObserver.observe(taskScrollArea);
+    donePanelObserver.observe(addTaskBar);
+  }
 
   // Set today's date
   const today = new Date();
@@ -1010,7 +1205,7 @@ export async function initApp() {
       const id = todoItem.dataset.id;
       const todo = data.todos.find(t => t.id === id);
       if (!todo) return;
-      const items = buildTodoContextMenu(todo, { data, saveData, render, openDetail, deleteTodoById, toggleDone });
+      const items = buildTodoContextMenu(todo, { data, updateTodo, openDetail, deleteTodoById, toggleDone });
       showContextMenu(e.clientX, e.clientY, items);
     } else if (tagItem) {
       const tag = tagItem.dataset.tag;
@@ -1058,6 +1253,18 @@ export async function initApp() {
       todo.reminder = null;
     }
     applyDelta(todo, 'done', oldDone, todo.done);
+    saveData();
+    render();
+  }
+
+  function updateTodo(todo, patchOrMutator) {
+    if (!todo) return;
+    if (typeof patchOrMutator === 'function') {
+      patchOrMutator(todo);
+    } else if (patchOrMutator && typeof patchOrMutator === 'object') {
+      Object.assign(todo, patchOrMutator);
+    }
+    rebuildIndex();
     saveData();
     render();
   }

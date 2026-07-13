@@ -4,26 +4,82 @@ import { initDatePicker } from './datePicker.js';
 
 function closeAllPopups() {
   document.querySelectorAll('.quick-popup').forEach(el => el.remove());
+  document.querySelectorAll('.add-task-actions button[aria-expanded="true"]').forEach(button => {
+    button.setAttribute('aria-expanded', 'false');
+  });
 }
 
-function adjustPopupPosition(popup) {
+function closePopup(popup, trigger) {
+  popup.remove();
+  trigger.setAttribute('aria-expanded', 'false');
+}
+
+function adjustPopupPosition(popup, trigger, container) {
   requestAnimationFrame(() => {
-    const rect = popup.getBoundingClientRect();
-    if (rect.bottom > window.innerHeight) {
+    const containerRect = container.getBoundingClientRect();
+    const triggerRect = trigger.getBoundingClientRect();
+    const popupRect = popup.getBoundingClientRect();
+    const desiredLeft = triggerRect.right - containerRect.left - popupRect.width;
+    const maxLeft = Math.max(8, containerRect.width - popupRect.width - 8);
+
+    popup.style.left = `${Math.min(Math.max(8, desiredLeft), maxLeft)}px`;
+    popup.style.right = 'auto';
+
+    const positionedRect = popup.getBoundingClientRect();
+    if (positionedRect.bottom > window.innerHeight - 8) {
       popup.style.top = 'auto';
       popup.style.bottom = 'calc(100% + 8px)';
     }
   });
 }
 
+function enhancePopupOptions(popup, trigger, selector) {
+  popup.setAttribute('role', 'listbox');
+  const options = [...popup.querySelectorAll(selector)];
+  if (!options.length) return;
+
+  options.forEach((option, index) => {
+    option.setAttribute('role', 'option');
+    option.setAttribute('aria-selected', String(option.classList.contains('selected')));
+    option.tabIndex = -1;
+    option.addEventListener('keydown', (event) => {
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault();
+        const offset = event.key === 'ArrowDown' ? 1 : -1;
+        options[(index + offset + options.length) % options.length].focus();
+      } else if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        option.click();
+      } else if (event.key === 'Escape') {
+        event.preventDefault();
+        closePopup(popup, trigger);
+        trigger.focus();
+      }
+    });
+  });
+
+  const initial = popup.querySelector(`${selector}.selected`) || options[0];
+  initial.tabIndex = 0;
+  requestAnimationFrame(() => initial.focus());
+}
+
 export function initQuickAddPopups({ quickAddPreset, updateQuickAddIndicators, data, getTagDotStyle }) {
   const container = document.querySelector('.add-task-bar');
+  const dateButton = document.getElementById('btn-set-date');
+  const priorityButton = document.getElementById('btn-set-priority');
+  const tagButton = document.getElementById('btn-set-tag');
 
-  document.getElementById('btn-set-date').addEventListener('click', (e) => {
+  [dateButton, priorityButton, tagButton].forEach(button => {
+    button.setAttribute('aria-haspopup', 'listbox');
+    button.setAttribute('aria-expanded', 'false');
+  });
+
+  dateButton.addEventListener('click', (e) => {
     e.stopPropagation();
     closeAllPopups();
     const popup = document.createElement('div');
-    popup.className = 'quick-popup';
+    popup.className = 'quick-popup quick-popup-date';
+    dateButton.setAttribute('aria-expanded', 'true');
     const todayStr = toLocalDateInput(new Date());
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
@@ -33,9 +89,9 @@ export function initQuickAddPopups({ quickAddPreset, updateQuickAddIndicators, d
     const nextWeekStr = toLocalDateInput(nextWeek);
     popup.innerHTML = `
       <div class="popup-title">截止日期</div>
-      <div class="popup-option" data-date="${todayStr}">☀️ 今天</div>
-      <div class="popup-option" data-date="${tomorrowStr}">📅 明天</div>
-      <div class="popup-option" data-date="${nextWeekStr}">📆 下周</div>
+      <div class="popup-option ${quickAddPreset.endTime === todayStr ? 'selected' : ''}" data-date="${todayStr}">☀️ 今天</div>
+      <div class="popup-option ${quickAddPreset.endTime === tomorrowStr ? 'selected' : ''}" data-date="${tomorrowStr}">📅 明天</div>
+      <div class="popup-option ${quickAddPreset.endTime === nextWeekStr ? 'selected' : ''}" data-date="${nextWeekStr}">📆 下周</div>
       <div class="popup-divider"></div>
       <div class="popup-option popup-custom-date">
         <input type="text" class="popup-date-input" value="${quickAddPreset.endTime || ''}">
@@ -43,28 +99,30 @@ export function initQuickAddPopups({ quickAddPreset, updateQuickAddIndicators, d
       ${quickAddPreset.endTime ? '<div class="popup-option popup-clear" data-date="">✕ 清除日期</div>' : ''}
     `;
     container.appendChild(popup);
-    adjustPopupPosition(popup);
+    adjustPopupPosition(popup, dateButton, container);
     initDatePicker(popup.querySelector('.popup-date-input'), { mode: 'date' });
 
     popup.querySelectorAll('[data-date]').forEach(opt => {
       opt.addEventListener('click', () => {
         quickAddPreset.endTime = opt.dataset.date || null;
         updateQuickAddIndicators();
-        popup.remove();
+        closePopup(popup, dateButton);
       });
     });
     popup.querySelector('.popup-date-input').addEventListener('change', (ev) => {
       quickAddPreset.endTime = ev.target.value || null;
       updateQuickAddIndicators();
-      popup.remove();
+      closePopup(popup, dateButton);
     });
+    enhancePopupOptions(popup, dateButton, '[data-date]');
   });
 
-  document.getElementById('btn-set-priority').addEventListener('click', (e) => {
+  priorityButton.addEventListener('click', (e) => {
     e.stopPropagation();
     closeAllPopups();
     const popup = document.createElement('div');
-    popup.className = 'quick-popup';
+    popup.className = 'quick-popup quick-popup-priority';
+    priorityButton.setAttribute('aria-expanded', 'true');
     popup.innerHTML = `
       <div class="popup-title">优先级</div>
       <div class="popup-option ${quickAddPreset.priority === 'high' ? 'selected' : ''}" data-priority="high"><span class="prio-dot prio-high"></span>高</div>
@@ -73,22 +131,24 @@ export function initQuickAddPopups({ quickAddPreset, updateQuickAddIndicators, d
       <div class="popup-option ${quickAddPreset.priority === 'none' ? 'selected' : ''}" data-priority="none"><span class="prio-dot prio-none"></span>无</div>
     `;
     container.appendChild(popup);
-    adjustPopupPosition(popup);
+    adjustPopupPosition(popup, priorityButton, container);
 
     popup.querySelectorAll('[data-priority]').forEach(opt => {
       opt.addEventListener('click', () => {
         quickAddPreset.priority = opt.dataset.priority;
         updateQuickAddIndicators();
-        popup.remove();
+        closePopup(popup, priorityButton);
       });
     });
+    enhancePopupOptions(popup, priorityButton, '[data-priority]');
   });
 
-  document.getElementById('btn-set-tag').addEventListener('click', (e) => {
+  tagButton.addEventListener('click', (e) => {
     e.stopPropagation();
     closeAllPopups();
     const popup = document.createElement('div');
-    popup.className = 'quick-popup';
+    popup.className = 'quick-popup quick-popup-tag';
+    tagButton.setAttribute('aria-expanded', 'true');
     const tagOptions = data.tags.map(tag =>
       `<div class="popup-option ${quickAddPreset.tag === tag ? 'selected' : ''}" data-tag="${escapeHtml(tag)}"><span class="tag-dot" ${getTagDotStyle(tag)}></span>${escapeHtml(tag)}</div>`
     ).join('');
@@ -98,15 +158,16 @@ export function initQuickAddPopups({ quickAddPreset, updateQuickAddIndicators, d
       ${quickAddPreset.tag ? '<div class="popup-option popup-clear" data-tag="">✕ 清除标签</div>' : ''}
     `;
     container.appendChild(popup);
-    adjustPopupPosition(popup);
+    adjustPopupPosition(popup, tagButton, container);
 
     popup.querySelectorAll('[data-tag]').forEach(opt => {
       opt.addEventListener('click', () => {
         quickAddPreset.tag = opt.dataset.tag || '';
         updateQuickAddIndicators();
-        popup.remove();
+        closePopup(popup, tagButton);
       });
     });
+    enhancePopupOptions(popup, tagButton, '[data-tag]');
   });
 
   document.addEventListener('click', (e) => {

@@ -1,4 +1,5 @@
 import { isSameDay, isToday, formatDate, formatDateTime } from './utils/date.js';
+import { renderGlassSelect, initGlassSelectGroup } from './glassSelect.js';
 
 let activePicker = null;
 let _insideClick = false;
@@ -233,9 +234,21 @@ class DatePicker {
     const timeRowHtml = this.mode === 'datetime' ? `
       <div class="dp-time-row">
         <label>时</label>
-        <select class="dp-hour">${Array.from({ length: 24 }, (_, h) => `<option value="${h}" ${h === this.pickHour ? 'selected' : ''}>${String(h).padStart(2, '0')}</option>`).join('')}</select>
+        ${renderGlassSelect({
+          id: 'dp-hour-select',
+          className: 'dp-hour',
+          value: this.pickHour,
+          options: Array.from({ length: 24 }, (_, h) => ({ value: h, label: String(h).padStart(2, '0') })),
+          ariaLabel: '选择小时',
+        })}
         <label>分</label>
-        <select class="dp-minute">${Array.from({ length: 60 }, (_, m) => `<option value="${m}" ${m === this.pickMinute ? 'selected' : ''}>${String(m).padStart(2, '0')}</option>`).join('')}</select>
+        ${renderGlassSelect({
+          id: 'dp-minute-select',
+          className: 'dp-minute',
+          value: this.pickMinute,
+          options: Array.from({ length: 60 }, (_, m) => ({ value: m, label: String(m).padStart(2, '0') })),
+          ariaLabel: '选择分钟',
+        })}
       </div>` : '';
 
     this.panel.innerHTML = `
@@ -290,10 +303,12 @@ class DatePicker {
       });
     });
 
-    const hourSel = this.panel.querySelector('.dp-hour');
-    const minSel = this.panel.querySelector('.dp-minute');
-    if (hourSel) hourSel.addEventListener('change', () => { this.pickHour = parseInt(hourSel.value); });
-    if (minSel) minSel.addEventListener('change', () => { this.pickMinute = parseInt(minSel.value); });
+    initGlassSelectGroup(this.panel, {
+      onChange: (select, value) => {
+        if (select.classList.contains('dp-hour')) this.pickHour = parseInt(value, 10);
+        if (select.classList.contains('dp-minute')) this.pickMinute = parseInt(value, 10);
+      },
+    });
 
     this.panel.querySelector('.dp-btn-confirm').addEventListener('click', () => {
       if (this.selectedDate) {

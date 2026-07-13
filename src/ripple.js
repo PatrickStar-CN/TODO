@@ -6,7 +6,6 @@ const PRESS_DURATION = 700; // 与 CSS 动画时长（0.65s / 0.7s）保持一�
 // 触发涟漪动画的按钮选择器（与 style.css 中保持一致）
 const BUTTON_SELECTOR = [
   '.btn-header-action',
-  '.btn-mini-mode',
   '.icon-btn',
   '.btn-ai-summary',
   '.btn-cancel',

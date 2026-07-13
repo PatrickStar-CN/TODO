@@ -14,7 +14,6 @@
         <h2>待办事项</h2>
         <div class="header-actions">
           <button class="btn-header-action" id="btn-settings" title="设置">⚙️</button>
-          <button class="btn-header-action" id="btn-mini-mode" title="迷你模式">📌</button>
         </div>
         <span class="date" id="today-date"></span>
       </div>
@@ -71,19 +70,21 @@
           <input type="text" id="search-input" placeholder="搜索任务..." autocomplete="off">
           <button class="icon-btn" id="btn-search-close" title="关闭搜索">✕</button>
         </div>
-        <!-- 添加任务 -->
-        <div class="add-task-bar">
-          <span class="add-icon">➕</span>
-          <input type="text" id="quick-add" placeholder="添加新任务..." autocomplete="off">
-          <div class="add-task-actions">
-            <button class="icon-btn" id="btn-set-date" title="设置日期">📅</button>
-            <button class="icon-btn" id="btn-set-priority" title="设置优先级">🚩</button>
-            <button class="icon-btn" id="btn-set-tag" title="设置标签">🏷️</button>
+        <div class="task-scroll-area">
+          <!-- 添加任务 -->
+          <div class="add-task-bar">
+            <span class="add-icon">➕</span>
+            <input type="text" id="quick-add" placeholder="添加新任务..." autocomplete="off">
+            <div class="add-task-actions">
+              <button class="icon-btn" id="btn-set-date" title="设置日期">📅</button>
+              <button class="icon-btn" id="btn-set-priority" title="设置优先级">🚩</button>
+              <button class="icon-btn" id="btn-set-tag" title="设置标签">🏷️</button>
+            </div>
           </div>
+          <!-- 任务列表 -->
+          <div id="todo-list" class="todo-list"></div>
         </div>
-        <!-- 任务列表 -->
-        <div id="todo-list" class="todo-list"></div>
-        <!-- 已完成折叠 -->
+        <!-- 已完成悬浮面板 -->
         <div id="done-section" class="done-section">
           <div class="done-header" id="done-toggle">
             <span>已完成 (<span id="done-count">0</span>)</span>
@@ -110,8 +111,8 @@
           <div class="calendar-nav">
             <button class="icon-btn" id="prev-month">◀</button>
             <button class="calendar-title-btn" id="calendar-title" title="点击选择年月"></button>
-            <button class="icon-btn" id="btn-today" title="今天">📅</button>
             <button class="icon-btn" id="next-month">▶</button>
+            <button class="icon-btn" id="btn-today" title="回到今天">📅</button>
           </div>
           <div class="calendar-grid">
             <div class="calendar-weekdays">
@@ -123,10 +124,6 @@
         </div>
       </div>
 
-      <!-- 底部状态栏 -->
-      <div class="status-bar">
-        <span id="status-text"></span>
-      </div>
     </main>
   </div>
 
@@ -149,14 +146,14 @@
       <div class="detail-row-inline">
         <div class="detail-row">
           <label>优先级</label>
-          <div class="detail-select" id="detail-priority" data-value="">
+          <div class="detail-select" id="detail-priority" data-value="" role="combobox" tabindex="0" aria-label="选择优先级" aria-haspopup="listbox" aria-expanded="false">
             <span class="detail-select-trigger">无</span>
             <svg class="detail-select-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
           </div>
         </div>
         <div class="detail-row">
           <label>标签</label>
-          <div class="detail-select" id="detail-tag" data-value="">
+          <div class="detail-select" id="detail-tag" data-value="" role="combobox" tabindex="0" aria-label="选择标签" aria-haspopup="listbox" aria-expanded="false">
             <span class="detail-select-trigger">未设置</span>
             <svg class="detail-select-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
           </div>
@@ -179,7 +176,7 @@
         </div>
         <div class="detail-row">
           <label>重复提醒</label>
-          <div class="detail-select" id="detail-reminder-repeat" data-value="">
+          <div class="detail-select" id="detail-reminder-repeat" data-value="" role="combobox" tabindex="0" aria-label="选择重复提醒" aria-haspopup="listbox" aria-expanded="false">
             <span class="detail-select-trigger">不重复</span>
             <svg class="detail-select-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
           </div>

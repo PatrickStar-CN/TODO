@@ -132,7 +132,6 @@ export function initMiniMode({ data, saveData, render, showToast, isNeutralinoEn
     render();
   }
 
-  document.getElementById('btn-mini-mode').addEventListener('click', enterMiniMode);
   document.getElementById('btn-mini-mode-footer').addEventListener('click', enterMiniMode);
   document.getElementById('btn-exit-mini').addEventListener('click', (e) => {
     e.stopPropagation();
