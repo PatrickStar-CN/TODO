@@ -9,6 +9,48 @@ function createMenuItemContent(icon, label) {
   return frag;
 }
 
+const VIEWPORT_MARGIN = 8;
+
+function positionRootMenu(menu, x, y) {
+  const maxHeight = Math.max(120, window.innerHeight - VIEWPORT_MARGIN * 2);
+  menu.style.maxHeight = `${maxHeight}px`;
+  menu.style.overflowY = menu.scrollHeight > maxHeight ? 'auto' : 'visible';
+
+  /* offsetWidth/offsetHeight ignore the entry scale animation. */
+  const width = menu.offsetWidth;
+  const height = menu.offsetHeight;
+  const maxLeft = Math.max(VIEWPORT_MARGIN, window.innerWidth - width - VIEWPORT_MARGIN);
+  const maxTop = Math.max(VIEWPORT_MARGIN, window.innerHeight - height - VIEWPORT_MARGIN);
+
+  menu.style.left = `${Math.min(Math.max(VIEWPORT_MARGIN, x), maxLeft)}px`;
+  menu.style.top = `${Math.min(Math.max(VIEWPORT_MARGIN, y), maxTop)}px`;
+  menu.style.visibility = 'visible';
+}
+
+function positionSubmenu(wrapper, submenu) {
+  const wrapperRect = wrapper.getBoundingClientRect();
+  const availableHeight = window.innerHeight - VIEWPORT_MARGIN * 2;
+  const maxHeight = Math.max(120, Math.min(320, availableHeight));
+  submenu.style.maxHeight = `${maxHeight}px`;
+  submenu.style.overflowY = submenu.scrollHeight > maxHeight ? 'auto' : 'visible';
+  submenu.style.left = '100%';
+  submenu.style.right = 'auto';
+  submenu.style.top = '-4px';
+
+  const width = submenu.offsetWidth;
+  const height = submenu.offsetHeight;
+  if (wrapperRect.right + width > window.innerWidth - VIEWPORT_MARGIN) {
+    submenu.style.left = 'auto';
+    submenu.style.right = '100%';
+  }
+
+  const desiredViewportTop = Math.min(
+    Math.max(VIEWPORT_MARGIN, wrapperRect.top - 4),
+    Math.max(VIEWPORT_MARGIN, window.innerHeight - height - VIEWPORT_MARGIN)
+  );
+  submenu.style.top = `${desiredViewportTop - wrapperRect.top}px`;
+}
+
 export function closeContextMenu() {
   const existing = document.querySelector('.context-menu');
   if (existing) existing.remove();
@@ -16,8 +58,9 @@ export function closeContextMenu() {
 
 export function showContextMenu(x, y, items) {
   const menu = document.createElement('div');
-  menu.className = 'context-menu';
+  menu.className = 'context-menu context-menu-root';
   menu.setAttribute('role', 'menu');
+  menu.style.visibility = 'hidden';
   items.forEach(item => {
     if (item.separator) {
       const sep = document.createElement('div');
@@ -39,6 +82,8 @@ export function showContextMenu(x, y, items) {
         sub.appendChild(subEl);
       });
       wrapper.appendChild(sub);
+      wrapper.addEventListener('mouseenter', () => positionSubmenu(wrapper, sub));
+      wrapper.addEventListener('focusin', () => positionSubmenu(wrapper, sub));
       menu.appendChild(wrapper);
       return;
     }
@@ -51,11 +96,7 @@ export function showContextMenu(x, y, items) {
     menu.appendChild(el);
   });
   document.body.appendChild(menu);
-  const rect = menu.getBoundingClientRect();
-  if (x + rect.width > window.innerWidth) x = window.innerWidth - rect.width - 4;
-  if (y + rect.height > window.innerHeight) y = window.innerHeight - rect.height - 4;
-  menu.style.left = x + 'px';
-  menu.style.top = y + 'px';
+  positionRootMenu(menu, x, y);
   setTimeout(() => {
     document.addEventListener('click', closeContextMenu, { once: true });
     document.addEventListener('contextmenu', closeContextMenu, { once: true, capture: true });

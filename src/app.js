@@ -10,6 +10,7 @@ import { renderCalendar as _renderCalendar, getTodosForDate as _getTodosForDate,
 import { openDetail as _openDetail, closeDetail, initDetailEditor } from './detail.js';
 import { createOverlay, closeOverlay, showConfirmDialog } from './overlay.js';
 import { applyTheme } from './theme.js';
+import { applyUiStyle, normalizeUiStyle } from './uiPreferences.js';
 import { initAiSummary } from './aiSummary.js';
 import { initReminders } from './reminder.js';
 import { initMiniMode } from './miniMode.js';
@@ -42,7 +43,7 @@ function getTagBadgeStyle(tag) {
   const rgb = hexToRgb(color);
   /* 颜色写入 --tag-color-rgb 变量；背景由 CSS .badge-tag 规则用 rgba() 控制，
      避免内联 background 与 hover 态冲突，无需 !important。 */
-  return '';
+  return `style="--tag-color:${color};--tag-color-rgb:${rgb}"`;
 }
 
 function getTagDotStyle(tag) {
@@ -179,7 +180,7 @@ async function saveData() {
   }, 300);
 }
 
-let data = { todos: [], tags: ['计划内'], aiConfig: { apiUrl: '', apiKey: '', model: '', customPrompt: '' }, theme: 'auto', sidebarMini: false };
+let data = { todos: [], tags: ['计划内'], aiConfig: { apiUrl: '', apiKey: '', model: '', customPrompt: '' }, theme: 'auto', uiStyle: normalizeUiStyle(), sidebarMini: false };
 let currentList = 'todo';
 let currentTag = null;
 let selectedDate = null;
@@ -203,7 +204,7 @@ function showToast(msg) {
 function normalizeData() {
   /* 防御：loadData 可能因文件为空/损坏返回非对象（如空字符串） */
   if (!data || typeof data !== 'object' || Array.isArray(data)) {
-    data = { todos: [], tags: [], aiConfig: {}, theme: 'auto', sidebarMini: false };
+    data = { todos: [], tags: [], aiConfig: {}, theme: 'auto', uiStyle: normalizeUiStyle(), sidebarMini: false };
   }
   if (!Array.isArray(data.tags)) {
     data.tags = [];
@@ -252,6 +253,7 @@ function normalizeData() {
   if (!['auto', 'light', 'dark'].includes(data.theme)) {
     data.theme = 'auto';
   }
+  data.uiStyle = normalizeUiStyle(data.uiStyle);
   if (typeof data.sidebarMini !== 'boolean') {
     data.sidebarMini = false;
   }
@@ -802,6 +804,7 @@ export async function initApp() {
   } catch (e) { /* ignore */ }
 
   applyTheme(data.theme);
+  applyUiStyle(data.uiStyle);
 
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
     if (data.theme === 'auto') applyTheme(data.theme);

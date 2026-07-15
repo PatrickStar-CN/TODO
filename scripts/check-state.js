@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { countByList, countTagUndone, getFilteredTodos, sortByPriority, splitPendingDone } from '../src/selectors.js';
+import { DEFAULT_UI_STYLE, normalizeUiStyle } from '../src/uiPreferences.js';
 
 const todos = [
   { id: '1', title: 'High todo', priority: 'high', tag: 'work', todo: true, important: true, done: false, archived: false, createdAt: 1 },
@@ -31,5 +32,14 @@ assert.deepEqual(sortByPriority(todos.filter(t => !t.archived)).map(t => t.id), 
 const split = splitPendingDone(todos.filter(t => !t.archived));
 assert.deepEqual(split.pending.map(t => t.id), ['1', '4']);
 assert.deepEqual(split.done.map(t => t.id), ['2']);
+
+assert.deepEqual(normalizeUiStyle(), DEFAULT_UI_STYLE);
+assert.deepEqual(normalizeUiStyle({ radius: 99, glassOpacity: 10, borderStrength: '60', fontScale: 104.6, blur: 'bad' }), {
+  radius: 20,
+  glassOpacity: 35,
+  borderStrength: 60,
+  fontScale: 105,
+  blur: 18
+});
 
 console.log('State checks passed');

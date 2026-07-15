@@ -2077,7 +2077,23 @@ body::before {
 }
 
 /* 标签管理 Tab */
-.settings-tag-list { margin-bottom: 12px; }
+.settings-pane[data-pane="tags"].active {
+  height: clamp(220px, calc(85vh - 170px), 420px);
+  min-height: 0;
+  display: block;
+  position: relative;
+  padding: 2px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
+}
+
+.settings-tag-list {
+  margin: 0;
+  padding: 2px 2px 8px;
+  overflow: visible;
+}
 .settings-tag-empty {
   font-size: 13px;
   color: var(--text-muted);
@@ -2118,73 +2134,67 @@ body::before {
 .settings-pane[data-pane="tags"] .tag-delete-btn { opacity: 0.6; }
 .settings-pane[data-pane="tags"] .tag-delete-btn:hover { opacity: 1; }
 
-/* 新建标签输入行 — 与 .tag-manage-item 同款外观 */
-.settings-pane[data-pane="tags"] .tag-create-row {
-  border-color: var(--accent);
-  background: var(--bg-elevated);
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
-  animation: tagCreateIn 0.18s ease-out;
-}
-.settings-pane[data-pane="tags"] .tag-create-input {
-  flex: 1;
-  border: none;
-  outline: none;
-  background: transparent;
-  color: var(--text-primary);
-  font-size: 14px;
-  font-weight: 500;
-  padding: 0;
-  min-width: 0;
-}
-.settings-pane[data-pane="tags"] .tag-create-input::placeholder {
-  color: var(--text-muted);
-  font-weight: 400;
-}
-.settings-pane[data-pane="tags"] .tag-create-hint {
-  font-size: 11px;
-  color: var(--text-muted);
-  padding: 2px 8px;
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  white-space: nowrap;
-  user-select: none;
-}
-.settings-pane[data-pane="tags"] .tag-create-row:focus-within .tag-create-hint {
-  color: var(--accent);
-  border-color: var(--accent);
-  background: rgba(99, 102, 241, 0.08);
-}
-@keyframes tagCreateIn {
-  from { opacity: 0; transform: translateY(-4px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-/* 新建标签按钮 — 自适应整个窗口宽度 */
-.settings-pane[data-pane="tags"] #set-add-tag-btn {
+/* 悬浮添加栏 — 与任务列表的快速添加栏保持同一层级。 */
+.settings-tag-add-bar {
+  position: sticky;
+  top: 0;
+  z-index: 4;
   display: flex;
   align-items: center;
-  justify-content: center;
-  width: 100%;
-  padding: 12px;
-  margin-top: 4px;
-  background: transparent;
-  border: 1px dashed var(--border-input);
-  border-radius: 6px;
-  color: var(--text-secondary);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.15s;
+  gap: 9px;
+  width: auto;
+  min-height: 48px;
+  margin: 0 2px 12px;
+  padding: 7px 8px 7px 11px;
+  background: color-mix(in srgb, var(--glass-surface-strong) 72%, transparent);
+  backdrop-filter: blur(18px) saturate(135%);
+  -webkit-backdrop-filter: blur(18px) saturate(135%);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  box-shadow: var(--glass-soft-shadow), var(--glass-inset-highlight);
   box-sizing: border-box;
+  flex-shrink: 0;
 }
-.settings-pane[data-pane="tags"] #set-add-tag-btn:hover {
-  border-color: var(--accent);
-  border-style: solid;
-  color: var(--accent);
-  background: var(--bg-elevated);
+
+.settings-tag-add-bar:focus-within {
+  border-color: color-mix(in srgb, var(--accent) 68%, var(--glass-stroke-strong));
+  box-shadow: var(--glass-control-shadow-hover), 0 0 0 3px var(--focus-ring), var(--glass-inset-highlight);
 }
-.settings-pane[data-pane="tags"] #set-add-tag-btn:active { transform: scale(0.98); }
+
+.settings-tag-preview {
+  width: 10px;
+  height: 10px;
+  margin: 0;
+  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 8%, transparent);
+}
+
+.settings-pane[data-pane="tags"] #set-add-tag-input {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  outline: 0;
+  color: var(--text-primary);
+  font-size: 13px;
+  box-shadow: none;
+}
+
+.settings-pane[data-pane="tags"] #set-add-tag-input::placeholder {
+  color: var(--text-muted);
+}
+
+.settings-pane[data-pane="tags"] .settings-tag-add-btn {
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  padding: 0;
+  margin: 0;
+  border-radius: 8px;
+  font-size: 19px;
+  line-height: 1;
+}
 
 .tag-rename-input {
   flex: 1;
@@ -3323,6 +3333,8 @@ body::before {
   position: fixed;
   z-index: 2000;
   min-width: 160px;
+  box-sizing: border-box;
+  overscroll-behavior: contain;
   background: var(--glass-bg-strong);
   backdrop-filter: var(--glass-blur-strong);
   -webkit-backdrop-filter: var(--glass-blur-strong);
@@ -3385,11 +3397,19 @@ body::before {
   position: absolute;
   left: 100%;
   top: -4px;
-  display: none;
+  max-height: min(320px, calc(100vh - 16px));
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--glass-stroke-strong) 72%, transparent) transparent;
+  display: block;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .context-menu-submenu:hover .context-menu {
-  display: block;
+  visibility: visible;
+  pointer-events: auto;
 }
 
 @keyframes contextMenuFadeIn {
@@ -3931,9 +3951,7 @@ body::before {
 
 .settings-tag-empty,
 .settings-pane[data-pane="tags"] .tag-manage-item,
-.settings-pane[data-pane="tags"] .tag-create-row,
 .settings-pane[data-pane="tags"] .tag-manage-count,
-.settings-pane[data-pane="tags"] .tag-create-hint,
 .tag-manage-item,
 .tag-manage-input,
 .tag-rename-input,
@@ -4438,4 +4456,369 @@ body::before {
   outline: none;
   background: var(--glass-surface-hover);
   border-color: var(--glass-stroke-strong);
+}
+
+/* List tag badges derive from the same palette as sidebar/settings swatches. */
+.todo-meta .badge-tag,
+.todo-item:hover > .todo-body .badge-tag {
+  background: rgba(var(--tag-color-rgb), 0.18);
+  color: color-mix(in srgb, var(--tag-color) 76%, var(--text-primary));
+  box-shadow: inset 0 0 0 1px rgba(var(--tag-color-rgb), 0.38);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  transition: none;
+}
+
+[data-theme="light"] .todo-meta .badge-tag,
+[data-theme="light"] .todo-item:hover > .todo-body .badge-tag {
+  background: rgba(var(--tag-color-rgb), 0.14);
+  color: color-mix(in srgb, var(--tag-color) 74%, #111827);
+  box-shadow: inset 0 0 0 1px rgba(var(--tag-color-rgb), 0.34);
+}
+
+/* Task rows: compact glass notes aligned with the rest of the workspace. */
+.todo-item {
+  min-height: 58px;
+  gap: 12px;
+  padding: 11px 12px 11px 14px;
+  margin-bottom: 7px;
+  background: color-mix(in srgb, var(--glass-surface) 88%, transparent);
+  backdrop-filter: blur(14px) saturate(120%);
+  -webkit-backdrop-filter: blur(14px) saturate(120%);
+  border: 1px solid var(--glass-stroke);
+  border-radius: 8px;
+  box-shadow: var(--glass-control-shadow), var(--glass-inset-highlight);
+}
+
+.todo-item::before {
+  display: none;
+}
+
+.todo-item:hover {
+  background: color-mix(in srgb, var(--glass-surface) 88%, transparent);
+  border-color: var(--glass-stroke-strong);
+  box-shadow: var(--glass-control-shadow-hover), var(--glass-inset-highlight);
+}
+
+.todo-item:focus-within {
+  background: color-mix(in srgb, var(--glass-surface) 88%, transparent);
+  border-color: var(--glass-stroke-strong);
+  box-shadow: var(--glass-control-shadow), 0 0 0 3px var(--focus-ring), var(--glass-inset-highlight);
+}
+
+.todo-checkbox {
+  width: 20px;
+  height: 20px;
+  background: var(--glass-surface-input);
+  border: 1px solid var(--glass-control-border-hover);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.14), var(--glass-inset-highlight);
+}
+
+.todo-checkbox:hover {
+  background: var(--glass-control-bg-hover);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--focus-ring), var(--glass-inset-highlight);
+}
+
+.todo-checkbox:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--focus-ring), var(--glass-inset-highlight);
+}
+
+.todo-checkbox.checked {
+  background: var(--success);
+  border-color: color-mix(in srgb, var(--success) 78%, white);
+  box-shadow: 0 2px 8px rgba(52, 211, 153, 0.25), var(--glass-inset-highlight);
+}
+
+.todo-checkbox.checked::after {
+  content: "";
+  width: 5px;
+  height: 9px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: translateY(-1px) rotate(45deg);
+}
+
+.todo-title {
+  margin-bottom: 3px;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.4;
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
+}
+
+.todo-title:last-child {
+  margin-bottom: 0;
+}
+
+.todo-meta {
+  gap: 6px;
+}
+
+.todo-meta .badge {
+  min-height: 20px;
+  box-sizing: border-box;
+  padding: 2px 7px;
+  border-radius: 5px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.todo-actions {
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.todo-actions button {
+  width: 30px;
+  height: 30px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  background: var(--glass-control-bg);
+  border: 1px solid transparent;
+  border-radius: 6px;
+  box-shadow: var(--glass-inset-highlight);
+  line-height: 1;
+}
+
+.todo-actions button:hover {
+  background: var(--glass-control-bg-hover);
+  border-color: var(--glass-control-border-hover);
+  box-shadow: var(--glass-control-shadow), var(--glass-inset-highlight);
+}
+
+.done-section .todo-item {
+  margin-bottom: 6px;
+}
+
+.done-section .todo-item:last-child {
+  margin-bottom: 0;
+}
+
+@media (max-width: 640px) {
+  .todo-list {
+    padding-inline: 16px;
+  }
+
+  .todo-item {
+    gap: 10px;
+    padding-inline: 12px 10px;
+  }
+
+  .todo-actions {
+    opacity: 1;
+    transform: none;
+  }
+
+  .todo-actions button {
+    width: 28px;
+    height: 28px;
+  }
+}
+
+/* User-adjustable UI style tokens. */
+:root {
+  --ui-radius: 12px;
+  --ui-radius-sm: 9px;
+  --ui-radius-lg: 18px;
+  --ui-glass-opacity: 72%;
+  --ui-border-strength: 100%;
+  --ui-font-scale: 1;
+  --ui-glass-blur: 18px;
+}
+
+.settings-modal {
+  width: 520px;
+}
+
+.settings-style-section {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--glass-divider);
+}
+
+.settings-style-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  color: var(--text-secondary);
+  font-size: calc(13px * var(--ui-font-scale));
+  font-weight: 600;
+}
+
+.ui-style-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 12px;
+  row-gap: 7px;
+  padding: 10px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--glass-divider) 72%, transparent);
+}
+
+.ui-style-control:last-child {
+  border-bottom: 0;
+}
+
+.ui-style-control-label {
+  color: var(--text-secondary);
+  font-size: calc(12px * var(--ui-font-scale));
+}
+
+.ui-style-value {
+  min-width: 48px;
+  color: var(--text-primary);
+  font-size: calc(12px * var(--ui-font-scale));
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.ui-style-control input[type="range"] {
+  grid-column: 1 / -1;
+  width: 100%;
+  height: 20px;
+  margin: 0;
+  padding: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.ui-style-control input[type="range"]::-webkit-slider-runnable-track {
+  height: 4px;
+  background: color-mix(in srgb, var(--accent) 38%, var(--glass-control-bg));
+  border: 1px solid color-mix(in srgb, var(--glass-stroke-strong) var(--ui-border-strength), transparent);
+  border-radius: 2px;
+}
+
+.ui-style-control input[type="range"]::-webkit-slider-thumb {
+  width: 16px;
+  height: 16px;
+  margin-top: -7px;
+  appearance: none;
+  -webkit-appearance: none;
+  background: var(--accent);
+  border: 2px solid color-mix(in srgb, white 82%, var(--accent));
+  border-radius: 50%;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 42%, transparent);
+}
+
+.ui-style-control input[type="range"]:focus-visible {
+  outline: none;
+}
+
+.ui-style-control input[type="range"]:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 4px var(--focus-ring), 0 2px 8px color-mix(in srgb, var(--accent) 42%, transparent);
+}
+
+/* Primary glass surfaces share the same live-adjustable material. */
+.sidebar,
+.add-task-bar,
+.todo-item,
+.calendar-detail,
+.tag-input-box,
+.detail-panel,
+.summary-panel,
+.settings-modal,
+.quick-popup,
+.context-menu,
+.mini-panel,
+.mini-tooltip,
+.dp-panel,
+.date-picker,
+.settings-tag-add-bar {
+  background: color-mix(in srgb, var(--glass-surface-strong) var(--ui-glass-opacity), transparent);
+  backdrop-filter: blur(var(--ui-glass-blur)) saturate(135%);
+  -webkit-backdrop-filter: blur(var(--ui-glass-blur)) saturate(135%);
+  border-color: color-mix(in srgb, var(--glass-stroke-strong) var(--ui-border-strength), transparent);
+}
+
+.add-task-bar,
+.todo-item,
+.done-section,
+.calendar-detail,
+.tag-input-box,
+.quick-popup,
+.context-menu,
+.mini-tooltip,
+.dp-panel,
+.date-picker,
+.settings-tag-add-bar,
+.settings-pane[data-pane="tags"] .tag-manage-item {
+  border-radius: var(--ui-radius);
+}
+
+.todo-item:hover,
+.todo-item:focus-within {
+  background: color-mix(in srgb, var(--glass-surface-strong) var(--ui-glass-opacity), transparent);
+}
+
+.detail-panel,
+.summary-panel,
+.settings-modal,
+.mini-panel {
+  border-radius: var(--ui-radius-lg);
+}
+
+.icon-btn,
+.btn-primary,
+.btn-secondary,
+.btn-header-action,
+.btn-mini-mode-footer,
+.btn-toggle-sidebar,
+.sidebar-footer button,
+.search-bar input,
+.settings-row input,
+.settings-row textarea,
+.theme-opt,
+.settings-tab,
+.todo-actions button,
+.glass-select-trigger,
+.dp-trigger {
+  border-radius: var(--ui-radius-sm);
+  border-color: color-mix(in srgb, var(--glass-control-border-hover) var(--ui-border-strength), transparent);
+}
+
+.todo-title,
+.add-task-bar input,
+.detail-title-input,
+.mini-todo-title {
+  font-size: calc(14px * var(--ui-font-scale));
+}
+
+.task-summary,
+.nav-label,
+.tag-label,
+.settings-row input,
+.settings-row textarea,
+.settings-tab,
+.theme-opt,
+.glass-select-trigger,
+.context-menu-item {
+  font-size: calc(13px * var(--ui-font-scale));
+}
+
+.todo-meta .badge,
+.tag-manage-count,
+.done-count {
+  font-size: calc(11px * var(--ui-font-scale));
+}
+
+@media (max-width: 560px) {
+  .settings-modal {
+    width: calc(100vw - 24px);
+  }
+
+  .settings-body {
+    padding: 16px;
+  }
 }

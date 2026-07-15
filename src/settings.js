@@ -2,6 +2,7 @@ import { escapeHtml } from './utils/html.js';
 import { applyTheme } from './theme.js';
 import { closeDetail } from './detail.js';
 import { showConfirmDialog } from './overlay.js';
+import { DEFAULT_UI_STYLE, applyUiStyle, normalizeUiStyle } from './uiPreferences.js';
 
 const TAG_COLORS = ['#4f46e5', '#06b6d4', '#f59e0b', '#ef4444', '#10b981', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#6366f1'];
 
@@ -82,6 +83,17 @@ function openPanel() {
               <button class="theme-opt" data-theme="dark">🌙 夜间</button>
             </div>
           </div>
+          <div class="settings-style-section">
+            <div class="settings-style-heading">
+              <span>界面风格</span>
+              <button class="btn-secondary btn-sm" id="reset-ui-style" type="button">恢复默认</button>
+            </div>
+            ${createStyleSlider('radius', '圆角', 6, 20, 'px')}
+            ${createStyleSlider('glassOpacity', '玻璃透明度', 35, 100, '%')}
+            ${createStyleSlider('borderStrength', '边框强度', 20, 100, '%')}
+            ${createStyleSlider('fontScale', '字体大小', 90, 115, '%')}
+            ${createStyleSlider('blur', '模糊强度', 8, 28, 'px')}
+          </div>
         </div>
         <div class="settings-pane" data-pane="ai">
           <div class="settings-row">
@@ -103,8 +115,12 @@ function openPanel() {
           <button class="btn-primary btn-sm" id="set-save-ai">保存 AI 配置</button>
         </div>
         <div class="settings-pane" data-pane="tags">
+          <div class="settings-tag-add-bar">
+            <span class="tag-dot settings-tag-preview" id="settings-tag-preview" aria-hidden="true"></span>
+            <input type="text" id="set-add-tag-input" placeholder="添加新标签..." maxlength="20" autocomplete="off" spellcheck="false" aria-label="新标签名称">
+            <button class="icon-btn settings-tag-add-btn" id="set-add-tag-btn" type="button" title="添加标签" aria-label="添加标签">+</button>
+          </div>
           <div id="settings-tag-list" class="settings-tag-list"></div>
-          <button id="set-add-tag-btn">+ 新建标签</button>
         </div>
       </div>
     </div>
@@ -158,9 +174,20 @@ function openPanel() {
   });
 
   // 新建标签
-  overlay.querySelector('#set-add-tag-btn').addEventListener('click', () => {
-    openCreateTagInline(overlay);
+  const addTagInput = overlay.querySelector('#set-add-tag-input');
+  overlay.querySelector('#set-add-tag-btn').addEventListener('click', () => createTag(overlay));
+  addTagInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      createTag(overlay);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      addTagInput.value = '';
+    }
   });
+
+  bindUiStyleControls(overlay);
 
   // 标签列表事件委托
   const tagListEl = overlay.querySelector('#settings-tag-list');
@@ -230,6 +257,7 @@ function switchTab(overlay, tabName) {
 
 function renderContent(overlay) {
   updateThemeSelection(overlay);
+  updateUiStyleControls(overlay);
   fillAiConfigFields(overlay);
   renderTagList(overlay);
 }
@@ -252,6 +280,7 @@ function fillAiConfigFields(overlay) {
 
 function renderTagList(overlay) {
   const container = overlay.querySelector('#settings-tag-list');
+  updateTagCreatePreview(overlay);
   if (data.tags.length === 0) {
     container.innerHTML = '<div class="settings-tag-empty">暂无标签</div>';
     return;
@@ -264,6 +293,80 @@ function renderTagList(overlay) {
       <button class="tag-delete-btn" data-role="delete-tag" data-tag="${escapeHtml(tag)}" title="删除标签">✕</button>
     </div>
   `).join('');
+}
+
+function createStyleSlider(key, label, min, max, unit) {
+  return `
+    <label class="ui-style-control" for="ui-style-${key}">
+      <span class="ui-style-control-label">${label}</span>
+      <output class="ui-style-value" data-style-value="${key}"></output>
+      <input id="ui-style-${key}" type="range" min="${min}" max="${max}" step="1" data-style-key="${key}" data-style-unit="${unit}">
+    </label>
+  `;
+}
+
+function bindUiStyleControls(overlay) {
+  const controls = overlay.querySelectorAll('[data-style-key]');
+
+  controls.forEach(control => {
+    control.addEventListener('input', () => {
+      const key = control.dataset.styleKey;
+      data.uiStyle = normalizeUiStyle({ ...data.uiStyle, [key]: control.value });
+      applyUiStyle(data.uiStyle);
+      updateUiStyleValue(overlay, key);
+    });
+    control.addEventListener('change', () => saveData());
+  });
+
+  overlay.querySelector('#reset-ui-style').addEventListener('click', () => {
+    data.uiStyle = { ...DEFAULT_UI_STYLE };
+    applyUiStyle(data.uiStyle);
+    updateUiStyleControls(overlay);
+    saveData();
+    showToast('界面风格已恢复默认');
+  });
+}
+
+function updateUiStyleControls(overlay) {
+  data.uiStyle = normalizeUiStyle(data.uiStyle);
+  overlay.querySelectorAll('[data-style-key]').forEach(control => {
+    control.value = String(data.uiStyle[control.dataset.styleKey]);
+    updateUiStyleValue(overlay, control.dataset.styleKey);
+  });
+}
+
+function updateUiStyleValue(overlay, key) {
+  const control = overlay.querySelector(`[data-style-key="${key}"]`);
+  const output = overlay.querySelector(`[data-style-value="${key}"]`);
+  if (control && output) output.textContent = `${control.value}${control.dataset.styleUnit}`;
+}
+
+function updateTagCreatePreview(overlay) {
+  const preview = overlay.querySelector('#settings-tag-preview');
+  if (preview) preview.style.background = TAG_COLORS[data.tags.length % TAG_COLORS.length];
+}
+
+function createTag(overlay) {
+  const input = overlay.querySelector('#set-add-tag-input');
+  const name = input.value.trim();
+  if (!name) {
+    input.focus();
+    return;
+  }
+  if (data.tags.includes(name)) {
+    showToast('标签已存在');
+    input.focus();
+    input.select();
+    return;
+  }
+
+  data.tags.push(name);
+  saveData();
+  render();
+  input.value = '';
+  renderTagList(overlay);
+  input.focus();
+  showToast('标签创建成功');
 }
 
 function deleteTag(tag, overlay) {
@@ -280,77 +383,6 @@ function deleteTag(tag, overlay) {
     render();
     renderTagList(overlay);
     showToast('标签已删除');
-  });
-}
-
-function openCreateTagInline(overlay) {
-  const container = overlay.querySelector('#settings-tag-list');
-
-  /* 防止重复创建 */
-  if (container.querySelector('.tag-create-row')) {
-    const existing = container.querySelector('.tag-create-input');
-    if (existing) existing.focus();
-    return;
-  }
-
-  /* 预览色：即将分配给新标签的颜色（追加到队尾） */
-  const previewColor = TAG_COLORS[data.tags.length % TAG_COLORS.length];
-
-  const row = document.createElement('div');
-  row.className = 'tag-manage-item tag-create-row';
-
-  const dot = document.createElement('span');
-  dot.className = 'tag-dot';
-  dot.style.background = previewColor;
-
-  const input = document.createElement('input');
-  input.type = 'text';
-  input.className = 'tag-create-input';
-  input.placeholder = '输入标签名称…';
-  input.maxLength = 20;
-  input.autocomplete = 'off';
-  input.spellcheck = false;
-
-  const hint = document.createElement('span');
-  hint.className = 'tag-create-hint';
-  hint.textContent = '↵ 保存';
-
-  row.appendChild(dot);
-  row.appendChild(input);
-  row.appendChild(hint);
-  container.insertBefore(row, container.firstChild);
-  input.focus();
-
-  let done = false;
-  const finish = () => {
-    if (done) return;
-    done = true;
-    const name = input.value.trim();
-    if (name) {
-      if (data.tags.includes(name)) {
-        showToast('标签已存在');
-        done = false; /* 允许再次输入 */
-        return;
-      }
-      data.tags.push(name);
-      saveData();
-      render();
-      renderTagList(overlay);
-      showToast('标签创建成功');
-    }
-    row.remove();
-  };
-
-  const cancel = () => {
-    if (done) return;
-    done = true;
-    row.remove();
-  };
-
-  input.addEventListener('blur', finish);
-  input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
-    if (e.key === 'Escape') { e.preventDefault(); cancel(); }
   });
 }
 
