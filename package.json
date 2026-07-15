@@ -8,8 +8,8 @@
     "build": "vite build",
     "test": "node scripts/check-state.js",
     "preview": "vite preview",
-    "neu:run": "node scripts/sync-config.js && npm run build && npx @neutralinojs/neu run",
-    "neu:build": "node scripts/sync-config.js && npm run build && npx @neutralinojs/neu build && node scripts/patch-exe.js"
+    "neu:run": "node scripts/sync-config.js && node scripts/ensure-neutralino.js && npm run build && npx @neutralinojs/neu run",
+    "neu:build": "node scripts/sync-config.js && node scripts/ensure-neutralino.js && node scripts/check-build-output.js && npm run build && npx @neutralinojs/neu build && node scripts/patch-exe.js"
   },
   "devDependencies": {
     "@neutralinojs/neu": "^11.7.1",

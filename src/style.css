@@ -3393,7 +3393,7 @@ body::before {
   color: var(--text-muted);
 }
 
-.context-menu-submenu .context-menu {
+.context-menu-submenu-panel {
   position: absolute;
   left: 100%;
   top: -4px;
@@ -3405,6 +3405,13 @@ body::before {
   display: block;
   visibility: hidden;
   pointer-events: none;
+}
+
+.context-menu-submenu:focus > .context-menu-submenu-panel,
+.context-menu-submenu:focus-within > .context-menu-submenu-panel,
+.context-menu-submenu[aria-expanded="true"] > .context-menu-submenu-panel {
+  visibility: visible;
+  pointer-events: auto;
 }
 
 .context-menu-submenu:hover .context-menu {
@@ -4629,6 +4636,7 @@ body::before {
   --ui-border-strength: 100%;
   --ui-font-scale: 1;
   --ui-glass-blur: 18px;
+  --ui-glass-blur-light: 12px;
 }
 
 .settings-modal {
@@ -4820,5 +4828,250 @@ body::before {
 
   .settings-body {
     padding: 16px;
+  }
+}
+
+/* Calendar activity heatmap: created tasks on the left, completed tasks on the right. */
+.calendar-heat-legend {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14px;
+  min-height: 24px;
+  margin: -2px 2px 8px;
+  color: var(--text-muted);
+  font-size: calc(11px * var(--ui-font-scale));
+}
+
+.calendar-heat-legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.heat-swatch,
+.heat-scale i {
+  width: 9px;
+  height: 9px;
+  display: inline-block;
+  border-radius: 3px;
+  border: 1px solid var(--glass-stroke-strong);
+  box-shadow: var(--glass-inset-highlight);
+}
+
+.heat-swatch.heat-created {
+  background: rgba(99, 102, 241, 0.52);
+}
+
+.heat-swatch.heat-done {
+  background: rgba(52, 211, 153, 0.52);
+}
+
+.heat-scale {
+  gap: 3px !important;
+}
+
+.heat-scale small {
+  font-size: 10px;
+}
+
+.heat-scale i {
+  background: rgba(99, 102, 241, 0.14);
+}
+
+.heat-scale i:nth-of-type(2) { background: rgba(99, 102, 241, 0.26); }
+.heat-scale i:nth-of-type(3) { background: rgba(99, 102, 241, 0.40); }
+.heat-scale i:nth-of-type(4) { background: rgba(99, 102, 241, 0.56); }
+
+.calendar-day {
+  min-height: 40px;
+  overflow: hidden;
+  isolation: isolate;
+  border: 1px solid transparent;
+}
+
+.calendar-day::before,
+.calendar-day::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  width: calc(50% - 4px);
+  z-index: -1;
+  pointer-events: none;
+  border-radius: max(4px, calc(var(--ui-radius-sm) - 3px));
+  transition: background var(--motion-normal), opacity var(--motion-normal);
+}
+
+.calendar-day::before {
+  left: 3px;
+  background: rgba(99, 102, 241, var(--heat-created-alpha, 0));
+}
+
+.calendar-day::after {
+  right: 3px;
+  background: rgba(52, 211, 153, var(--heat-done-alpha, 0));
+}
+
+.calendar-day-number,
+.calendar-day .dot-row {
+  position: relative;
+  z-index: 1;
+}
+
+.calendar-day .dot-row {
+  position: absolute;
+}
+
+.calendar-day.has-activity {
+  border-color: color-mix(in srgb, var(--glass-stroke-strong) 70%, transparent);
+}
+
+.calendar-day.selected::before,
+.calendar-day.selected::after {
+  opacity: 0.34;
+}
+
+/* Settings tab content enters from the direction of navigation. */
+.settings-body {
+  position: relative;
+}
+
+.settings-pane.active {
+  animation: settingsPaneSwapIn var(--motion-panel);
+  transform-origin: center top;
+}
+
+@keyframes settingsPaneSwapIn {
+  from {
+    opacity: 0;
+    transform: translateX(var(--settings-pane-shift, 8px)) translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) translateY(0);
+  }
+}
+
+.notification-setting-card {
+  min-height: 68px;
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: color-mix(in srgb, var(--glass-surface-input) 78%, transparent);
+  backdrop-filter: blur(var(--ui-glass-blur)) saturate(125%);
+  -webkit-backdrop-filter: blur(var(--ui-glass-blur)) saturate(125%);
+  border: 1px solid color-mix(in srgb, var(--glass-stroke-strong) var(--ui-border-strength), transparent);
+  border-radius: var(--ui-radius);
+  box-shadow: var(--glass-control-shadow), var(--glass-inset-highlight);
+}
+
+.notification-status-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--text-muted) 14%, transparent);
+}
+
+.notification-status-dot[data-state="ready"] {
+  background: var(--success);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 18%, transparent);
+}
+
+.notification-status-dot[data-state="pending"] {
+  background: var(--warning);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--warning) 18%, transparent);
+}
+
+.notification-status-dot[data-state="blocked"],
+.notification-status-dot[data-state="unavailable"] {
+  background: var(--danger);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 16%, transparent);
+}
+
+.notification-setting-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.notification-setting-copy strong {
+  color: var(--text-primary);
+  font-size: calc(13px * var(--ui-font-scale));
+}
+
+.notification-setting-copy span {
+  color: var(--text-muted);
+  font-size: calc(11px * var(--ui-font-scale));
+  overflow-wrap: anywhere;
+}
+
+/* Nested context menus need an explicit material because their parent is also a backdrop root. */
+.context-menu-submenu .context-menu {
+  background: color-mix(in srgb, var(--glass-surface-strong) 92%, transparent);
+  backdrop-filter: blur(calc(var(--ui-glass-blur) + 4px)) saturate(150%);
+  -webkit-backdrop-filter: blur(calc(var(--ui-glass-blur) + 4px)) saturate(150%);
+  border: 1px solid color-mix(in srgb, var(--glass-stroke-strong) var(--ui-border-strength), transparent);
+  border-radius: var(--ui-radius);
+  box-shadow: var(--glass-panel-shadow), var(--glass-inset-highlight);
+}
+
+/* Remaining legacy surfaces now use the same restrained glass material. */
+.tag-input-box input,
+.tag-manage-input,
+.tag-rename-input,
+.tag-manage-item,
+.tag-manage-count,
+.tag-manage-empty,
+.detail-done-input,
+.summary-date-row input,
+.popup-date-input,
+.dp-trigger,
+.mini-input-row input,
+.mini-todo-item,
+.settings-tag-empty,
+.summary-output,
+.calendar-grid {
+  background: color-mix(in srgb, var(--glass-surface-input) var(--ui-glass-opacity), transparent);
+  backdrop-filter: blur(var(--ui-glass-blur-light)) saturate(120%);
+  -webkit-backdrop-filter: blur(var(--ui-glass-blur-light)) saturate(120%);
+  border-color: color-mix(in srgb, var(--glass-stroke-strong) var(--ui-border-strength), transparent);
+  box-shadow: var(--glass-inset-highlight);
+}
+
+.detail-dropdown,
+.month-picker-menu,
+.glass-select-menu,
+.date-picker,
+.toast-msg {
+  background: color-mix(in srgb, var(--glass-surface-strong) 92%, transparent);
+  backdrop-filter: blur(var(--ui-glass-blur)) saturate(145%);
+  -webkit-backdrop-filter: blur(var(--ui-glass-blur)) saturate(145%);
+  border: 1px solid color-mix(in srgb, var(--glass-stroke-strong) var(--ui-border-strength), transparent);
+  box-shadow: var(--glass-panel-shadow), var(--glass-inset-highlight);
+}
+
+[data-theme="light"] .glass-select-menu {
+  background: color-mix(in srgb, var(--glass-surface-strong) 92%, transparent);
+}
+
+@media (max-width: 560px) {
+  .calendar-heat-legend {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+  }
+
+  .notification-setting-card {
+    grid-template-columns: 10px minmax(0, 1fr);
+  }
+
+  .notification-setting-card .btn-secondary {
+    grid-column: 1 / -1;
+    width: 100%;
   }
 }

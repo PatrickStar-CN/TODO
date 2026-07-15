@@ -1175,6 +1175,14 @@ export async function initApp() {
     renderCalendar();
   });
 
+  calendarDays.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const dayEl = e.target.closest('.calendar-day[role="button"]');
+    if (!dayEl) return;
+    e.preventDefault();
+    dayEl.click();
+  });
+
   // Keyboard
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeDetail();
@@ -1300,7 +1308,14 @@ export async function initApp() {
   initAiSummary({ data, saveData, showToast });
 
   // --- Settings Panel ---
-  initSettings({ data, saveData, showToast, render });
+  initSettings({
+    data,
+    saveData,
+    showToast,
+    render,
+    testNotification: reminders.testNotification,
+    getNotificationStatus: reminders.getNotificationStatus
+  });
 
   // Init render
   render();

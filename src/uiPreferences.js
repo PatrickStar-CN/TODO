@@ -40,6 +40,7 @@ export function applyUiStyle(value) {
   root.style.setProperty('--ui-border-strength', `${style.borderStrength}%`);
   root.style.setProperty('--ui-font-scale', String(style.fontScale / 100));
   root.style.setProperty('--ui-glass-blur', `${style.blur}px`);
+  root.style.setProperty('--ui-glass-blur-light', `${Math.max(6, Math.round(style.blur * 0.65))}px`);
 
   return style;
 }

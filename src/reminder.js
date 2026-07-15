@@ -1,18 +1,69 @@
 import { toLocalDatetime } from './utils/date.js';
+import { showWindowsToast } from './windowsToast.js';
+
+function getBrowserNotificationStatus() {
+  if (typeof Notification === 'undefined') {
+    return { state: 'unavailable', label: '当前环境不支持系统通知' };
+  }
+  if (Notification.permission === 'granted') {
+    return { state: 'ready', label: '浏览器系统通知已启用' };
+  }
+  if (Notification.permission === 'denied') {
+    return { state: 'blocked', label: '浏览器系统通知已被阻止' };
+  }
+  return { state: 'pending', label: '浏览器系统通知等待授权' };
+}
 
 export function initReminders({ data, saveData, render, showToast, isNeutralinoEnv }) {
   let reminderLock = false;
 
-  function checkReminders() {
+  function getNotificationStatus() {
+    if (isNeutralinoEnv()) {
+      const isWindows = typeof NL_OS === 'string' && NL_OS === 'Windows';
+      const available = isWindows && typeof Neutralino?.os?.execCommand === 'function';
+      return available
+        ? { state: 'ready', label: 'Windows 原生通知可用' }
+        : { state: 'unavailable', label: 'Windows 原生通知不可用' };
+    }
+    return getBrowserNotificationStatus();
+  }
+
+  async function sendSystemNotification(title, content, requestPermission = false) {
+    if (isNeutralinoEnv()) {
+      return showWindowsToast(title, content);
+    }
+
+    if (typeof Notification === 'undefined') return false;
+    let permission = Notification.permission;
+    if (permission === 'default' && requestPermission) {
+      permission = await Notification.requestPermission();
+    }
+    if (permission !== 'granted') return false;
+    new Notification(title, { body: content, icon: './icon.png' });
+    return true;
+  }
+
+  async function triggerReminder(todo) {
+    showToast(`🔔 提醒：${todo.title}`);
+    try {
+      await sendSystemNotification('TODO 提醒', todo.title);
+    } catch (err) {
+      console.warn('[reminder] system notification failed:', err);
+    }
+  }
+
+  async function checkReminders() {
     if (reminderLock) return;
     reminderLock = true;
-    const now = new Date();
-    let changed = false;
-    data.todos.forEach(todo => {
-      if (!todo.reminder || todo.done) return;
-      const reminderTime = new Date(todo.reminder);
-      if (reminderTime <= now) {
-        triggerReminder(todo);
+    try {
+      const now = new Date();
+      let changed = false;
+      for (const todo of data.todos) {
+        if (!todo.reminder || todo.done) continue;
+        const reminderTime = new Date(todo.reminder);
+        if (!Number.isFinite(reminderTime.getTime()) || reminderTime > now) continue;
+
+        await triggerReminder(todo);
         if (todo.reminderRepeat === 'daily') {
           const next = new Date(reminderTime);
           while (next <= now) next.setDate(next.getDate() + 1);
@@ -30,53 +81,44 @@ export function initReminders({ data, saveData, render, showToast, isNeutralinoE
         }
         changed = true;
       }
-    });
-    if (changed) {
-      saveData();
-      render();
+      if (changed) {
+        saveData();
+        render();
+      }
+    } finally {
+      reminderLock = false;
     }
-    reminderLock = false;
   }
 
-  async function triggerReminder(todo) {
-    showToast(`🔔 提醒：${todo.title}`);
-    if (isNeutralinoEnv()) {
-      try {
-        const title = todo.title.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[c]));
-        const xml = `<toast duration="short"><visual><binding template="ToastGeneric"><text>TODO 提醒</text><text>${title}</text></binding></visual></toast>`;
-        const psScript = [
-          '[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null',
-          '[Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom, ContentType = WindowsRuntime] | Out-Null',
-          '$x = New-Object Windows.Data.Xml.Dom.XmlDocument',
-          `$x.LoadXml('${xml}')`,
-          '$t = [Windows.UI.Notifications.ToastNotification]::new($x)',
-          '$t.ExpirationTime = [DateTimeOffset]::Now.AddSeconds(8)',
-          "$notifier = [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\\WindowsPowerShell\\v1.0\\powershell.exe')",
-          '$notifier.Show($t)'
-        ].join('\r\n');
-        const scriptPath = NL_PATH + '/.tmp_notify.ps1';
-        const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
-        const content = new TextEncoder().encode(psScript);
-        const buf = new Uint8Array(bom.length + content.length);
-        buf.set(bom);
-        buf.set(content, bom.length);
-        await Neutralino.filesystem.writeBinaryFile(scriptPath, buf.buffer);
-        await Neutralino.os.execCommand(`powershell -NoProfile -ExecutionPolicy Bypass -File "${scriptPath}"`);
-        await Neutralino.filesystem.remove(scriptPath);
-      } catch (e) {}
+  async function testNotification() {
+    try {
+      const sent = await sendSystemNotification('TODO Tools', '系统通知工作正常', true);
+      showToast(sent ? '测试通知已发送' : '系统通知未授权');
+      return sent;
+    } catch (err) {
+      console.warn('[reminder] test notification failed:', err);
+      showToast('系统通知发送失败');
+      return false;
     }
   }
 
   let intervalId = setInterval(checkReminders, 30000);
-  setTimeout(checkReminders, 2000);
+  let initialTimeoutId = setTimeout(() => {
+    initialTimeoutId = null;
+    checkReminders();
+  }, 2000);
 
   function pause() {
     if (intervalId) { clearInterval(intervalId); intervalId = null; }
+    if (initialTimeoutId) { clearTimeout(initialTimeoutId); initialTimeoutId = null; }
   }
 
   function resume() {
-    if (!intervalId) { intervalId = setInterval(checkReminders, 30000); }
+    if (!intervalId) {
+      intervalId = setInterval(checkReminders, 30000);
+      checkReminders();
+    }
   }
 
-  return { pause, resume };
+  return { pause, resume, testNotification, getNotificationStatus, checkReminders };
 }

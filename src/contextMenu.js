@@ -71,19 +71,31 @@ export function showContextMenu(x, y, items) {
     if (item.submenu) {
       const wrapper = document.createElement('div');
       wrapper.className = 'context-menu-item context-menu-submenu';
+      wrapper.setAttribute('role', 'menuitem');
+      wrapper.setAttribute('aria-haspopup', 'menu');
+      wrapper.setAttribute('aria-expanded', 'false');
+      wrapper.tabIndex = 0;
       wrapper.appendChild(createMenuItemContent(item.icon, item.label));
       const sub = document.createElement('div');
-      sub.className = 'context-menu';
+      sub.className = 'context-menu context-menu-submenu-panel';
+      sub.setAttribute('role', 'menu');
       item.submenu.forEach(subItem => {
         const subEl = document.createElement('div');
         subEl.className = 'context-menu-item';
+        subEl.setAttribute('role', 'menuitem');
+        subEl.tabIndex = -1;
         subEl.textContent = subItem.label;
         subEl.addEventListener('click', () => { closeContextMenu(); subItem.action(); });
         sub.appendChild(subEl);
       });
       wrapper.appendChild(sub);
-      wrapper.addEventListener('mouseenter', () => positionSubmenu(wrapper, sub));
-      wrapper.addEventListener('focusin', () => positionSubmenu(wrapper, sub));
+      const openSubmenu = () => {
+        positionSubmenu(wrapper, sub);
+        wrapper.setAttribute('aria-expanded', 'true');
+      };
+      wrapper.addEventListener('mouseenter', openSubmenu);
+      wrapper.addEventListener('focusin', openSubmenu);
+      wrapper.addEventListener('mouseleave', () => wrapper.setAttribute('aria-expanded', 'false'));
       menu.appendChild(wrapper);
       return;
     }
@@ -103,7 +115,7 @@ export function showContextMenu(x, y, items) {
   }, 0);
 
   menu.addEventListener('keydown', (e) => {
-    const menuItems = [...menu.querySelectorAll('[role="menuitem"]')];
+    const menuItems = [...menu.querySelectorAll(':scope > [role="menuitem"]')];
     const idx = menuItems.indexOf(document.activeElement);
     if (e.key === 'ArrowDown') {
       e.preventDefault();
@@ -113,7 +125,26 @@ export function showContextMenu(x, y, items) {
       menuItems[(idx - 1 + menuItems.length) % menuItems.length]?.focus();
     } else if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
-      document.activeElement?.click();
+      if (document.activeElement?.classList.contains('context-menu-submenu')) {
+        const submenu = document.activeElement.querySelector('.context-menu-submenu-panel');
+        positionSubmenu(document.activeElement, submenu);
+        document.activeElement.setAttribute('aria-expanded', 'true');
+        submenu.querySelector('[role="menuitem"]')?.focus();
+      } else {
+        document.activeElement?.click();
+      }
+    } else if (e.key === 'ArrowRight' && document.activeElement?.classList.contains('context-menu-submenu')) {
+      e.preventDefault();
+      const submenu = document.activeElement.querySelector('.context-menu-submenu-panel');
+      positionSubmenu(document.activeElement, submenu);
+      document.activeElement.setAttribute('aria-expanded', 'true');
+      submenu.querySelector('[role="menuitem"]')?.focus();
+    } else if (e.key === 'ArrowLeft') {
+      const wrapper = document.activeElement?.closest('.context-menu-submenu');
+      if (wrapper && wrapper !== document.activeElement) {
+        e.preventDefault();
+        wrapper.focus();
+      }
     } else if (e.key === 'Escape') {
       closeContextMenu();
     }

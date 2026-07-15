@@ -1,6 +1,7 @@
 import './style.css';
 import { initApp } from './app.js';
 import { initRipple } from './ripple.js';
+import { registerWindowsToastApp } from './windowsToast.js';
 
 function setupTray() {
   Neutralino.os.setTray({
@@ -35,6 +36,9 @@ document.addEventListener('DOMContentLoaded', () => {
     Neutralino.events.on('ready', () => {
       setupTray();
       Neutralino.window.center();
+      registerWindowsToastApp().catch((error) => {
+        console.warn('[reminder] Windows notification registration failed:', error);
+      });
     });
   }
   initApp();

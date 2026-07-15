@@ -6,7 +6,7 @@ import { DEFAULT_UI_STYLE, applyUiStyle, normalizeUiStyle } from './uiPreference
 
 const TAG_COLORS = ['#4f46e5', '#06b6d4', '#f59e0b', '#ef4444', '#10b981', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#6366f1'];
 
-let data, saveData, showToast, render;
+let data, saveData, showToast, render, testNotification, getNotificationStatus;
 let settingsOverlay = null;
 
 function getTagColor(tag) {
@@ -71,6 +71,7 @@ function openPanel() {
       <div class="settings-tabs">
         <button class="settings-tab active" data-tab="appearance">外观</button>
         <button class="settings-tab" data-tab="ai">AI 配置</button>
+        <button class="settings-tab" data-tab="notifications">提醒</button>
         <button class="settings-tab" data-tab="tags">标签管理</button>
       </div>
       <div class="settings-body">
@@ -113,6 +114,16 @@ function openPanel() {
             <textarea id="set-prompt" rows="4" placeholder="留空使用默认提示词"></textarea>
           </div>
           <button class="btn-primary btn-sm" id="set-save-ai">保存 AI 配置</button>
+        </div>
+        <div class="settings-pane" data-pane="notifications">
+          <div class="notification-setting-card">
+            <span class="notification-status-dot" id="notification-status-dot" aria-hidden="true"></span>
+            <div class="notification-setting-copy">
+              <strong>系统通知</strong>
+              <span id="notification-status-text"></span>
+            </div>
+            <button class="btn-secondary btn-sm" id="test-notification" type="button">发送测试通知</button>
+          </div>
         </div>
         <div class="settings-pane" data-pane="tags">
           <div class="settings-tag-add-bar">
@@ -189,6 +200,14 @@ function openPanel() {
 
   bindUiStyleControls(overlay);
 
+  overlay.querySelector('#test-notification').addEventListener('click', async (event) => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    await testNotification?.();
+    updateNotificationStatus(overlay);
+    button.disabled = false;
+  });
+
   // 标签列表事件委托
   const tagListEl = overlay.querySelector('#settings-tag-list');
   tagListEl.addEventListener('click', (e) => {
@@ -245,6 +264,14 @@ function openPanel() {
 }
 
 function switchTab(overlay, tabName) {
+  const tabs = [...overlay.querySelectorAll('.settings-tab')];
+  const activeTab = overlay.querySelector('.settings-tab.active');
+  const fromIndex = tabs.indexOf(activeTab);
+  const toIndex = tabs.findIndex(tab => tab.dataset.tab === tabName);
+  const targetPane = overlay.querySelector(`.settings-pane[data-pane="${tabName}"]`);
+  if (targetPane?.classList.contains('active')) return;
+  targetPane?.style.setProperty('--settings-pane-shift', toIndex >= fromIndex ? '10px' : '-10px');
+
   overlay.querySelectorAll('.settings-tab').forEach(t => {
     t.classList.toggle('active', t.dataset.tab === tabName);
   });
@@ -259,7 +286,16 @@ function renderContent(overlay) {
   updateThemeSelection(overlay);
   updateUiStyleControls(overlay);
   fillAiConfigFields(overlay);
+  updateNotificationStatus(overlay);
   renderTagList(overlay);
+}
+
+function updateNotificationStatus(overlay) {
+  const status = getNotificationStatus?.() || { state: 'unavailable', label: '系统通知不可用' };
+  const dot = overlay.querySelector('#notification-status-dot');
+  const text = overlay.querySelector('#notification-status-text');
+  if (dot) dot.dataset.state = status.state;
+  if (text) text.textContent = status.label;
 }
 
 function updateThemeSelection(overlay) {
@@ -393,6 +429,8 @@ export function initSettings(deps) {
   saveData = deps.saveData;
   showToast = deps.showToast;
   render = deps.render;
+  testNotification = deps.testNotification;
+  getNotificationStatus = deps.getNotificationStatus;
 
   // 打开
   document.getElementById('btn-settings').addEventListener('click', openPanel);

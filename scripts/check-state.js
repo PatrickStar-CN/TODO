@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { countByList, countTagUndone, getFilteredTodos, sortByPriority, splitPendingDone } from '../src/selectors.js';
 import { DEFAULT_UI_STYLE, normalizeUiStyle } from '../src/uiPreferences.js';
+import { buildMonthActivityIndex } from '../src/calendar.js';
+import { initReminders } from '../src/reminder.js';
 
 const todos = [
   { id: '1', title: 'High todo', priority: 'high', tag: 'work', todo: true, important: true, done: false, archived: false, createdAt: 1 },
@@ -41,5 +43,50 @@ assert.deepEqual(normalizeUiStyle({ radius: 99, glassOpacity: 10, borderStrength
   fontScale: 105,
   blur: 18
 });
+
+const activity = buildMonthActivityIndex(2026, 0, {
+  todos: [
+    { createdAt: '2026-01-02T08:00:00', doneAt: '2026-01-03T10:00:00' },
+    { createdAt: '2026-01-02T12:00:00', doneAt: null },
+    { createdAt: '2025-12-31T12:00:00', doneAt: '2026-01-03T12:00:00' },
+    { createdAt: 'invalid', doneAt: 'invalid' }
+  ]
+});
+assert.deepEqual(activity.get('2026-01-02'), { created: 2, done: 0 });
+assert.deepEqual(activity.get('2026-01-03'), { created: 0, done: 2 });
+
+const notificationCommands = [];
+globalThis.NL_OS = 'Windows';
+globalThis.window = { location: { href: 'http://localhost/' } };
+globalThis.fetch = async () => ({
+  ok: true,
+  arrayBuffer: async () => new ArrayBuffer(8)
+});
+globalThis.Neutralino = {
+  os: {
+    getPath: async () => 'C:\\Temp',
+    execCommand: async (command) => {
+      notificationCommands.push(command);
+      return { exitCode: 0, stdOut: '', stdErr: '' };
+    }
+  },
+  filesystem: { writeBinaryFile: async () => {} }
+};
+const reminderTest = initReminders({
+  data: { todos: [] },
+  saveData: () => {},
+  render: () => {},
+  showToast: () => {},
+  isNeutralinoEnv: () => true
+});
+assert.equal(await reminderTest.testNotification(), true);
+assert.equal(notificationCommands.length, 2);
+assert.ok(notificationCommands.every(command => command.includes('powershell.exe')));
+assert.deepEqual(reminderTest.getNotificationStatus(), { state: 'ready', label: 'Windows 原生通知可用' });
+reminderTest.pause();
+delete globalThis.Neutralino;
+delete globalThis.NL_OS;
+delete globalThis.window;
+delete globalThis.fetch;
 
 console.log('State checks passed');
