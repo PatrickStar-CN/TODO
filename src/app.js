@@ -486,6 +486,101 @@ function getFilteredTodos() {
 }
 
 // --- Render ---
+const todoDoneTransitions = new Set();
+
+function captureTodoPositions() {
+  const positions = new Map();
+  document.querySelectorAll('.todo-item[data-id]').forEach(el => {
+    const listEl = el.closest('#todo-list, #done-list');
+    const rect = el.getBoundingClientRect();
+    if (!listEl || rect.width <= 0 || rect.height <= 0) return;
+    positions.set(el.dataset.id, {
+      rect,
+      listId: listEl.id
+    });
+  });
+  return positions;
+}
+
+function animateTodoReflow(previousPositions, changedId) {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches ||
+      typeof Element.prototype.animate !== 'function') return;
+
+  document.querySelectorAll('.todo-item[data-id]').forEach(el => {
+    if (el.dataset.id === changedId) {
+      el.animate([
+        { opacity: 0, transform: 'translateY(6px)' },
+        { opacity: 1, transform: 'translateY(0)' }
+      ], {
+        duration: 200,
+        easing: 'cubic-bezier(0.16, 1, 0.3, 1)'
+      });
+      return;
+    }
+
+    const previousPosition = previousPositions.get(el.dataset.id);
+    const listEl = el.closest('#todo-list, #done-list');
+    if (!previousPosition || !listEl || previousPosition.listId !== listEl.id) return;
+
+    const currentRect = el.getBoundingClientRect();
+    if (currentRect.width <= 0 || currentRect.height <= 0) return;
+    const deltaY = previousPosition.rect.top - currentRect.top;
+    if (!Number.isFinite(deltaY) || Math.abs(deltaY) < 0.5 ||
+        Math.abs(deltaY) > window.innerHeight) return;
+
+    el.animate([
+      { transform: `translateY(${deltaY}px)` },
+      { transform: 'translateY(0)' }
+    ], {
+      duration: 280,
+      easing: 'cubic-bezier(0.22, 1, 0.36, 1)'
+    });
+  });
+}
+
+function setTodoDoneAnimated(todo, doneState, itemEl = null) {
+  if (!todo || todo.done === doneState || todoDoneTransitions.has(todo.id)) return;
+  todoDoneTransitions.add(todo.id);
+
+  const sourceEl = itemEl?.isConnected
+    ? itemEl
+    : [...document.querySelectorAll('.todo-item[data-id]')]
+      .find(el => el.dataset.id === todo.id);
+
+  const commit = () => {
+    const previousPositions = captureTodoPositions();
+    const oldDone = todo.done;
+    todo.done = doneState;
+    todo.doneAt = doneState ? new Date().toISOString() : null;
+    if (doneState && todo.reminderRepeat === 'none') {
+      todo.reminder = null;
+    }
+    applyDelta(todo, 'done', oldDone, todo.done);
+    saveData();
+    render();
+    animateTodoReflow(previousPositions, todo.id);
+    todoDoneTransitions.delete(todo.id);
+  };
+
+  if (!sourceEl || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    commit();
+    return;
+  }
+
+  sourceEl.classList.add('completion-exit');
+  sourceEl.setAttribute('aria-busy', 'true');
+  let committed = false;
+  const commitOnce = () => {
+    if (committed) return;
+    committed = true;
+    commit();
+  };
+  sourceEl.addEventListener('animationend', event => {
+    if (event.target === sourceEl) commitOnce();
+  });
+  setTimeout(commitOnce, 260);
+}
+
 function render() {
   /* 索引被外部置空时（如 settings 标签重命名/删除）自动重建 */
   if (!data._index) rebuildIndex();
@@ -1008,20 +1103,7 @@ export async function initApp() {
       const todo = data.todos.find(t => t.id === id);
       if (todo) {
         const itemEl = target.closest('.todo-item');
-        const oldDone = todo.done;
-        todo.done = !todo.done;
-        todo.doneAt = todo.done ? new Date().toISOString() : null;
-        if (todo.done && todo.reminderRepeat === 'none') {
-          todo.reminder = null;
-        }
-        applyDelta(todo, 'done', oldDone, todo.done);
-        saveData();
-        if (itemEl) {
-          itemEl.classList.add('checking');
-          itemEl.addEventListener('animationend', () => render(), { once: true });
-        } else {
-          render();
-        }
+        setTodoDoneAnimated(todo, !todo.done, itemEl);
       }
     } else if (action === 'edit') {
       openDetail(id, target.closest('.todo-item'));
@@ -1035,7 +1117,7 @@ export async function initApp() {
         render();
       }
     } else if (action === 'delete') {
-      deleteTodoById(id, target.closest('.todo-item'), true);
+      deleteTodoById(id, target.closest('.todo-item'));
     }
   }
 
@@ -1237,35 +1319,46 @@ export async function initApp() {
     }
   }
 
-  function deleteTodoById(id, itemEl = null, animated = false) {
+  function deleteTodoById(id, itemEl = null) {
     showConfirmDialog('确定要删除这个任务吗？', () => {
+      const sourceEl = itemEl?.isConnected
+        ? itemEl
+        : [...document.querySelectorAll('.todo-item[data-id]')]
+          .find(el => el.dataset.id === id);
+
       const removeTodo = () => {
+        const previousPositions = captureTodoPositions();
         const todo = data.todos.find(t => t.id === id);
         if (todo) removeTodoFromIndex(todo);
         data.todos = data.todos.filter(t => t.id !== id);
         saveData();
         closeDetail();
         render();
+        animateTodoReflow(previousPositions, id);
       };
-      if (animated && itemEl) {
-        itemEl.classList.add('removing');
-        itemEl.addEventListener('animationend', removeTodo, { once: true });
-      } else {
+
+      if (!sourceEl || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
         removeTodo();
+        return;
       }
+
+      sourceEl.classList.add('removing');
+      sourceEl.setAttribute('aria-busy', 'true');
+      let removed = false;
+      const removeOnce = () => {
+        if (removed) return;
+        removed = true;
+        removeTodo();
+      };
+      sourceEl.addEventListener('animationend', event => {
+        if (event.target === sourceEl) removeOnce();
+      });
+      setTimeout(removeOnce, 260);
     });
   }
 
   function toggleDone(todo, doneState) {
-    const oldDone = todo.done;
-    todo.done = doneState;
-    todo.doneAt = doneState ? new Date().toISOString() : null;
-    if (doneState && todo.reminderRepeat === 'none') {
-      todo.reminder = null;
-    }
-    applyDelta(todo, 'done', oldDone, todo.done);
-    saveData();
-    render();
+    setTodoDoneAnimated(todo, doneState);
   }
 
   function updateTodo(todo, patchOrMutator) {

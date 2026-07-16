@@ -3146,17 +3146,11 @@ body::before {
 @keyframes todoSlideOut {
   from {
     opacity: 1;
-    transform: translateX(0);
-    max-height: 80px;
-    margin-bottom: 6px;
-    padding: 12px 16px;
+    translate: 0 0;
   }
   to {
     opacity: 0;
-    transform: translateX(20px);
-    max-height: 0;
-    margin-bottom: 0;
-    padding: 0 16px;
+    translate: 10px 0;
   }
 }
 
@@ -3169,9 +3163,9 @@ body::before {
 }
 
 .todo-item.removing {
-  animation: todoSlideOut 0.3s ease forwards;
-  overflow: hidden;
+  animation: todoSlideOut 0.2s cubic-bezier(0.4, 0, 1, 1) forwards;
   pointer-events: none;
+  will-change: opacity, translate;
 }
 
 @keyframes overlayFadeIn {
@@ -3445,14 +3439,21 @@ body::before {
   animation: doneListCollapse 0.25s ease-in forwards;
 }
 
-@keyframes todoCheck {
-  0% { transform: scale(1); }
-  50% { transform: scale(0.97); opacity: 0.7; }
-  100% { transform: scale(1); opacity: 1; }
+@keyframes todoCompletionExit {
+  from {
+    opacity: 1;
+    translate: 0 0;
+  }
+  to {
+    opacity: 0;
+    translate: 0 -4px;
+  }
 }
 
-.todo-item.checking {
-  animation: todoCheck 0.3s ease;
+.todo-item.completion-exit {
+  animation: todoCompletionExit 0.2s cubic-bezier(0.4, 0, 1, 1) forwards;
+  pointer-events: none;
+  will-change: opacity, translate;
 }
 
 /* Mini Panel */

@@ -39,8 +39,7 @@ function escapeXml(value) {
 
 function isWindows() {
   const neutralinoOS = typeof NL_OS === 'string' ? NL_OS : '';
-  const browserOS = navigator.userAgentData?.platform || navigator.platform || navigator.userAgent;
-  return /^win/i.test(neutralinoOS) || /windows|win32|win64/i.test(browserOS);
+  return /^win/i.test(neutralinoOS);
 }
 
 async function ensureToastIcon() {
