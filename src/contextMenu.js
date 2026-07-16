@@ -1,7 +1,10 @@
-function createMenuItemContent(icon, label) {
+import { createIcon } from './icons.js';
+
+function createMenuItemContent(icon, label, iconClass = '') {
   const iconSpan = document.createElement('span');
   iconSpan.className = 'menu-icon';
-  iconSpan.textContent = icon || '';
+  const iconEl = icon ? createIcon(icon, iconClass) : null;
+  if (iconEl) iconSpan.appendChild(iconEl);
   const textNode = document.createTextNode(label);
   const frag = document.createDocumentFragment();
   frag.appendChild(iconSpan);
@@ -75,7 +78,9 @@ export function showContextMenu(x, y, items) {
       wrapper.setAttribute('aria-haspopup', 'menu');
       wrapper.setAttribute('aria-expanded', 'false');
       wrapper.tabIndex = 0;
-      wrapper.appendChild(createMenuItemContent(item.icon, item.label));
+      wrapper.appendChild(createMenuItemContent(item.icon, item.label, item.iconClass));
+      const indicator = createIcon('chevron-right', 'submenu-indicator');
+      if (indicator) wrapper.appendChild(indicator);
       const sub = document.createElement('div');
       sub.className = 'context-menu context-menu-submenu-panel';
       sub.setAttribute('role', 'menu');
@@ -84,7 +89,7 @@ export function showContextMenu(x, y, items) {
         subEl.className = 'context-menu-item';
         subEl.setAttribute('role', 'menuitem');
         subEl.tabIndex = -1;
-        subEl.textContent = subItem.label;
+        subEl.appendChild(createMenuItemContent(subItem.icon, subItem.label, subItem.iconClass));
         subEl.addEventListener('click', () => { closeContextMenu(); subItem.action(); });
         sub.appendChild(subEl);
       });
@@ -103,7 +108,7 @@ export function showContextMenu(x, y, items) {
     el.className = 'context-menu-item' + (item.className ? ' ' + item.className : '');
     el.setAttribute('role', 'menuitem');
     el.tabIndex = 0;
-    el.appendChild(createMenuItemContent(item.icon, item.label));
+    el.appendChild(createMenuItemContent(item.icon, item.label, item.iconClass));
     el.addEventListener('click', () => { closeContextMenu(); item.action(); });
     menu.appendChild(el);
   });

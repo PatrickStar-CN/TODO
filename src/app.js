@@ -18,6 +18,7 @@ import { initQuickAddPopups } from './quickAddPopup.js';
 import { initDatePicker } from './datePicker.js';
 import { initSettings } from './settings.js';
 import { createRuntimeIndex } from './runtimeIndex.js';
+import { iconSvg, setIcon } from './icons.js';
 
 const TAG_COLORS = ['#4f46e5', '#06b6d4', '#f59e0b', '#ef4444', '#10b981', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#6366f1'];
 const STORAGE_KEY = 'todo_app_data';
@@ -267,6 +268,8 @@ let data = { todos: [], tags: ['计划内'], aiConfig: { apiUrl: '', apiKey: '',
 let currentList = 'todo';
 let currentTag = null;
 let selectedDate = null;
+let calendarMode = 'month';
+let chartCollapsed = false;
 let currentMonth = new Date();
 let doneCollapsed = true;
 let searchKeyword = '';
@@ -468,7 +471,7 @@ const todoDoneTransitions = new Set();
 function captureTodoPositions() {
   const positions = new Map();
   document.querySelectorAll('.todo-item[data-id]').forEach(el => {
-    const listEl = el.closest('#todo-list, #done-list');
+    const listEl = el.closest('#todo-list, #done-list, #calendar-todo-list');
     const rect = el.getBoundingClientRect();
     if (!listEl || rect.width <= 0 || rect.height <= 0) return;
     positions.set(el.dataset.id, {
@@ -496,7 +499,7 @@ function animateTodoReflow(previousPositions, changedId) {
     }
 
     const previousPosition = previousPositions.get(el.dataset.id);
-    const listEl = el.closest('#todo-list, #done-list');
+    const listEl = el.closest('#todo-list, #done-list, #calendar-todo-list');
     if (!previousPosition || !listEl || previousPosition.listId !== listEl.id) return;
 
     const currentRect = el.getBoundingClientRect();
@@ -710,7 +713,50 @@ function renderCalendar() {
     };
   }
   const monthIndex = monthIndexCache.index;
-  _renderCalendar({ currentMonth, selectedDate, data, getTodosForDate, onDetailRender: renderCalendarDetail }, monthIndex);
+  _renderCalendar({ currentMonth, selectedDate, data, getTodosForDate, onDetailRender: renderCalendarDetail, mode: calendarMode }, monthIndex);
+  syncCalendarViewState();
+}
+
+function syncCalendarViewState() {
+  const container = document.querySelector('.calendar-container');
+  const toggleButton = document.getElementById('toggle-calendar-chart');
+  const toggleLabel = toggleButton?.querySelector('.calendar-collapse-label');
+  const todayButton = document.getElementById('btn-today');
+  const legend = document.querySelector('.calendar-heat-legend');
+  const legendLabel = document.getElementById('calendar-legend-label');
+
+  if (container) {
+    container.dataset.calendarMode = calendarMode;
+    container.classList.toggle('chart-collapsed', chartCollapsed);
+  }
+
+  document.querySelectorAll('.calendar-mode-btn').forEach(button => {
+    const active = button.dataset.calendarMode === calendarMode;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-selected', String(active));
+  });
+
+  todayButton?.classList.toggle('hidden', calendarMode !== 'month');
+  legend?.classList.toggle('hidden', calendarMode === 'month');
+  if (legendLabel) {
+    legendLabel.textContent = calendarMode === 'completed' ? '完成量' : '任务量';
+  }
+
+  if (toggleButton) {
+    toggleButton.setAttribute('aria-expanded', String(!chartCollapsed));
+    if (toggleLabel) toggleLabel.textContent = chartCollapsed ? '展开图表' : '收起图表';
+  }
+}
+
+function setCalendarMode(mode) {
+  if (!['month', 'tasks', 'completed'].includes(mode)) return;
+  calendarMode = mode;
+  syncCalendarViewState();
+}
+
+function setChartCollapsed(collapsed) {
+  chartCollapsed = Boolean(collapsed);
+  syncCalendarViewState();
 }
 
 function getTodosForDate(date) {
@@ -752,6 +798,13 @@ function showMonthPicker(currentMonth, onConfirm) {
 
   const contentHtml = `
     <div class="month-picker">
+      <div class="month-picker-preview">
+        <span class="month-picker-preview-icon">${iconSvg('calendar')}</span>
+        <span class="month-picker-preview-copy">
+          <small>当前选择</small>
+          <strong id="month-picker-preview-value">${year}年${month + 1}月</strong>
+        </span>
+      </div>
       <div class="month-picker-row">
         <label class="month-picker-field">
           <span>年份</span>
@@ -770,6 +823,14 @@ function showMonthPicker(currentMonth, onConfirm) {
   overlay.querySelector('.tag-input-box').classList.add('month-picker-dialog');
   const close = () => closeOverlay(overlay);
   const pickerSelects = [...overlay.querySelectorAll('.month-picker-select')];
+  const pickerPreview = overlay.querySelector('#month-picker-preview-value');
+
+  const updatePickerPreview = () => {
+    if (!pickerPreview) return;
+    const selectedYear = overlay.querySelector('#picker-year .month-picker-value')?.textContent || '';
+    const selectedMonth = overlay.querySelector('#picker-month .month-picker-value')?.textContent || '';
+    pickerPreview.textContent = `${selectedYear}${selectedMonth}`;
+  };
 
   const closePickerMenus = (except = null) => {
     pickerSelects.forEach(select => {
@@ -799,6 +860,7 @@ function showMonthPicker(currentMonth, onConfirm) {
       item.setAttribute('aria-selected', String(isSelected));
     });
     closePickerMenus();
+    updatePickerPreview();
     select.querySelector('.month-picker-trigger').focus();
   };
 
@@ -955,8 +1017,8 @@ export async function initApp() {
     sidebar.classList.toggle('mini', data.sidebarMini);
     const icon = toggleSidebarBtn.querySelector('.btn-icon');
     const text = toggleSidebarBtn.querySelector('.btn-text');
-    icon.textContent = data.sidebarMini ? '▶' : '◀';
-    text.textContent = data.sidebarMini ? ' 展开侧边栏' : ' 折叠侧边栏';
+    setIcon(icon, data.sidebarMini ? 'chevron-right' : 'chevron-left');
+    text.textContent = data.sidebarMini ? '展开侧边栏' : '折叠侧边栏';
     toggleSidebarBtn.title = data.sidebarMini ? '展开侧边栏' : '折叠侧边栏';
   }
 
@@ -1219,14 +1281,33 @@ export async function initApp() {
   });
 
   // Calendar nav
+  document.querySelector('.calendar-mode-switch').addEventListener('click', (event) => {
+    const button = event.target.closest('.calendar-mode-btn');
+    if (!button || button.dataset.calendarMode === calendarMode) return;
+    setCalendarMode(button.dataset.calendarMode);
+    renderCalendar();
+  });
+
+  document.getElementById('toggle-calendar-chart').addEventListener('click', () => {
+    setChartCollapsed(!chartCollapsed);
+  });
+
   document.getElementById('prev-month').addEventListener('click', () => {
-    currentMonth.setMonth(currentMonth.getMonth() - 1);
+    if (calendarMode === 'month') {
+      currentMonth.setMonth(currentMonth.getMonth() - 1);
+    } else {
+      currentMonth.setFullYear(currentMonth.getFullYear() - 1);
+    }
     selectedDate = null;
     renderCalendar();
   });
 
   document.getElementById('next-month').addEventListener('click', () => {
-    currentMonth.setMonth(currentMonth.getMonth() + 1);
+    if (calendarMode === 'month') {
+      currentMonth.setMonth(currentMonth.getMonth() + 1);
+    } else {
+      currentMonth.setFullYear(currentMonth.getFullYear() + 1);
+    }
     selectedDate = null;
     renderCalendar();
   });
@@ -1252,6 +1333,9 @@ export async function initApp() {
     const dateStr = dayEl.dataset.date;
     if (!dateStr) return;
     selectedDate = new Date(dateStr);
+    if (dayEl.classList.contains('year-day')) {
+      currentMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+    }
     /* 点击上/下月日期时，切换到对应月份 */
     if (dayEl.classList.contains('other-month')) {
       currentMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);

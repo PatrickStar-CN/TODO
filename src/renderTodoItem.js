@@ -1,4 +1,11 @@
 import { formatDate } from './utils/date.js';
+import { createIcon, setIcon } from './icons.js';
+
+function setIconLabel(element, iconName, label) {
+  const icon = createIcon(iconName);
+  if (icon) element.appendChild(icon);
+  if (label) element.appendChild(document.createTextNode(label));
+}
 
 export function createTodoItemEl(t, { getTagBadgeStyle, currentList }) {
   const item = document.createElement('div');
@@ -37,14 +44,16 @@ export function createTodoItemEl(t, { getTagBadgeStyle, currentList }) {
   starBtn.dataset.action = 'star';
   starBtn.dataset.id = t.id;
   starBtn.title = '重要';
-  starBtn.textContent = t.important ? '⭐' : '☆';
+  starBtn.setAttribute('aria-label', t.important ? '取消重要' : '标记重要');
+  setIcon(starBtn, t.important ? 'star-filled' : 'star');
   actions.appendChild(starBtn);
 
   const delBtn = document.createElement('button');
   delBtn.dataset.action = 'delete';
   delBtn.dataset.id = t.id;
   delBtn.title = '删除';
-  delBtn.textContent = '✕';
+  delBtn.setAttribute('aria-label', '删除');
+  setIcon(delBtn, 'x');
   actions.appendChild(delBtn);
 
   item.appendChild(actions);
@@ -60,14 +69,14 @@ function buildBadges(t, getTagBadgeStyle, currentList) {
     if (t.endTime) {
       const badge = document.createElement('span');
       badge.className = 'badge badge-date';
-      badge.textContent = `📅 ${formatDate(t.endTime)}`;
+      setIconLabel(badge, 'calendar', formatDate(t.endTime));
       meta.appendChild(badge);
       count++;
     }
     if (t.startTime && t.startTime !== t.endTime) {
       const badge = document.createElement('span');
       badge.className = 'badge badge-date badge-start';
-      badge.textContent = `🏁 ${formatDate(t.startTime)}`;
+      setIconLabel(badge, 'flag', formatDate(t.startTime));
       meta.appendChild(badge);
       count++;
     }
@@ -89,8 +98,7 @@ function buildBadges(t, getTagBadgeStyle, currentList) {
   if (t.priority && t.priority !== 'none') {
     const badge = document.createElement('span');
     badge.className = `badge badge-priority-${t.priority}`;
-    const label = { high: '🔴 高', medium: '🟡 中', low: '🟢 低' }[t.priority];
-    badge.textContent = label;
+    setIconLabel(badge, 'circle', { high: '高', medium: '中', low: '低' }[t.priority]);
     meta.appendChild(badge);
     count++;
   }
@@ -98,7 +106,7 @@ function buildBadges(t, getTagBadgeStyle, currentList) {
   if (t.todo && currentList !== 'todo') {
     const badge = document.createElement('span');
     badge.className = 'badge badge-todo';
-    badge.textContent = '☀️ TODO';
+    setIconLabel(badge, 'sun', 'TODO');
     meta.appendChild(badge);
     count++;
   }
@@ -106,7 +114,8 @@ function buildBadges(t, getTagBadgeStyle, currentList) {
   if (t.reminder && !t.done) {
     const badge = document.createElement('span');
     badge.className = 'badge badge-reminder';
-    badge.textContent = '🔔';
+    setIcon(badge, 'bell');
+    badge.setAttribute('aria-label', '已设置提醒');
     meta.appendChild(badge);
     count++;
   }

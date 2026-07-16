@@ -272,7 +272,7 @@ ${pendingList}
 
 请严格按照以下格式输出（使用 Markdown）：
 
-### 📋 ${typeLabel} · ${rangeLabel}
+### ${typeLabel} · ${rangeLabel}
 
 **一、工作概览**
 用 1-2 句话概括本期工作重点和整体进展。

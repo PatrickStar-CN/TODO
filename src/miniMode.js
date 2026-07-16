@@ -2,6 +2,7 @@ import { escapeHtml } from './utils/html.js';
 import { formatDateTime } from './utils/date.js';
 import { genId } from './utils/id.js';
 import { sortByPriority, splitPendingDone } from './selectors.js';
+import { iconSvg } from './icons.js';
 
 export function initMiniMode({ data, saveData, render, showToast, isNeutralinoEnv, getTagDotStyle, showContextMenu, closeWindow, reminders, appConfig, todoStore }) {
   let isMiniMode = false;
@@ -46,17 +47,17 @@ export function initMiniMode({ data, saveData, render, showToast, isNeutralinoEn
       html += `<div class="mini-tooltip-row">${escapeHtml(todo.desc)}</div>`;
     }
     if (todo.priority && todo.priority !== 'none') {
-      const label = { high: '🔴 高优先级', medium: '🟡 中优先级', low: '🟢 低优先级' }[todo.priority];
-      html += `<div class="mini-tooltip-row">${label}</div>`;
+      const label = { high: '高优先级', medium: '中优先级', low: '低优先级' }[todo.priority];
+      html += `<div class="mini-tooltip-row">${iconSvg('circle', `icon-priority-${todo.priority}`)}<span>${label}</span></div>`;
     }
     if (todo.tag) {
       html += `<div class="mini-tooltip-row"><span class="tag-dot" ${getTagDotStyle(todo.tag)}></span>${escapeHtml(todo.tag)}</div>`;
     }
     if (todo.endTime) {
-      html += `<div class="mini-tooltip-row">📅 ${formatDateTime(todo.endTime)}</div>`;
+      html += `<div class="mini-tooltip-row">${iconSvg('calendar')}<span>${formatDateTime(todo.endTime)}</span></div>`;
     }
     if (todo.startTime) {
-      html += `<div class="mini-tooltip-row">🕐 开始: ${formatDateTime(todo.startTime)}</div>`;
+      html += `<div class="mini-tooltip-row">${iconSvg('clock')}<span>开始: ${formatDateTime(todo.startTime)}</span></div>`;
     }
     miniTooltip.innerHTML = html;
     miniTooltip.classList.remove('hidden');
@@ -217,9 +218,9 @@ export function initMiniMode({ data, saveData, render, showToast, isNeutralinoEn
   miniPanel.addEventListener('contextmenu', (e) => {
     e.preventDefault();
     showContextMenu(e.clientX, e.clientY, [
-      { icon: '↩️', label: '退出迷你模式', action: exitMiniMode },
+      { icon: 'undo', label: '退出迷你模式', action: exitMiniMode },
       { separator: true },
-      { icon: '❌', label: '关闭窗口', action: closeWindow }
+      { icon: 'x', label: '关闭窗口', action: closeWindow }
     ]);
   });
 

@@ -35,6 +35,7 @@ export function applyUiStyle(value) {
 
   root.style.setProperty('--ui-radius', `${style.radius}px`);
   root.style.setProperty('--ui-radius-sm', `${Math.max(5, Math.round(style.radius * 0.72))}px`);
+  root.style.setProperty('--ui-radius-xs', `${Math.max(2, Math.round(style.radius * 0.42))}px`);
   root.style.setProperty('--ui-radius-lg', `${style.radius + 6}px`);
   root.style.setProperty('--ui-glass-opacity', `${style.glassOpacity}%`);
   root.style.setProperty('--ui-border-strength', `${style.borderStrength}%`);

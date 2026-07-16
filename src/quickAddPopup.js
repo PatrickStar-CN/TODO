@@ -1,6 +1,7 @@
 import { toLocalDateInput } from './utils/date.js';
 import { escapeHtml } from './utils/html.js';
 import { initDatePicker } from './datePicker.js';
+import { iconSvg } from './icons.js';
 
 function closeAllPopups() {
   document.querySelectorAll('.quick-popup').forEach(el => el.remove());
@@ -89,14 +90,14 @@ export function initQuickAddPopups({ quickAddPreset, updateQuickAddIndicators, d
     const nextWeekStr = toLocalDateInput(nextWeek);
     popup.innerHTML = `
       <div class="popup-title">截止日期</div>
-      <div class="popup-option ${quickAddPreset.endTime === todayStr ? 'selected' : ''}" data-date="${todayStr}">☀️ 今天</div>
-      <div class="popup-option ${quickAddPreset.endTime === tomorrowStr ? 'selected' : ''}" data-date="${tomorrowStr}">📅 明天</div>
-      <div class="popup-option ${quickAddPreset.endTime === nextWeekStr ? 'selected' : ''}" data-date="${nextWeekStr}">📆 下周</div>
+      <div class="popup-option ${quickAddPreset.endTime === todayStr ? 'selected' : ''}" data-date="${todayStr}">${iconSvg('sun')}<span>今天</span></div>
+      <div class="popup-option ${quickAddPreset.endTime === tomorrowStr ? 'selected' : ''}" data-date="${tomorrowStr}">${iconSvg('calendar')}<span>明天</span></div>
+      <div class="popup-option ${quickAddPreset.endTime === nextWeekStr ? 'selected' : ''}" data-date="${nextWeekStr}">${iconSvg('calendar-range')}<span>下周</span></div>
       <div class="popup-divider"></div>
       <div class="popup-option popup-custom-date">
         <input type="text" class="popup-date-input" value="${quickAddPreset.endTime || ''}">
       </div>
-      ${quickAddPreset.endTime ? '<div class="popup-option popup-clear" data-date="">✕ 清除日期</div>' : ''}
+      ${quickAddPreset.endTime ? `<div class="popup-option popup-clear" data-date="">${iconSvg('x')}<span>清除日期</span></div>` : ''}
     `;
     container.appendChild(popup);
     adjustPopupPosition(popup, dateButton, container);
@@ -155,7 +156,7 @@ export function initQuickAddPopups({ quickAddPreset, updateQuickAddIndicators, d
     popup.innerHTML = `
       <div class="popup-title">标签</div>
       ${tagOptions || '<div class="popup-empty">暂无标签</div>'}
-      ${quickAddPreset.tag ? '<div class="popup-option popup-clear" data-tag="">✕ 清除标签</div>' : ''}
+      ${quickAddPreset.tag ? `<div class="popup-option popup-clear" data-tag="">${iconSvg('x')}<span>清除标签</span></div>` : ''}
     `;
     container.appendChild(popup);
     adjustPopupPosition(popup, tagButton, container);

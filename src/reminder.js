@@ -41,12 +41,12 @@ export function initReminders({ data, saveData, render, showToast, isNeutralinoE
       permission = await Notification.requestPermission();
     }
     if (permission !== 'granted') return false;
-    new Notification(title, { body: content, icon: './icon.png' });
+    new Notification(title, { body: content, icon: './icon.svg' });
     return true;
   }
 
   async function triggerReminder(todo) {
-    showToast(`🔔 提醒：${todo.title}`);
+    showToast(`提醒：${todo.title}`);
     try {
       await sendSystemNotification('TODO 提醒', todo.title);
     } catch (err) {

@@ -3,6 +3,7 @@ import { applyTheme } from './theme.js';
 import { closeDetail } from './detail.js';
 import { showConfirmDialog } from './overlay.js';
 import { DEFAULT_UI_STYLE, applyUiStyle, normalizeUiStyle } from './uiPreferences.js';
+import { iconSvg } from './icons.js';
 
 const TAG_COLORS = ['#4f46e5', '#06b6d4', '#f59e0b', '#ef4444', '#10b981', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#6366f1'];
 
@@ -66,28 +67,28 @@ function openPanel() {
     <div class="settings-modal">
       <div class="settings-header">
         <h3>设置</h3>
-        <button class="icon-btn" id="close-settings">✕</button>
+        <button class="icon-btn settings-close-btn" id="close-settings" type="button" aria-label="关闭设置">${iconSvg('x')}</button>
       </div>
-      <div class="settings-tabs">
-        <button class="settings-tab active" data-tab="appearance">外观</button>
-        <button class="settings-tab" data-tab="ai">AI 配置</button>
-        <button class="settings-tab" data-tab="notifications">提醒</button>
-        <button class="settings-tab" data-tab="tags">标签管理</button>
+      <div class="settings-tabs" role="tablist" aria-label="设置分类">
+        <button class="settings-tab active" type="button" role="tab" aria-selected="true" data-tab="appearance">${iconSvg('settings')}<span>外观</span></button>
+        <button class="settings-tab" type="button" role="tab" aria-selected="false" data-tab="ai">${iconSvg('document')}<span>AI 配置</span></button>
+        <button class="settings-tab" type="button" role="tab" aria-selected="false" data-tab="notifications">${iconSvg('bell')}<span>提醒</span></button>
+        <button class="settings-tab" type="button" role="tab" aria-selected="false" data-tab="tags">${iconSvg('tag')}<span>标签管理</span></button>
       </div>
       <div class="settings-body">
         <div class="settings-pane active" data-pane="appearance">
           <div class="settings-row">
             <label>主题</label>
             <div class="theme-options">
-              <button class="theme-opt" data-theme="auto">🌗 跟随系统</button>
-              <button class="theme-opt" data-theme="light">☀️ 白天</button>
-              <button class="theme-opt" data-theme="dark">🌙 夜间</button>
+              <button class="theme-opt" type="button" aria-pressed="false" data-theme="auto">${iconSvg('monitor')}<span>跟随系统</span></button>
+              <button class="theme-opt" type="button" aria-pressed="false" data-theme="light">${iconSvg('sun')}<span>白天</span></button>
+              <button class="theme-opt" type="button" aria-pressed="false" data-theme="dark">${iconSvg('moon')}<span>夜间</span></button>
             </div>
           </div>
           <div class="settings-style-section">
             <div class="settings-style-heading">
               <span>界面风格</span>
-              <button class="btn-secondary btn-sm" id="reset-ui-style" type="button">恢复默认</button>
+              <button class="btn-secondary btn-sm settings-secondary-action" id="reset-ui-style" type="button">${iconSvg('undo')}<span>恢复默认</span></button>
             </div>
             ${createStyleSlider('radius', '圆角', 6, 20, 'px')}
             ${createStyleSlider('glassOpacity', '玻璃透明度', 35, 100, '%')}
@@ -113,7 +114,7 @@ function openPanel() {
             <label>自定义提示词</label>
             <textarea id="set-prompt" rows="4" placeholder="留空使用默认提示词"></textarea>
           </div>
-          <button class="btn-primary btn-sm" id="set-save-ai">保存 AI 配置</button>
+          <button class="btn-primary btn-sm settings-primary-action" id="set-save-ai" type="button">${iconSvg('check')}<span>保存 AI 配置</span></button>
         </div>
         <div class="settings-pane" data-pane="notifications">
           <div class="notification-setting-card">
@@ -122,14 +123,14 @@ function openPanel() {
               <strong>系统通知</strong>
               <span id="notification-status-text"></span>
             </div>
-            <button class="btn-secondary btn-sm" id="test-notification" type="button">发送测试通知</button>
+            <button class="btn-secondary btn-sm settings-secondary-action" id="test-notification" type="button">${iconSvg('bell')}<span>发送测试通知</span></button>
           </div>
         </div>
         <div class="settings-pane" data-pane="tags">
           <div class="settings-tag-add-bar">
             <span class="tag-dot settings-tag-preview" id="settings-tag-preview" aria-hidden="true"></span>
             <input type="text" id="set-add-tag-input" placeholder="添加新标签..." maxlength="20" autocomplete="off" spellcheck="false" aria-label="新标签名称">
-            <button class="icon-btn settings-tag-add-btn" id="set-add-tag-btn" type="button" title="添加标签" aria-label="添加标签">+</button>
+            <button class="icon-btn settings-tag-add-btn" id="set-add-tag-btn" type="button" title="添加标签" aria-label="添加标签">${iconSvg('plus')}</button>
           </div>
           <div id="settings-tag-list" class="settings-tag-list"></div>
         </div>
@@ -202,10 +203,20 @@ function openPanel() {
 
   overlay.querySelector('#test-notification').addEventListener('click', async (event) => {
     const button = event.currentTarget;
+    const label = button.querySelector('span');
     button.disabled = true;
-    await testNotification?.();
-    updateNotificationStatus(overlay);
-    button.disabled = false;
+    button.classList.add('is-loading');
+    button.setAttribute('aria-busy', 'true');
+    if (label) label.textContent = '发送中';
+    try {
+      await testNotification?.();
+      updateNotificationStatus(overlay);
+    } finally {
+      button.disabled = false;
+      button.classList.remove('is-loading');
+      button.removeAttribute('aria-busy');
+      if (label) label.textContent = '发送测试通知';
+    }
   });
 
   // 标签列表事件委托
@@ -273,7 +284,9 @@ function switchTab(overlay, tabName) {
   targetPane?.style.setProperty('--settings-pane-shift', toIndex >= fromIndex ? '10px' : '-10px');
 
   overlay.querySelectorAll('.settings-tab').forEach(t => {
-    t.classList.toggle('active', t.dataset.tab === tabName);
+    const active = t.dataset.tab === tabName;
+    t.classList.toggle('active', active);
+    t.setAttribute('aria-selected', String(active));
   });
   overlay.querySelectorAll('.settings-pane').forEach(p => {
     p.classList.toggle('active', p.dataset.pane === tabName);
@@ -300,7 +313,9 @@ function updateNotificationStatus(overlay) {
 
 function updateThemeSelection(overlay) {
   overlay.querySelectorAll('.theme-opt').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.theme === data.theme);
+    const active = btn.dataset.theme === data.theme;
+    btn.classList.toggle('active', active);
+    btn.setAttribute('aria-pressed', String(active));
   });
 }
 
@@ -326,7 +341,7 @@ function renderTagList(overlay) {
       <span class="tag-dot" style="background:${getTagColor(tag)}"></span>
       <span class="tag-manage-name" data-role="rename-tag">${escapeHtml(tag)}</span>
       <span class="tag-manage-count">${getTagTaskCount(tag)}</span>
-      <button class="tag-delete-btn" data-role="delete-tag" data-tag="${escapeHtml(tag)}" title="删除标签">✕</button>
+      <button class="tag-delete-btn" data-role="delete-tag" data-tag="${escapeHtml(tag)}" title="删除标签" aria-label="删除标签">${iconSvg('x')}</button>
     </div>
   `).join('');
 }

@@ -1,5 +1,6 @@
 import { isSameDay, isToday, formatDate, formatDateTime } from './utils/date.js';
 import { renderGlassSelect, initGlassSelectGroup } from './glassSelect.js';
+import { iconSvg, setIcon } from './icons.js';
 
 let activePicker = null;
 let _insideClick = false;
@@ -95,7 +96,8 @@ class DatePicker {
 
     const clearBtn = document.createElement('button');
     clearBtn.className = 'dp-clear-btn';
-    clearBtn.textContent = '\u2715';
+    setIcon(clearBtn, 'x');
+    clearBtn.setAttribute('aria-label', '清除');
     clearBtn.title = '清除';
     clearBtn.style.display = this.input.value ? '' : 'none';
     clearBtn.addEventListener('click', (e) => {
@@ -253,9 +255,9 @@ class DatePicker {
 
     this.panel.innerHTML = `
       <div class="dp-header">
-        <button type="button" class="dp-nav-btn" data-nav="prev">&#9664;</button>
+        <button type="button" class="dp-nav-btn" data-nav="prev" aria-label="上一个月">${iconSvg('chevron-left')}</button>
         <button type="button" class="dp-title" data-action="pick-month">${year}\u5E74${month + 1}\u6708</button>
-        <button type="button" class="dp-nav-btn" data-nav="next">&#9654;</button>
+        <button type="button" class="dp-nav-btn" data-nav="next" aria-label="下一个月">${iconSvg('chevron-right')}</button>
         ${isToday(todayDate) ? '<button type="button" class="dp-today-btn">\u4ECA\u5929</button>' : ''}
       </div>
       <div class="dp-weekdays"><span>\u65E5</span><span>\u4E00</span><span>\u4E8C</span><span>\u4E09</span><span>\u56DB</span><span>\u4E94</span><span>\u516D</span></div>

@@ -2,6 +2,7 @@ import './style.css';
 import { flushAppData, initApp } from './app.js';
 import { initRipple } from './ripple.js';
 import { registerWindowsToastApp } from './windowsToast.js';
+import { hydrateIcons } from './icons.js';
 
 function setupTray() {
   Neutralino.os.setTray({
@@ -30,6 +31,7 @@ function setupTray() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  hydrateIcons();
   initRipple();
   if (typeof Neutralino !== 'undefined') {
     Neutralino.init();

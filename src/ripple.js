@@ -13,6 +13,7 @@ const BUTTON_SELECTOR = [
   '.btn-danger',
   '.btn-archive-all',
   '.btn-primary',
+  '.btn-secondary',
   '.btn-copy',
   '.btn-theme-toggle',
   '.btn-row button',

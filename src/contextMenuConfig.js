@@ -3,26 +3,27 @@ import { toLocalDatetime } from './utils/date.js';
 export function buildTodoContextMenu(todo, { data, updateTodo, openDetail, deleteTodoById, toggleDone }) {
   const items = [];
   if (todo.done) {
-    items.push({ icon: '↩️', label: '取消完成', action: () => toggleDone(todo, false) });
+    items.push({ icon: 'undo', label: '取消完成', action: () => toggleDone(todo, false) });
     if (todo.archived) {
-      items.push({ icon: '📤', label: '取消归档', action: () => updateTodo(todo, { archived: false, archivedAt: null }) });
+      items.push({ icon: 'upload', label: '取消归档', action: () => updateTodo(todo, { archived: false, archivedAt: null }) });
     } else {
-      items.push({ icon: '🗄️', label: '归档', action: () => updateTodo(todo, { archived: true, archivedAt: new Date().toISOString() }) });
+      items.push({ icon: 'archive', label: '归档', action: () => updateTodo(todo, { archived: true, archivedAt: new Date().toISOString() }) });
     }
   } else {
-    items.push({ icon: '✓', label: '标记完成', action: () => toggleDone(todo, true) });
-    items.push({ icon: todo.important ? '☆' : '⭐', label: todo.important ? '取消重要' : '标记重要', action: () => updateTodo(todo, { important: !todo.important }) });
-    items.push({ icon: '☀️', label: todo.todo ? '从 TODO 移除' : '添加到 TODO', action: () => updateTodo(todo, { todo: !todo.todo }) });
+    items.push({ icon: 'check', label: '标记完成', action: () => toggleDone(todo, true) });
+    items.push({ icon: todo.important ? 'star' : 'star-filled', label: todo.important ? '取消重要' : '标记重要', action: () => updateTodo(todo, { important: !todo.important }) });
+    items.push({ icon: 'sun', label: todo.todo ? '从 TODO 移除' : '添加到 TODO', action: () => updateTodo(todo, { todo: !todo.todo }) });
     items.push({ separator: true });
-    items.push({ icon: '🚩', label: '优先级', submenu: [
-      { label: '🔴 高', action: () => updateTodo(todo, { priority: 'high' }) },
-      { label: '🟡 中', action: () => updateTodo(todo, { priority: 'medium' }) },
-      { label: '🔵 低', action: () => updateTodo(todo, { priority: 'low' }) },
-      { label: '⚪ 无', action: () => updateTodo(todo, { priority: 'none' }) }
+    items.push({ icon: 'flag', label: '优先级', submenu: [
+      { icon: 'circle', iconClass: 'icon-priority-high', label: '高', action: () => updateTodo(todo, { priority: 'high' }) },
+      { icon: 'circle', iconClass: 'icon-priority-medium', label: '中', action: () => updateTodo(todo, { priority: 'medium' }) },
+      { icon: 'circle', iconClass: 'icon-priority-low', label: '低', action: () => updateTodo(todo, { priority: 'low' }) },
+      { icon: 'circle', iconClass: 'icon-priority-none', label: '无', action: () => updateTodo(todo, { priority: 'none' }) }
     ]});
     if (data.tags.length > 0) {
-      items.push({ icon: '🏷️', label: '标签', submenu: data.tags.map(tag => ({
-        label: (todo.tag === tag ? '✓ ' : '') + tag,
+      items.push({ icon: 'tag', label: '标签', submenu: data.tags.map(tag => ({
+        icon: todo.tag === tag ? 'check' : null,
+        label: tag,
         action: () => updateTodo(todo, { tag: todo.tag === tag ? '' : tag })
       }))});
     }
@@ -43,35 +44,35 @@ export function buildTodoContextMenu(todo, { data, updateTodo, openDetail, delet
       } }
     ];
     if (todo.reminder) {
-      reminderItems.push({ label: '✕ 清除提醒', action: () => updateTodo(todo, { reminder: null, reminderRepeat: 'none' }) });
+      reminderItems.push({ icon: 'x', label: '清除提醒', action: () => updateTodo(todo, { reminder: null, reminderRepeat: 'none' }) });
     }
-    items.push({ icon: '⏰', label: '设置提醒', submenu: reminderItems });
+    items.push({ icon: 'alarm', label: '设置提醒', submenu: reminderItems });
     items.push({ separator: true });
-    items.push({ icon: '✏️', label: '编辑详情', action: () => openDetail(todo.id) });
+    items.push({ icon: 'edit', label: '编辑详情', action: () => openDetail(todo.id) });
   }
   items.push({ separator: true });
-  items.push({ icon: '🗑️', label: '删除', className: 'danger', action: () => deleteTodoById(todo.id) });
+  items.push({ icon: 'trash', label: '删除', className: 'danger', action: () => deleteTodoById(todo.id) });
   return items;
 }
 
 export function buildTagContextMenu(tag, { setCurrentTag, render, deleteTagFromMenu }) {
   return [
-    { icon: '📋', label: '查看该标签任务', action: () => { setCurrentTag(tag); render(); } },
+    { icon: 'clipboard', label: '查看该标签任务', action: () => { setCurrentTag(tag); render(); } },
     { separator: true },
-    { icon: '🗑️', label: '删除标签', className: 'danger', action: () => deleteTagFromMenu(tag) }
+    { icon: 'trash', label: '删除标签', className: 'danger', action: () => deleteTagFromMenu(tag) }
   ];
 }
 
 export function buildNavContextMenu({ clearDoneTasks }) {
   return [
-    { icon: '🗑️', label: '清空已完成', className: 'danger', action: () => clearDoneTasks() }
+    { icon: 'trash', label: '清空已完成', className: 'danger', action: () => clearDoneTasks() }
   ];
 }
 
 export function buildListAreaMenu({ clearDoneTasks }) {
   return [
-    { icon: '➕', label: '新建任务', action: () => document.getElementById('quick-add').focus() },
+    { icon: 'plus', label: '新建任务', action: () => document.getElementById('quick-add').focus() },
     { separator: true },
-    { icon: '🗑️', label: '清空已完成', className: 'danger', action: () => clearDoneTasks() }
+    { icon: 'trash', label: '清空已完成', className: 'danger', action: () => clearDoneTasks() }
   ];
 }

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { webcrypto } from 'node:crypto';
 import { countByList, countTagUndone, getFilteredTodos, sortByPriority, splitPendingDone } from '../src/selectors.js';
 import { DEFAULT_UI_STYLE, normalizeUiStyle } from '../src/uiPreferences.js';
-import { buildMonthActivityIndex } from '../src/calendar.js';
+import { buildMonthActivityIndex, buildYearCompletionIndex, buildYearTaskIndex } from '../src/calendar.js';
 import { initReminders } from '../src/reminder.js';
 import { createRuntimeIndex } from '../src/runtimeIndex.js';
 import { encrypt, initCrypto, tryDecrypt } from '../src/utils/crypto.js';
@@ -65,6 +65,35 @@ const activity = buildMonthActivityIndex(2026, 0, {
 });
 assert.deepEqual(activity.get('2026-01-02'), { created: 2, done: 0 });
 assert.deepEqual(activity.get('2026-01-03'), { created: 0, done: 2 });
+
+const yearTaskActivity = buildYearTaskIndex(2026, {
+  todos: [
+    { createdAt: '2026-01-01T08:00:00', startTime: '2026-01-02T08:00:00', endTime: '2026-01-04T10:00:00' },
+    { createdAt: '2026-01-01T08:00:00', startTime: '2026-01-05T08:00:00' },
+    { createdAt: '2026-01-06T08:00:00', endTime: '2026-01-08T10:00:00' },
+    { createdAt: '2025-12-31T12:00:00', doneAt: '2026-01-09T10:00:00' },
+    { createdAt: '2026-01-10T08:00:00' },
+    { createdAt: 'invalid', doneAt: null }
+  ]
+});
+assert.equal(yearTaskActivity.get('2026-01-02'), 1);
+assert.equal(yearTaskActivity.get('2026-01-04'), 1);
+assert.equal(yearTaskActivity.get('2026-01-05'), 1);
+assert.equal(yearTaskActivity.get('2026-01-07'), 1);
+assert.equal(yearTaskActivity.get('2026-01-09'), 1);
+assert.equal(yearTaskActivity.get('2026-01-10'), 1);
+assert.equal(yearTaskActivity.has('2025-12-31'), false);
+
+const yearCompletionActivity = buildYearCompletionIndex(2026, {
+  todos: [
+    { doneAt: '2026-02-03T10:00:00' },
+    { doneAt: '2026-02-03T12:00:00' },
+    { doneAt: '2025-12-31T12:00:00' },
+    { doneAt: null }
+  ]
+});
+assert.equal(yearCompletionActivity.get('2026-02-03'), 2);
+assert.equal(yearCompletionActivity.has('2025-12-31'), false);
 
 const indexedData = {
   todos: [

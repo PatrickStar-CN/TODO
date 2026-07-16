@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="icon" href="./icon.png">
+  <link rel="icon" type="image/svg+xml" href="./icon.svg">
   <title>待办事项</title>
 </head>
 <body>
@@ -13,33 +13,33 @@
       <div class="sidebar-header">
         <h2>待办事项</h2>
         <div class="header-actions">
-          <button class="btn-header-action" id="btn-settings" title="设置">⚙️</button>
+          <button class="btn-header-action" id="btn-settings" title="设置" aria-label="设置"><span data-icon="settings"></span></button>
         </div>
         <span class="date" id="today-date"></span>
       </div>
       <nav class="sidebar-nav">
         <a href="#" class="nav-item active" data-list="todo" title="TODO">
-          <span class="nav-icon">☀️</span>
+          <span class="nav-icon" data-icon="sun"></span>
           <span class="nav-text">TODO</span>
           <span class="nav-count" id="count-todo">0</span>
         </a>
         <a href="#" class="nav-item" data-list="important" title="重要">
-          <span class="nav-icon">⭐</span>
+          <span class="nav-icon" data-icon="star-filled"></span>
           <span class="nav-text">重要</span>
           <span class="nav-count" id="count-important">0</span>
         </a>
         <a href="#" class="nav-item" data-list="all" title="所有">
-          <span class="nav-icon">📦</span>
+          <span class="nav-icon" data-icon="inbox"></span>
           <span class="nav-text">所有</span>
           <span class="nav-count" id="count-all">0</span>
         </a>
         <a href="#" class="nav-item" data-list="archived" title="归档">
-          <span class="nav-icon">🗃️</span>
+          <span class="nav-icon" data-icon="archive"></span>
           <span class="nav-text">归档</span>
           <span class="nav-count" id="count-archived">0</span>
         </a>
         <a href="#" class="nav-item" data-list="calendar" title="日历">
-          <span class="nav-icon">📅</span>
+          <span class="nav-icon" data-icon="calendar"></span>
           <span class="nav-text">日历</span>
           <span class="nav-count"></span>
         </a>
@@ -49,9 +49,9 @@
         <div id="tag-list" class="tag-list"></div>
       </div>
       <div class="sidebar-footer">
-        <button id="btn-mini-mode-footer" class="btn-mini-mode-footer" title="迷你模式"><span class="btn-icon">📌</span><span class="btn-text"> 迷你模式</span></button>
-        <button id="btn-toggle-sidebar" class="btn-toggle-sidebar" title="折叠侧边栏"><span class="btn-icon">◀️</span><span class="btn-text"> 折叠侧边栏</span></button>
-        <button id="btn-clear-done" title="清空已完成"><span class="btn-icon">🗑️</span><span class="btn-text"> 清空已完成</span></button>
+        <button id="btn-mini-mode-footer" class="btn-mini-mode-footer" title="迷你模式"><span class="btn-icon" data-icon="pin"></span><span class="btn-text">迷你模式</span></button>
+        <button id="btn-toggle-sidebar" class="btn-toggle-sidebar" title="折叠侧边栏"><span class="btn-icon" data-icon="chevron-left"></span><span class="btn-text">折叠侧边栏</span></button>
+        <button id="btn-clear-done" title="清空已完成"><span class="btn-icon" data-icon="trash"></span><span class="btn-text">清空已完成</span></button>
       </div>
     </aside>
 
@@ -64,21 +64,26 @@
             <h1 id="list-title">TODO</h1>
             <span class="task-summary" id="task-summary"></span>
           </div>
-          <button class="icon-btn" id="btn-search" title="搜索">🔍</button>
+          <div class="view-header-actions">
+            <button class="btn-glass view-header-action" id="btn-search" title="搜索">
+              <svg class="view-header-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><line x1="20" y1="20" x2="16.65" y2="16.65"></line></svg>
+              <span>搜索</span>
+            </button>
+          </div>
         </div>
         <div class="search-bar hidden" id="search-bar">
           <input type="text" id="search-input" placeholder="搜索任务..." autocomplete="off">
-          <button class="icon-btn" id="btn-search-close" title="关闭搜索">✕</button>
+          <button class="icon-btn" id="btn-search-close" title="关闭搜索" aria-label="关闭搜索"><span data-icon="x"></span></button>
         </div>
         <div class="task-scroll-area">
           <!-- 添加任务 -->
           <div class="add-task-bar">
-            <span class="add-icon">➕</span>
+            <span class="add-icon" data-icon="plus"></span>
             <input type="text" id="quick-add" placeholder="添加新任务..." autocomplete="off">
             <div class="add-task-actions">
-              <button class="icon-btn" id="btn-set-date" title="设置日期">📅</button>
-              <button class="icon-btn" id="btn-set-priority" title="设置优先级">🚩</button>
-              <button class="icon-btn" id="btn-set-tag" title="设置标签">🏷️</button>
+              <button class="icon-btn" id="btn-set-date" title="设置日期" aria-label="设置日期"><span data-icon="calendar"></span></button>
+              <button class="icon-btn" id="btn-set-priority" title="设置优先级" aria-label="设置优先级"><span data-icon="flag"></span></button>
+              <button class="icon-btn" id="btn-set-tag" title="设置标签" aria-label="设置标签"><span data-icon="tag"></span></button>
             </div>
           </div>
           <!-- 任务列表 -->
@@ -89,8 +94,8 @@
           <div class="done-header" id="done-toggle">
             <span>已完成 (<span id="done-count">0</span>)</span>
             <div class="done-header-actions">
-              <button class="btn-archive-all" id="btn-archive-done" title="归档已完成">🗃️ 归档</button>
-              <span class="arrow">▼</span>
+              <button class="btn-archive-all" id="btn-archive-done" title="归档已完成"><span data-icon="archive"></span><span></span></button>
+              <span class="arrow" data-icon="chevron-down"></span>
             </div>
           </div>
           <div id="done-list-wrapper" class="done-list-wrapper">
@@ -105,27 +110,49 @@
           <div>
             <h1>日历</h1>
           </div>
-          <button class="btn-ai-summary" id="btn-open-summary" title="AI 总结">📝 AI 总结</button>
+          <div class="view-header-actions">
+            <button class="btn-glass view-header-action" id="btn-open-summary" title="AI 总结">
+              <svg class="view-header-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16v16H4z"></path><path d="M8 9h8M8 13h6M8 17h4"></path></svg>
+              <span>AI 总结</span>
+            </button>
+          </div>
         </div>
         <div class="calendar-container">
-          <div class="calendar-nav">
-            <button class="icon-btn" id="prev-month">◀</button>
-            <button class="calendar-title-btn" id="calendar-title" title="点击选择年月"></button>
-            <button class="icon-btn" id="next-month">▶</button>
-            <button class="icon-btn" id="btn-today" title="回到今天">📅</button>
-          </div>
-          <div class="calendar-heat-legend" aria-label="日期活动热力图图例">
-            <span><i class="heat-swatch heat-created"></i>新增</span>
-            <span><i class="heat-swatch heat-done"></i>完成</span>
-            <span class="heat-scale" aria-hidden="true"><small>少</small><i></i><i></i><i></i><i></i><small>多</small></span>
-          </div>
-          <div class="calendar-grid">
-            <div class="calendar-weekdays">
-              <span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span>
+          <div class="calendar-toolbar">
+            <div class="calendar-mode-switch" role="tablist" aria-label="日历视图模式">
+              <button class="calendar-mode-btn active" type="button" role="tab" aria-selected="true" data-calendar-mode="month">月历</button>
+              <button class="calendar-mode-btn" type="button" role="tab" aria-selected="false" data-calendar-mode="tasks">任务量</button>
+              <button class="calendar-mode-btn" type="button" role="tab" aria-selected="false" data-calendar-mode="completed">完成量</button>
             </div>
-            <div id="calendar-days" class="calendar-days"></div>
+            <div class="calendar-nav">
+              <button class="icon-btn" id="prev-month" aria-label="上一个月"><span data-icon="chevron-left"></span></button>
+              <button class="calendar-title-btn" id="calendar-title" title="点击选择年月"></button>
+              <button class="icon-btn" id="next-month" aria-label="下一个月"><span data-icon="chevron-right"></span></button>
+              <button class="icon-btn" id="btn-today" title="回到今天" aria-label="回到今天"><span data-icon="today"></span></button>
+            </div>
+            <div class="calendar-toolbar-actions">
+              <button class="btn-glass calendar-collapse-btn" id="toggle-calendar-chart" type="button" aria-expanded="true" aria-controls="calendar-chart-body">
+                <svg class="calendar-collapse-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 15 12 9 18 15"></polyline></svg>
+                <span class="calendar-collapse-label">收起图表</span>
+              </button>
+            </div>
           </div>
-          <div id="calendar-detail" class="calendar-detail"></div>
+          <div class="calendar-layout" id="calendar-layout">
+            <div class="calendar-chart-body" id="calendar-chart-body">
+              <div class="calendar-grid">
+                <div class="calendar-month-labels" id="calendar-month-labels" aria-hidden="true"></div>
+                <div class="calendar-weekdays">
+                  <span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span>
+                </div>
+                <div id="calendar-days" class="calendar-days"></div>
+              </div>
+              <div class="calendar-heat-legend" aria-label="日期活动热力图图例">
+                <span><i class="heat-swatch heat-metric"></i><span id="calendar-legend-label">任务量</span></span>
+                <span class="heat-scale" aria-hidden="true"><small>少</small><i></i><i></i><i></i><i></i><small>多</small></span>
+              </div>
+            </div>
+            <div id="calendar-detail" class="calendar-detail"></div>
+          </div>
         </div>
       </div>
 
@@ -136,7 +163,7 @@
   <div id="detail-panel" class="detail-panel hidden">
     <div class="detail-header">
       <h3>编辑任务</h3>
-      <button class="icon-btn" id="close-detail">✕</button>
+      <button class="icon-btn" id="close-detail" aria-label="关闭任务详情"><span data-icon="x"></span></button>
     </div>
     <form id="detail-form">
       <input type="hidden" id="detail-id">
@@ -217,7 +244,7 @@
     <div class="summary-header">
       <h3>AI 总结</h3>
       <div class="summary-header-actions">
-        <button class="icon-btn" id="close-summary">✕</button>
+        <button class="icon-btn" id="close-summary" aria-label="关闭 AI 总结"><span data-icon="x"></span></button>
       </div>
     </div>
     <div class="summary-controls">
@@ -244,8 +271,8 @@
     <div class="mini-header">
       <span class="mini-title" id="mini-drag-region">待办事项</span>
       <div class="mini-actions">
-        <button class="mini-btn" id="btn-mini-add" title="快速添加">➕</button>
-        <button class="mini-btn" id="btn-exit-mini" title="恢复窗口">🪟</button>
+        <button class="mini-btn" id="btn-mini-add" title="快速添加" aria-label="快速添加"><span data-icon="plus"></span></button>
+        <button class="mini-btn" id="btn-exit-mini" title="恢复窗口" aria-label="恢复窗口"><span data-icon="window"></span></button>
       </div>
     </div>
     <div class="mini-stats">
