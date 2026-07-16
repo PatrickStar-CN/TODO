@@ -1,6 +1,7 @@
 import { toLocalDateInput, parseLocalDateInput, formatMonthDay } from './utils/date.js';
 import { escapeHtml } from './utils/html.js';
 import { closeDetail } from './detail.js';
+import { resolveAiApiUrl } from './utils/aiApi.js';
 
 export function initAiSummary({ data, saveData, showToast }) {
   let summaryType = 'daily';
@@ -170,7 +171,7 @@ export function initAiSummary({ data, saveData, showToast }) {
     summaryOutput.innerHTML = '<div class="summary-loading">正在生成...</div>';
 
     try {
-      const response = await fetch(data.aiConfig.apiUrl, {
+      const response = await fetch(resolveAiApiUrl(data.aiConfig.apiUrl), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

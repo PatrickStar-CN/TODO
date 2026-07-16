@@ -99,7 +99,7 @@ function openPanel() {
         <div class="settings-pane" data-pane="ai">
           <div class="settings-row">
             <label>API 地址</label>
-            <input type="text" id="set-api-url" placeholder="https://api.openai.com/v1/chat/completions">
+            <input type="text" id="set-api-url" placeholder="https://api.openai.com/v1">
           </div>
           <div class="settings-row">
             <label>API Key</label>
