@@ -41,6 +41,18 @@ export function buildMonthIndex(year, month, data) {
   const monthStartTime = monthStart.getTime();
   const monthEndTime = monthEnd.getTime();
   const index = new Map();
+  const activityIndex = new Map();
+
+  const addActivity = (value, field) => {
+    if (value === null || typeof value === 'undefined' || value === '') return;
+    const date = new Date(value);
+    const time = date.getTime();
+    if (!Number.isFinite(time) || time < monthStartTime || time >= monthEndTime) return;
+    const key = fmtYMD(date);
+    const activity = activityIndex.get(key) || { created: 0, done: 0 };
+    activity[field] += 1;
+    activityIndex.set(key, activity);
+  };
 
   const addToIndex = (date, todo) => {
     if (date.getTime() < monthStartTime || date.getTime() >= monthEndTime) return;
@@ -51,6 +63,8 @@ export function buildMonthIndex(year, month, data) {
   };
 
   for (const todo of data.todos) {
+    addActivity(todo.createdAt, 'created');
+    addActivity(todo.doneAt, 'done');
     const start = todo.startTime ? new Date(todo.startTime) : null;
     const end = todo.endTime ? new Date(todo.endTime) : null;
     const doneAt = todo.doneAt ? new Date(todo.doneAt) : null;
@@ -79,6 +93,7 @@ export function buildMonthIndex(year, month, data) {
     }
   }
 
+  index.activityIndex = activityIndex;
   return index;
 }
 
@@ -98,7 +113,7 @@ export function renderCalendar({ currentMonth, selectedDate, data, getTodosForDa
   /* 优先使用预构建的月索引；缺失时回退到原全量扫描（向后兼容） */
   const idx = monthIndex || null;
   const lookup = (date) => idx ? (idx.get(fmtYMD(date)) || []) : getTodosForDate(date, data);
-  const activityIndex = buildMonthActivityIndex(year, month, data);
+  const activityIndex = idx?.activityIndex || buildMonthActivityIndex(year, month, data);
   const activityValues = [...activityIndex.values()];
   const maxCreated = Math.max(0, ...activityValues.map(item => item.created));
   const maxDone = Math.max(0, ...activityValues.map(item => item.done));

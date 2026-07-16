@@ -1,5 +1,5 @@
 import './style.css';
-import { initApp } from './app.js';
+import { flushAppData, initApp } from './app.js';
 import { initRipple } from './ripple.js';
 import { registerWindowsToastApp } from './windowsToast.js';
 
@@ -19,13 +19,13 @@ function setupTray() {
         Neutralino.window.focus();
         break;
       case 'quit':
-        Neutralino.app.exit();
+        flushAppData().finally(() => Neutralino.app.exit());
         break;
     }
   });
 
   Neutralino.events.on('windowClose', () => {
-    Neutralino.window.hide();
+    flushAppData().finally(() => Neutralino.window.hide());
   });
 }
 

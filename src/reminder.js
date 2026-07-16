@@ -14,8 +14,10 @@ function getBrowserNotificationStatus() {
   return { state: 'pending', label: '浏览器系统通知等待授权' };
 }
 
-export function initReminders({ data, saveData, render, showToast, isNeutralinoEnv }) {
+export function initReminders({ data, saveData, render, showToast, isNeutralinoEnv, subscribeDataChanges }) {
   let reminderLock = false;
+  let timerId = null;
+  let paused = false;
 
   function getNotificationStatus() {
     if (isNeutralinoEnv()) {
@@ -50,6 +52,27 @@ export function initReminders({ data, saveData, render, showToast, isNeutralinoE
     } catch (err) {
       console.warn('[reminder] system notification failed:', err);
     }
+  }
+
+  function scheduleNext(delayOverride = null) {
+    if (timerId) clearTimeout(timerId);
+    timerId = null;
+    if (paused) return;
+
+    let delay = delayOverride;
+    if (delay == null) {
+      const now = Date.now();
+      let nextTime = Infinity;
+      for (const todo of data.todos) {
+        if (!todo.reminder || todo.done) continue;
+        const time = new Date(todo.reminder).getTime();
+        if (Number.isFinite(time) && time < nextTime) nextTime = time;
+      }
+      if (!Number.isFinite(nextTime)) return;
+      delay = Math.max(0, nextTime - now);
+    }
+
+    timerId = setTimeout(checkReminders, Math.min(delay, 2147483647));
   }
 
   async function checkReminders() {
@@ -87,6 +110,7 @@ export function initReminders({ data, saveData, render, showToast, isNeutralinoE
       }
     } finally {
       reminderLock = false;
+      scheduleNext();
     }
   }
 
@@ -102,23 +126,24 @@ export function initReminders({ data, saveData, render, showToast, isNeutralinoE
     }
   }
 
-  let intervalId = setInterval(checkReminders, 30000);
-  let initialTimeoutId = setTimeout(() => {
-    initialTimeoutId = null;
-    checkReminders();
-  }, 2000);
+  scheduleNext(2000);
+  const unsubscribe = subscribeDataChanges?.(() => scheduleNext());
 
   function pause() {
-    if (intervalId) { clearInterval(intervalId); intervalId = null; }
-    if (initialTimeoutId) { clearTimeout(initialTimeoutId); initialTimeoutId = null; }
+    paused = true;
+    if (timerId) clearTimeout(timerId);
+    timerId = null;
   }
 
   function resume() {
-    if (!intervalId) {
-      intervalId = setInterval(checkReminders, 30000);
-      checkReminders();
-    }
+    if (!paused) return;
+    paused = false;
+    scheduleNext();
   }
 
-  return { pause, resume, testNotification, getNotificationStatus, checkReminders };
+  function reschedule() {
+    scheduleNext();
+  }
+
+  return { pause, resume, reschedule, testNotification, getNotificationStatus, checkReminders, destroy: unsubscribe };
 }

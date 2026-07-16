@@ -3,7 +3,7 @@ import { formatDateTime } from './utils/date.js';
 import { genId } from './utils/id.js';
 import { sortByPriority, splitPendingDone } from './selectors.js';
 
-export function initMiniMode({ data, saveData, render, showToast, isNeutralinoEnv, getTagDotStyle, showContextMenu, closeWindow, reminders, appConfig }) {
+export function initMiniMode({ data, saveData, render, showToast, isNeutralinoEnv, getTagDotStyle, showContextMenu, closeWindow, reminders, appConfig, todoStore }) {
   let isMiniMode = false;
   let miniTooltipTimer = null;
   const miniPanel = document.getElementById('mini-panel');
@@ -38,7 +38,7 @@ export function initMiniMode({ data, saveData, render, showToast, isNeutralinoEn
   }
 
   function showMiniTooltip(todoId, anchorEl) {
-    const todo = data.todos.find(t => t.id === todoId);
+    const todo = todoStore?.get(todoId) || data.todos.find(t => t.id === todoId);
     if (!todo) return;
     const rect = anchorEl.getBoundingClientRect();
     let html = `<div class="mini-tooltip-title">${escapeHtml(todo.title)}</div>`;
@@ -162,18 +162,12 @@ export function initMiniMode({ data, saveData, render, showToast, isNeutralinoEn
         doneAt: null,
         reminder: null,
         reminderRepeat: 'none',
+        archived: false,
+        archivedAt: null,
         createdAt: Date.now()
       };
-      data.todos.push(todo);
-      if (data._index) {
-        if (todo.tag) {
-          data._index.tagTotal[todo.tag] = (data._index.tagTotal[todo.tag] || 0) + 1;
-          data._index.tagUndone[todo.tag] = (data._index.tagUndone[todo.tag] || 0) + 1;
-        }
-        const c = data._index.counts;
-        c.all++;
-        c.todo++;
-      }
+      if (todoStore) todoStore.add(todo);
+      else data.todos.push(todo);
       saveData();
       miniQuickAdd.value = '';
       renderMiniPanel();
@@ -186,28 +180,15 @@ export function initMiniMode({ data, saveData, render, showToast, isNeutralinoEn
     const checkbox = e.target.closest('[data-mini-toggle]');
     if (checkbox) {
       const id = checkbox.dataset.miniToggle;
-      const todo = data.todos.find(t => t.id === id);
+      const todo = todoStore?.get(id) || data.todos.find(t => t.id === id);
       if (todo) {
-        const oldDone = todo.done;
-        todo.done = !todo.done;
-        todo.doneAt = todo.done ? new Date().toISOString() : null;
-        if (todo.done && todo.reminderRepeat === 'none') {
-          todo.reminder = null;
-        }
-        /* mini 模式不持有索引函数引用，调用 _index 自更新 */
-        if (data._index) {
-          const wasUndone = !oldDone && !todo.archived;
-          const isUndone = !todo.done && !todo.archived;
-          if (wasUndone && !isUndone) {
-            data._index.counts.all--;
-            if (todo.todo) data._index.counts.todo--;
-            if (todo.important) data._index.counts.important--;
-          } else if (!wasUndone && isUndone) {
-            data._index.counts.all++;
-            if (todo.todo) data._index.counts.todo++;
-            if (todo.important) data._index.counts.important++;
-          }
-        }
+        const mutate = target => {
+          target.done = !target.done;
+          target.doneAt = target.done ? new Date().toISOString() : null;
+          if (target.done && target.reminderRepeat === 'none') target.reminder = null;
+        };
+        if (todoStore) todoStore.update(todo, mutate);
+        else mutate(todo);
         saveData();
         renderMiniPanel();
       }

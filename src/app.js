@@ -1,7 +1,7 @@
 import { escapeHtml } from './utils/html.js';
 import { toLocalDatetime, toLocalDateInput, parseLocalDateInput, formatMonthDay, isSameDay, isToday, getWeekday, formatDate, formatDateTime } from './utils/date.js';
 import { genId } from './utils/id.js';
-import { initCrypto, encrypt, tryDecrypt, isCryptoReady } from './utils/crypto.js';
+import { initCrypto, encrypt, tryDecrypt, tryDecryptSync, isCryptoReady } from './utils/crypto.js';
 import { sortByPriority, getFilteredTodos as _getFilteredTodos, countByList, countTagUndone, splitPendingDone } from './selectors.js';
 import { showContextMenu, closeContextMenu } from './contextMenu.js';
 import { buildTodoContextMenu, buildTagContextMenu, buildNavContextMenu, buildListAreaMenu } from './contextMenuConfig.js';
@@ -17,11 +17,16 @@ import { initMiniMode } from './miniMode.js';
 import { initQuickAddPopups } from './quickAddPopup.js';
 import { initDatePicker } from './datePicker.js';
 import { initSettings } from './settings.js';
+import { createRuntimeIndex } from './runtimeIndex.js';
 
 const TAG_COLORS = ['#4f46e5', '#06b6d4', '#f59e0b', '#ef4444', '#10b981', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#6366f1'];
 const STORAGE_KEY = 'todo_app_data';
 const DATA_FILE = 'todo_data.json';
 let persistenceWriteBlocked = false;
+let runtimeIndex = null;
+let desktopDataPath = null;
+let needsDesktopPlaintextMigration = false;
+const dataChangeListeners = new Set();
 
 function getTagColor(tag) {
   if (!tag) return TAG_COLORS[0];
@@ -54,6 +59,21 @@ function isNeutralinoEnv() {
   return typeof Neutralino !== 'undefined' && typeof NL_PORT !== 'undefined';
 }
 
+async function getDesktopDataPath() {
+  if (!isNeutralinoEnv()) return DATA_FILE;
+  if (desktopDataPath) return desktopDataPath;
+  const isBundled = typeof NL_RESMODE === 'string' && NL_RESMODE === 'bundle';
+  const basePath = isBundled && typeof NL_PATH === 'string'
+    ? NL_PATH
+    : (typeof NL_CWD === 'string' ? NL_CWD : '.');
+  try {
+    desktopDataPath = await Neutralino.filesystem.getJoinedPath(basePath, DATA_FILE);
+  } catch {
+    desktopDataPath = `${basePath.replace(/[\\/]$/, '')}/${DATA_FILE}`;
+  }
+  return desktopDataPath;
+}
+
 function createEmptyData() {
   return { todos: [], tags: [] };
 }
@@ -69,13 +89,18 @@ function safeLocalStorageData() {
   }
 }
 
-function createPersistenceSnapshot({ includeSecrets }) {
-  const replacer = (key, value) => (key === '_index' ? undefined : value);
-  const snapshot = JSON.parse(JSON.stringify(data, replacer));
-  if (!includeSecrets && snapshot.aiConfig) {
-    snapshot.aiConfig.apiKey = '';
-  }
-  return snapshot;
+function createPersistenceSnapshots() {
+  const { _index, ...base } = data;
+  const aiConfig = { ...(base.aiConfig || {}) };
+  return {
+    file: { ...base, aiConfig },
+    local: { ...base, aiConfig: { ...aiConfig, apiKey: '' } }
+  };
+}
+
+function persistLocalSnapshot() {
+  const snapshots = createPersistenceSnapshots();
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshots.local, null, 2));
 }
 
 async function parseStoredData(content) {
@@ -86,36 +111,63 @@ async function parseStoredData(content) {
   return JSON.parse(plain);
 }
 
+async function loadDevelopmentRecoveryData() {
+  try {
+    const response = await fetch('/api/recovery-data');
+    if (!response.ok) return null;
+    const content = await response.text();
+    if (!content.trim()) return null;
+    return await parseStoredData(content);
+  } catch (err) {
+    console.warn('[loadData] development recovery data unavailable:', err);
+    return null;
+  }
+}
+
 async function backupCorruptDataFile(content) {
   if (!isNeutralinoEnv() || typeof content !== 'string') return;
   try {
     const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-    await Neutralino.filesystem.writeFile(`./${DATA_FILE}.corrupt-${stamp}.bak`, content);
+    const dataPath = await getDesktopDataPath();
+    await Neutralino.filesystem.writeFile(`${dataPath}.corrupt-${stamp}.bak`, content);
   } catch (err) {
     console.warn('[loadData] failed to back up corrupt data file:', err);
   }
 }
 
 function handleCorruptData(err, content, source) {
+  const fallback = safeLocalStorageData();
+  if (fallback) {
+    console.warn(`[loadData] ${source} could not be decoded; recovered from localStorage.`, err);
+    backupCorruptDataFile(content);
+    return fallback;
+  }
+  if (tryDecryptSync(content)) {
+    console.warn(`[loadData] ${source} uses an incompatible encryption key; preserving a backup and starting with recoverable data.`, err);
+    backupCorruptDataFile(content);
+    return createEmptyData();
+  }
   persistenceWriteBlocked = true;
   console.error(`[loadData] ${source} data is invalid; file writes are blocked to avoid overwriting it.`, err);
   backupCorruptDataFile(content);
   setTimeout(() => {
     showToast('数据文件异常，已暂停覆盖保存');
   }, 0);
-  return safeLocalStorageData() || createEmptyData();
+  return createEmptyData();
 }
 
 async function loadData() {
   if (isNeutralinoEnv()) {
     let content = '';
     try {
-      content = await Neutralino.filesystem.readFile(`./${DATA_FILE}`);
+      content = await Neutralino.filesystem.readFile(await getDesktopDataPath());
     } catch {
       return safeLocalStorageData() || createEmptyData();
     }
     try {
-      return await parseStoredData(content);
+      const storedData = await parseStoredData(content);
+      needsDesktopPlaintextMigration = tryDecryptSync(content);
+      return storedData;
     } catch (err) {
       return handleCorruptData(err, content, DATA_FILE);
     }
@@ -129,6 +181,11 @@ async function loadData() {
     try {
       return await parseStoredData(content);
     } catch (err) {
+      const recovered = await loadDevelopmentRecoveryData();
+      if (recovered) {
+        console.warn('[loadData] development data.json could not be decoded; using todo_data.json recovery data.', err);
+        return recovered;
+      }
       return handleCorruptData(err, content, 'development data.json');
     }
   } catch (err) {
@@ -138,46 +195,72 @@ async function loadData() {
 }
 
 let saveTimer = null;
+let saveVersion = 0;
+let persistedVersion = 0;
+let writeChain = Promise.resolve();
 
-async function saveData() {
-  const replacer = (key, value) => (key === '_index' ? undefined : value);
-  const json = JSON.stringify(createPersistenceSnapshot({ includeSecrets: true }), replacer, 2);
-  const localJson = JSON.stringify(createPersistenceSnapshot({ includeSecrets: false }), null, 2);
-  /* localStorage 保持明文（用户选择的离线降级方式） */
-  localStorage.setItem(STORAGE_KEY, localJson);
+function persistVersion(version) {
+  if (version <= persistedVersion) return writeChain;
+  writeChain = writeChain.then(async () => {
+    if (version <= persistedVersion) return;
 
-  if (persistenceWriteBlocked) {
-    showToast('数据文件异常，已暂停覆盖保存');
-    return;
-  }
+    const snapshots = createPersistenceSnapshots();
+    const json = JSON.stringify(snapshots.file, null, 2);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshots.local, null, 2));
+    persistedVersion = version;
 
-  if (saveTimer) clearTimeout(saveTimer);
-  saveTimer = setTimeout(async () => {
-    saveTimer = null;
-    /* 文件存储：加密 */
+    if (persistenceWriteBlocked) return;
+
+    if (isNeutralinoEnv()) {
+      await Neutralino.filesystem.writeFile(await getDesktopDataPath(), json).catch(() => {
+        showToast('保存失败，数据已暂存本地');
+      });
+      return;
+    }
+
     let payload = json;
     if (isCryptoReady()) {
       try {
         payload = await encrypt(json);
       } catch (err) {
-        console.warn('[saveData] 加密失败，使用明文:', err);
-        payload = json;
+        console.warn('[saveData] encryption failed, using plain JSON:', err);
       }
     }
-    if (isNeutralinoEnv()) {
-      Neutralino.filesystem.writeFile(`./${DATA_FILE}`, payload).catch(() => {
-        showToast('保存失败，数据已暂存本地');
-      });
-      return;
-    }
-    fetch('/api/data', {
+    await fetch('/api/data', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: payload
     }).catch(() => {
       showToast('保存失败，数据已暂存本地');
     });
+  });
+  return writeChain;
+}
+
+function saveData() {
+  const version = ++saveVersion;
+  dataChangeListeners.forEach(listener => listener());
+  if (persistenceWriteBlocked) {
+    showToast('数据文件异常，已暂停覆盖保存');
+  }
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    saveTimer = null;
+    persistVersion(version);
   }, 300);
+}
+
+export function flushAppData() {
+  if (saveTimer) {
+    clearTimeout(saveTimer);
+    saveTimer = null;
+  }
+  return persistVersion(saveVersion);
+}
+
+function subscribeDataChanges(listener) {
+  dataChangeListeners.add(listener);
+  return () => dataChangeListeners.delete(listener);
 }
 
 let data = { todos: [], tags: ['计划内'], aiConfig: { apiUrl: '', apiKey: '', model: '', customPrompt: '' }, theme: 'auto', uiStyle: normalizeUiStyle(), sidebarMini: false };
@@ -271,6 +354,7 @@ function ensureIndex() {
 }
 
 function rebuildIndex() {
+  if (runtimeIndex) return runtimeIndex.rebuild();
   ensureIndex();
   const idx = data._index;
   idx.tagUndone = {};
@@ -293,115 +377,8 @@ function rebuildIndex() {
   }
 }
 
-function addTodoToIndex(todo) {
-  ensureIndex();
-  const idx = data._index;
-  if (todo.tag) {
-    idx.tagTotal[todo.tag] = (idx.tagTotal[todo.tag] || 0) + 1;
-    if (!todo.done && !todo.archived) {
-      idx.tagUndone[todo.tag] = (idx.tagUndone[todo.tag] || 0) + 1;
-    }
-  }
-  if (todo.archived) {
-    idx.counts.archived++;
-  } else if (!todo.done) {
-    idx.counts.all++;
-    if (todo.todo) idx.counts.todo++;
-    if (todo.important) idx.counts.important++;
-  }
-}
-
-function removeTodoFromIndex(todo) {
-  const idx = data._index;
-  if (todo.tag && idx.tagTotal[todo.tag]) {
-    idx.tagTotal[todo.tag]--;
-    if (idx.tagTotal[todo.tag] <= 0) delete idx.tagTotal[todo.tag];
-  }
-  if (todo.tag && idx.tagUndone[todo.tag] != null && !todo.done && !todo.archived) {
-    idx.tagUndone[todo.tag]--;
-    if (idx.tagUndone[todo.tag] <= 0) delete idx.tagUndone[todo.tag];
-  }
-  if (todo.archived) {
-    idx.counts.archived--;
-  } else if (!todo.done) {
-    idx.counts.all--;
-    if (todo.todo) idx.counts.todo--;
-    if (todo.important) idx.counts.important--;
-  }
-}
-
-function applyDelta(todo, field, oldVal, newVal) {
-  const idx = data._index;
-  if (field === 'tag') {
-    if (oldVal && idx.tagTotal[oldVal]) {
-      idx.tagTotal[oldVal]--;
-      if (idx.tagTotal[oldVal] <= 0) delete idx.tagTotal[oldVal];
-    }
-    if (oldVal && idx.tagUndone[oldVal] != null && !todo.done && !todo.archived) {
-      idx.tagUndone[oldVal]--;
-      if (idx.tagUndone[oldVal] <= 0) delete idx.tagUndone[oldVal];
-    }
-    if (newVal) {
-      idx.tagTotal[newVal] = (idx.tagTotal[newVal] || 0) + 1;
-      if (!todo.done && !todo.archived) {
-        idx.tagUndone[newVal] = (idx.tagUndone[newVal] || 0) + 1;
-      }
-    }
-  } else if (field === 'done') {
-    const wasUndone = !oldVal && !todo.archived;
-    const isUndone = !newVal && !todo.archived;
-    if (wasUndone && !isUndone) {
-      idx.counts.all--;
-      if (todo.todo) idx.counts.todo--;
-      if (todo.important) idx.counts.important--;
-      if (todo.tag && idx.tagUndone[todo.tag] != null) {
-        idx.tagUndone[todo.tag]--;
-        if (idx.tagUndone[todo.tag] <= 0) delete idx.tagUndone[todo.tag];
-      }
-    } else if (!wasUndone && isUndone) {
-      idx.counts.all++;
-      if (todo.todo) idx.counts.todo++;
-      if (todo.important) idx.counts.important++;
-      if (todo.tag) {
-        idx.tagUndone[todo.tag] = (idx.tagUndone[todo.tag] || 0) + 1;
-      }
-    }
-  } else if (field === 'archived') {
-    const wasUndone = !todo.done && !oldVal;
-    const isUndone = !todo.done && !newVal;
-    if (wasUndone && !isUndone) {
-      idx.counts.all--;
-      idx.counts.archived++;
-      if (todo.todo) idx.counts.todo--;
-      if (todo.important) idx.counts.important--;
-      if (todo.tag && idx.tagUndone[todo.tag] != null) {
-        idx.tagUndone[todo.tag]--;
-        if (idx.tagUndone[todo.tag] <= 0) delete idx.tagUndone[todo.tag];
-      }
-    } else if (!wasUndone && isUndone) {
-      idx.counts.all++;
-      idx.counts.archived--;
-      if (todo.todo) idx.counts.todo++;
-      if (todo.important) idx.counts.important++;
-      if (todo.tag) {
-        idx.tagUndone[todo.tag] = (idx.tagUndone[todo.tag] || 0) + 1;
-      }
-    } else if (!wasUndone && newVal) {
-      idx.counts.archived++;
-    } else if (!isUndone && oldVal) {
-      idx.counts.archived--;
-    }
-  } else if (field === 'important' || field === 'todo') {
-    if (!todo.done && !todo.archived) {
-      if (field === 'todo') {
-        if (newVal) idx.counts.todo++;
-        else idx.counts.todo--;
-      } else {
-        if (newVal) idx.counts.important++;
-        else idx.counts.important--;
-      }
-    }
-  }
+function getTodoById(id) {
+  return runtimeIndex ? runtimeIndex.get(id) : data.todos.find(todo => todo.id === id);
 }
 
 function getTagTaskCount(tag) {
@@ -477,9 +454,9 @@ function getFilteredTodos() {
     const onlyArchived = currentList === 'archived';
     return data.todos.filter(t => {
       if (onlyArchived ? !t.archived : t.archived) return false;
-      return t.title.toLowerCase().includes(kw) ||
-        (t.desc && t.desc.toLowerCase().includes(kw)) ||
-        (t.tag && t.tag.toLowerCase().includes(kw));
+      return runtimeIndex
+        ? runtimeIndex.matches(t, kw)
+        : `${t.title || ''}\n${t.desc || ''}\n${t.tag || ''}`.toLowerCase().includes(kw);
     });
   }
   return _getFilteredTodos(data, currentList, currentTag);
@@ -549,13 +526,11 @@ function setTodoDoneAnimated(todo, doneState, itemEl = null) {
 
   const commit = () => {
     const previousPositions = captureTodoPositions();
-    const oldDone = todo.done;
-    todo.done = doneState;
-    todo.doneAt = doneState ? new Date().toISOString() : null;
-    if (doneState && todo.reminderRepeat === 'none') {
-      todo.reminder = null;
-    }
-    applyDelta(todo, 'done', oldDone, todo.done);
+    runtimeIndex.update(todo, target => {
+      target.done = doneState;
+      target.doneAt = doneState ? new Date().toISOString() : null;
+      if (doneState && target.reminderRepeat === 'none') target.reminder = null;
+    });
     saveData();
     render();
     animateTodoReflow(previousPositions, todo.id);
@@ -581,14 +556,29 @@ function setTodoDoneAnimated(todo, doneState, itemEl = null) {
   setTimeout(commitOnce, 260);
 }
 
-function render() {
+function render(scopes = null) {
   /* 索引被外部置空时（如 settings 标签重命名/删除）自动重建 */
   if (!data._index) rebuildIndex();
-  renderSidebar();
-  renderTodoList();
-  renderStatus();
+  const all = scopes == null;
+  if (all || scopes.sidebar) renderSidebar();
+  if (all || scopes.list) renderTodoList();
+  if (all || scopes.status) renderStatus();
   /* 日历视图：统一在此分发，避免各 CRUD 点遗漏 */
-  if (currentList === 'calendar') renderCalendar();
+  if (currentList === 'calendar' && (all || scopes.calendar)) renderCalendar();
+}
+
+let scheduledRenderFrame = null;
+let scheduledRenderScopes = {};
+
+function scheduleRender(scopes = { sidebar: true, list: true, status: true, calendar: true }) {
+  Object.assign(scheduledRenderScopes, scopes);
+  if (scheduledRenderFrame) return;
+  scheduledRenderFrame = requestAnimationFrame(() => {
+    const nextScopes = scheduledRenderScopes;
+    scheduledRenderScopes = {};
+    scheduledRenderFrame = null;
+    render(nextScopes);
+  });
 }
 
 function renderSidebar() {
@@ -643,7 +633,7 @@ function renderTodoList() {
     if (sorted.length === 0) {
       todoListEl.innerHTML = '<div class="empty-state">暂无归档任务</div>';
     } else {
-      sorted.forEach(t => todoListEl.appendChild(renderTodoItem(t)));
+      appendTodoItems(todoListEl, sorted);
     }
     doneSection.style.display = 'none';
     taskSummary.textContent = `${sorted.length} 个归档`;
@@ -657,7 +647,7 @@ function renderTodoList() {
     if (sorted.length === 0) {
       todoListEl.innerHTML = '<div class="empty-state">未找到匹配的任务</div>';
     } else {
-      sorted.forEach(t => todoListEl.appendChild(renderTodoItem(t)));
+      appendTodoItems(todoListEl, sorted);
     }
     doneSection.style.display = 'none';
     taskSummary.textContent = `搜索到 ${sorted.length} 个任务`;
@@ -672,7 +662,7 @@ function renderTodoList() {
   if (sorted.length === 0) {
     todoListEl.innerHTML = '<div class="empty-state">暂无待办事项</div>';
   } else {
-    sorted.forEach(t => todoListEl.appendChild(renderTodoItem(t)));
+    appendTodoItems(todoListEl, sorted);
   }
 
   doneCountEl.textContent = done.length;
@@ -680,10 +670,16 @@ function renderTodoList() {
   doneToggleEl.classList.toggle('collapsed', doneCollapsed);
   doneListEl.innerHTML = '';
   if (!doneCollapsed) {
-    done.forEach(t => doneListEl.appendChild(renderTodoItem(t)));
+    appendTodoItems(doneListEl, done);
   }
 
   taskSummary.textContent = `${sorted.length} 个任务`;
+}
+
+function appendTodoItems(container, todos) {
+  const fragment = document.createDocumentFragment();
+  todos.forEach(todo => fragment.appendChild(renderTodoItem(todo)));
+  container.appendChild(fragment);
 }
 
 function renderTodoItem(t) {
@@ -701,8 +697,19 @@ function renderStatus() {
 }
 
 // --- Calendar ---
+let monthIndexCache = { key: '', version: -1, index: null };
+
 function renderCalendar() {
-  const monthIndex = buildMonthIndex(currentMonth.getFullYear(), currentMonth.getMonth(), data);
+  const key = `${currentMonth.getFullYear()}-${currentMonth.getMonth()}`;
+  const version = saveVersion;
+  if (monthIndexCache.key !== key || monthIndexCache.version !== version) {
+    monthIndexCache = {
+      key,
+      version,
+      index: buildMonthIndex(currentMonth.getFullYear(), currentMonth.getMonth(), data)
+    };
+  }
+  const monthIndex = monthIndexCache.index;
   _renderCalendar({ currentMonth, selectedDate, data, getTodosForDate, onDetailRender: renderCalendarDetail }, monthIndex);
 }
 
@@ -868,7 +875,7 @@ function showMonthPicker(currentMonth, onConfirm) {
 
 // --- Detail Panel ---
 function openDetail(id, triggerEl) {
-  const todo = data.todos.find(t => t.id === id);
+  const todo = getTodoById(id);
   _openDetail(todo, triggerEl);
 }
 
@@ -877,18 +884,23 @@ export async function initApp() {
   await initCrypto();
   data = await loadData();
   normalizeData();
-  rebuildIndex();
+  runtimeIndex = createRuntimeIndex(data);
+  if (needsDesktopPlaintextMigration) saveData();
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushAppData();
+  });
+  window.addEventListener('beforeunload', persistLocalSnapshot);
 
   initDetailEditor({
     data,
     getTagColor,
     onDoneTimeChange: (id, newDoneAt) => {
-      const todo = data.todos.find(t => t.id === id);
+      const todo = getTodoById(id);
       if (!todo) return;
-      todo.doneAt = newDoneAt;
+      runtimeIndex.update(todo, { doneAt: newDoneAt });
       saveData();
       render();
-      if (currentList === 'calendar') renderCalendar();
     }
   });
 
@@ -932,7 +944,7 @@ export async function initApp() {
     clearTimeout(searchTimer);
     searchTimer = setTimeout(() => {
       searchKeyword = searchInput.value.trim();
-      renderTodoList();
+      scheduleRender({ list: true });
     }, 200);
   });
 
@@ -1004,7 +1016,6 @@ export async function initApp() {
     if (currentList === 'calendar') {
       document.getElementById('view-list').classList.remove('active');
       document.getElementById('view-calendar').classList.add('active');
-      renderCalendar();
     } else {
       document.getElementById('view-calendar').classList.remove('active');
       document.getElementById('view-list').classList.add('active');
@@ -1079,8 +1090,7 @@ export async function initApp() {
         archivedAt: null,
         createdAt: Date.now()
       };
-      data.todos.push(todo);
-      addTodoToIndex(todo);
+      runtimeIndex.add(todo);
       saveData();
       quickAdd.value = '';
       resetQuickAddPreset();
@@ -1100,7 +1110,7 @@ export async function initApp() {
     const id = target.dataset.id;
 
     if (action === 'toggle') {
-      const todo = data.todos.find(t => t.id === id);
+      const todo = getTodoById(id);
       if (todo) {
         const itemEl = target.closest('.todo-item');
         setTodoDoneAnimated(todo, !todo.done, itemEl);
@@ -1108,11 +1118,9 @@ export async function initApp() {
     } else if (action === 'edit') {
       openDetail(id, target.closest('.todo-item'));
     } else if (action === 'star') {
-      const todo = data.todos.find(t => t.id === id);
+      const todo = getTodoById(id);
       if (todo) {
-        const oldImp = todo.important;
-        todo.important = !todo.important;
-        applyDelta(todo, 'important', oldImp, todo.important);
+        runtimeIndex.update(todo, { important: !todo.important }, { calendar: false });
         saveData();
         render();
       }
@@ -1164,7 +1172,7 @@ export async function initApp() {
     const doneTodos = filtered.filter(t => t.done && !t.archived);
     if (doneTodos.length === 0) { showToast('没有可归档的任务'); return; }
     const now = new Date().toISOString();
-    doneTodos.forEach(t => { t.archived = true; t.archivedAt = now; applyDelta(t, 'archived', false, true); });
+    doneTodos.forEach(todo => runtimeIndex.update(todo, { archived: true, archivedAt: now }));
     saveData();
     render();
     showToast(`已归档 ${doneTodos.length} 个任务`);
@@ -1174,33 +1182,27 @@ export async function initApp() {
   detailForm.addEventListener('submit', (e) => {
     e.preventDefault();
     const id = document.getElementById('detail-id').value;
-    const todo = data.todos.find(t => t.id === id);
+    const todo = getTodoById(id);
     if (!todo) return;
 
-    const oldTag = todo.tag;
-    const oldTodo = todo.todo;
-    const oldImp = todo.important;
+    const patch = {
+      title: document.getElementById('detail-title').value.trim(),
+      desc: document.getElementById('detail-desc').value.trim(),
+      priority: document.getElementById('detail-priority').dataset.value || 'none',
+      tag: document.getElementById('detail-tag').dataset.value.trim(),
+      startTime: document.getElementById('detail-start').value || null,
+      endTime: document.getElementById('detail-end').value || null,
+      reminder: document.getElementById('detail-reminder').value || null,
+      reminderRepeat: document.getElementById('detail-reminder-repeat').dataset.value || 'none',
+      todo: document.getElementById('detail-todo').checked,
+      important: document.getElementById('detail-important').checked
+    };
 
-    todo.title = document.getElementById('detail-title').value.trim();
-    todo.desc = document.getElementById('detail-desc').value.trim();
-    todo.priority = document.getElementById('detail-priority').dataset.value || 'none';
-    todo.tag = document.getElementById('detail-tag').dataset.value.trim();
-    todo.startTime = document.getElementById('detail-start').value || null;
-    todo.endTime = document.getElementById('detail-end').value || null;
-    todo.reminder = document.getElementById('detail-reminder').value || null;
-    todo.reminderRepeat = document.getElementById('detail-reminder-repeat').dataset.value || 'none';
-    todo.todo = document.getElementById('detail-todo').checked;
-    todo.important = document.getElementById('detail-important').checked;
-
-    /* 同步索引：tag / todo / important 变化 */
-    if (oldTag !== todo.tag) applyDelta(todo, 'tag', oldTag, todo.tag);
-    if (oldTodo !== todo.todo) applyDelta(todo, 'todo', oldTodo, todo.todo);
-    if (oldImp !== todo.important) applyDelta(todo, 'important', oldImp, todo.important);
-
-    if (todo.tag && !data.tags.includes(todo.tag)) {
-      data.tags.push(todo.tag);
+    if (patch.tag && !data.tags.includes(patch.tag)) {
+      data.tags.push(patch.tag);
     }
 
+    runtimeIndex.update(todo, patch);
     saveData();
     closeDetail();
     render();
@@ -1296,7 +1298,7 @@ export async function initApp() {
 
     if (todoItem) {
       const id = todoItem.dataset.id;
-      const todo = data.todos.find(t => t.id === id);
+      const todo = getTodoById(id);
       if (!todo) return;
       const items = buildTodoContextMenu(todo, { data, updateTodo, openDetail, deleteTodoById, toggleDone });
       showContextMenu(e.clientX, e.clientY, items);
@@ -1328,9 +1330,7 @@ export async function initApp() {
 
       const removeTodo = () => {
         const previousPositions = captureTodoPositions();
-        const todo = data.todos.find(t => t.id === id);
-        if (todo) removeTodoFromIndex(todo);
-        data.todos = data.todos.filter(t => t.id !== id);
+        runtimeIndex.remove(id);
         saveData();
         closeDetail();
         render();
@@ -1363,12 +1363,7 @@ export async function initApp() {
 
   function updateTodo(todo, patchOrMutator) {
     if (!todo) return;
-    if (typeof patchOrMutator === 'function') {
-      patchOrMutator(todo);
-    } else if (patchOrMutator && typeof patchOrMutator === 'object') {
-      Object.assign(todo, patchOrMutator);
-    }
-    rebuildIndex();
+    runtimeIndex.update(todo, patchOrMutator);
     saveData();
     render();
   }
@@ -1382,20 +1377,26 @@ export async function initApp() {
   function clearDoneTasks() {
     const doneTodos = getFilteredTodos().filter(t => t.done);
     if (doneTodos.length === 0) { showToast('没有已完成的任务'); return; }
-    const doneIds = new Set(doneTodos.map(t => t.id));
+    const doneIds = new Set(doneTodos.map(todo => todo.id));
     showConfirmDialog(`确定要清空 ${doneTodos.length} 个已完成任务？`, () => {
-      doneTodos.forEach(t => removeTodoFromIndex(t));
-      data.todos = data.todos.filter(t => !doneIds.has(t.id));
+      runtimeIndex.replaceTodos(data.todos.filter(t => !doneIds.has(t.id)));
       saveData();
       render();
     });
   }
 
   // --- Reminder System ---
-  const reminders = initReminders({ data, saveData, render, showToast, isNeutralinoEnv });
+  const reminders = initReminders({
+    data,
+    saveData,
+    render: () => scheduleRender({ list: true, status: true, calendar: true }),
+    showToast,
+    isNeutralinoEnv,
+    subscribeDataChanges
+  });
 
   // --- Mini Mode ---
-  const mini = initMiniMode({ data, saveData, render, showToast, isNeutralinoEnv, getTagDotStyle, showContextMenu, closeWindow, reminders, appConfig });
+  const mini = initMiniMode({ data, saveData, render, showToast, isNeutralinoEnv, getTagDotStyle, showContextMenu, closeWindow, reminders, appConfig, todoStore: runtimeIndex });
 
   // --- Summary Panel ---
   initAiSummary({ data, saveData, showToast });

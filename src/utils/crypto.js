@@ -1,12 +1,13 @@
 /* 本地存储加密模块
  * 算法：AES-GCM-256
- * 密钥派生：PBKDF2(100k iterations, SHA-256) 从设备指纹 + salt 派生
+ * 密钥派生：PBKDF2(100k iterations, SHA-256) 从稳定应用标识 + salt 派生
  *
  * 文件存储格式（多实例共享）：
  *   <salt-base64>
  *   ENC:<base64(iv[12] || ciphertext || authTag[16])>
  *
  * - salt 嵌入文件本身，不依赖 localStorage → 多实例天然共享
+ * - 解密时兼容旧版“设备指纹 + salt”密钥
  * - 旧格式（无 salt 前缀，单行 ENC: 或明文）自动回退到 localStorage salt
  * - 明文 JSON 直接透传（自动迁移）
  */
@@ -47,6 +48,23 @@ function getDeviceFingerprint() {
   return parts.join('|');
 }
 
+function getLegacyFingerprintCandidates() {
+  const fingerprint = getDeviceFingerprint();
+  const [userAgent, language, display, timezone] = fingerprint.split('|');
+  const chromeMatch = userAgent.match(/Chrome\/(\d+)/);
+  const edgeMatch = userAgent.match(/Edg\/(\d+)/);
+  const currentMajor = Number(edgeMatch?.[1] || chromeMatch?.[1]);
+  if (!Number.isFinite(currentMajor)) return [];
+
+  const candidates = [];
+  for (let major = currentMajor; major >= Math.max(100, currentMajor - 20); major--) {
+    let candidateUa = userAgent.replace(/Chrome\/[\d.]+/, `Chrome/${major}.0.0.0`);
+    candidateUa = candidateUa.replace(/Edg\/[\d.]+/, `Edg/${major}.0.0.0`);
+    candidates.push([candidateUa, language, display, timezone].join('|'));
+  }
+  return candidates;
+}
+
 /* 读取/生成 localStorage salt（向后兼容旧格式） */
 function getOrCreateLocalSalt() {
   let saltB64 = localStorage.getItem(STORAGE_KEY_SALT);
@@ -69,11 +87,15 @@ function generateNewSalt() {
   return salt;
 }
 
-async function deriveKeyWithSalt(salt) {
+async function deriveKeyWithSalt(salt, legacyFingerprint = false) {
   const c = getCrypto();
   if (!c) throw new Error('Web Crypto API not available');
   const enc = new TextEncoder();
-  const material = enc.encode(`todo-tools::v1::${getDeviceFingerprint()}`);
+  const material = enc.encode(
+    legacyFingerprint
+      ? `todo-tools::v1::${getDeviceFingerprint()}`
+      : 'todo-tools::v2::local-data'
+  );
   const baseKey = await c.subtle.importKey('raw', material, 'PBKDF2', false, ['deriveKey']);
   return c.subtle.deriveKey(
     { name: 'PBKDF2', salt, iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' },
@@ -151,9 +173,35 @@ async function decryptWithSalt(encrypted, salt) {
   const data = base64ToBytes(encrypted.slice(PREFIX.length));
   const iv = data.slice(0, IV_LENGTH);
   const ciphertext = data.slice(IV_LENGTH);
-  const key = await deriveKeyWithSalt(salt);
-  const plainBuf = await c.subtle.decrypt({ name: 'AES-GCM', iv }, key, ciphertext);
-  return new TextDecoder().decode(plainBuf);
+  const stableKey = await deriveKeyWithSalt(salt);
+  try {
+    const plainBuf = await c.subtle.decrypt({ name: 'AES-GCM', iv }, stableKey, ciphertext);
+    return new TextDecoder().decode(plainBuf);
+  } catch (stableError) {
+    try {
+      const legacyKey = await deriveKeyWithSalt(salt, true);
+      const plainBuf = await c.subtle.decrypt({ name: 'AES-GCM', iv }, legacyKey, ciphertext);
+      return new TextDecoder().decode(plainBuf);
+    } catch {}
+
+    for (const fingerprint of getLegacyFingerprintCandidates()) {
+      try {
+        const enc = new TextEncoder();
+        const material = enc.encode(`todo-tools::v1::${fingerprint}`);
+        const baseKey = await c.subtle.importKey('raw', material, 'PBKDF2', false, ['deriveKey']);
+        const legacyKey = await c.subtle.deriveKey(
+          { name: 'PBKDF2', salt, iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' },
+          baseKey,
+          { name: 'AES-GCM', length: 256 },
+          false,
+          ['decrypt']
+        );
+        const plainBuf = await c.subtle.decrypt({ name: 'AES-GCM', iv }, legacyKey, ciphertext);
+        return new TextDecoder().decode(plainBuf);
+      } catch {}
+    }
+    throw stableError;
+  }
 }
 
 /* 自动识别并解密：新格式（带 salt）→ 旧格式（用 localStorage salt）→ 透传 */

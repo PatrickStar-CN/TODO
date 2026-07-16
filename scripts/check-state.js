@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict';
+import { webcrypto } from 'node:crypto';
 import { countByList, countTagUndone, getFilteredTodos, sortByPriority, splitPendingDone } from '../src/selectors.js';
 import { DEFAULT_UI_STYLE, normalizeUiStyle } from '../src/uiPreferences.js';
 import { buildMonthActivityIndex } from '../src/calendar.js';
 import { initReminders } from '../src/reminder.js';
+import { createRuntimeIndex } from '../src/runtimeIndex.js';
+import { encrypt, initCrypto, tryDecrypt } from '../src/utils/crypto.js';
 
 const todos = [
   { id: '1', title: 'High todo', priority: 'high', tag: 'work', todo: true, important: true, done: false, archived: false, createdAt: 1 },
@@ -55,6 +58,85 @@ const activity = buildMonthActivityIndex(2026, 0, {
 assert.deepEqual(activity.get('2026-01-02'), { created: 2, done: 0 });
 assert.deepEqual(activity.get('2026-01-03'), { created: 0, done: 2 });
 
+const indexedData = {
+  todos: [
+    { id: 'a', title: 'Write report', desc: 'Quarterly', tag: 'work', todo: true, important: false, done: false, archived: false, createdAt: 1 },
+    { id: 'b', title: 'Old note', desc: '', tag: 'home', todo: false, important: true, done: true, archived: true, createdAt: 2 }
+  ]
+};
+const runtimeIndex = createRuntimeIndex(indexedData);
+assert.equal(runtimeIndex.get('a').title, 'Write report');
+assert.equal(runtimeIndex.matches(indexedData.todos[0], 'quarterly'), true);
+assert.deepEqual(indexedData._index.counts, { todo: 1, important: 0, all: 1, archived: 1 });
+
+runtimeIndex.update(runtimeIndex.get('a'), { done: true, tag: 'done' });
+assert.deepEqual(indexedData._index.counts, { todo: 0, important: 0, all: 0, archived: 1 });
+assert.equal(indexedData._index.tagUndone.work || 0, 0);
+assert.equal(indexedData._index.tagTotal.done, 1);
+assert.equal(runtimeIndex.matches(runtimeIndex.get('a'), 'quarterly'), true);
+
+runtimeIndex.add({ id: 'c', title: 'New task', desc: '', tag: 'work', todo: true, important: true, done: false, archived: false, createdAt: 3 });
+assert.deepEqual(indexedData._index.counts, { todo: 1, important: 1, all: 1, archived: 1 });
+runtimeIndex.remove('b');
+assert.deepEqual(indexedData._index.counts, { todo: 1, important: 1, all: 1, archived: 0 });
+runtimeIndex.replaceTodos(indexedData.todos.filter(todo => todo.id !== 'a'));
+assert.equal(runtimeIndex.get('a'), undefined);
+assert.equal(runtimeIndex.get('c').title, 'New task');
+
+const storage = new Map();
+globalThis.localStorage = {
+  getItem: key => storage.get(key) ?? null,
+  setItem: (key, value) => storage.set(key, String(value))
+};
+globalThis.window = { crypto: webcrypto };
+Object.defineProperty(globalThis, 'navigator', {
+  value: {
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0',
+    language: 'zh-CN'
+  },
+  configurable: true
+});
+Object.defineProperty(globalThis, 'screen', {
+  value: { width: 1920, height: 1080 },
+  configurable: true
+});
+await initCrypto();
+const encryptedState = await encrypt('{"todos":[{"id":"secure"}]}');
+assert.equal(await tryDecrypt(encryptedState), '{"todos":[{"id":"secure"}]}');
+
+const legacySaltB64 = storage.get('todo_app_salt');
+const legacySalt = Buffer.from(legacySaltB64, 'base64');
+const legacyFingerprint = [
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36 Edg/148.0.0.0',
+  'zh-CN',
+  '1920x1080',
+  String(new Date().getTimezoneOffset())
+].join('|');
+const legacyMaterial = new TextEncoder().encode(`todo-tools::v1::${legacyFingerprint}`);
+const legacyBaseKey = await webcrypto.subtle.importKey('raw', legacyMaterial, 'PBKDF2', false, ['deriveKey']);
+const legacyKey = await webcrypto.subtle.deriveKey(
+  { name: 'PBKDF2', salt: legacySalt, iterations: 100000, hash: 'SHA-256' },
+  legacyBaseKey,
+  { name: 'AES-GCM', length: 256 },
+  false,
+  ['encrypt']
+);
+const legacyIv = webcrypto.getRandomValues(new Uint8Array(12));
+const legacyCipher = new Uint8Array(await webcrypto.subtle.encrypt(
+  { name: 'AES-GCM', iv: legacyIv },
+  legacyKey,
+  new TextEncoder().encode('{"todos":[{"id":"legacy"}]}')
+));
+const legacyPayload = new Uint8Array(legacyIv.length + legacyCipher.length);
+legacyPayload.set(legacyIv);
+legacyPayload.set(legacyCipher, legacyIv.length);
+const legacyContent = `${legacySaltB64}\nENC:${Buffer.from(legacyPayload).toString('base64')}`;
+assert.equal(await tryDecrypt(legacyContent), '{"todos":[{"id":"legacy"}]}');
+delete globalThis.localStorage;
+delete globalThis.navigator;
+delete globalThis.screen;
+delete globalThis.window;
+
 const notificationCommands = [];
 globalThis.NL_OS = 'Windows';
 globalThis.window = { location: { href: 'http://localhost/' } };
@@ -72,6 +154,12 @@ globalThis.Neutralino = {
   },
   filesystem: { writeBinaryFile: async () => {} }
 };
+const nativeSetInterval = globalThis.setInterval;
+let reminderIntervalCalls = 0;
+globalThis.setInterval = (...args) => {
+  reminderIntervalCalls++;
+  return nativeSetInterval(...args);
+};
 const reminderTest = initReminders({
   data: { todos: [] },
   saveData: () => {},
@@ -79,6 +167,8 @@ const reminderTest = initReminders({
   showToast: () => {},
   isNeutralinoEnv: () => true
 });
+globalThis.setInterval = nativeSetInterval;
+assert.equal(reminderIntervalCalls, 0);
 assert.equal(await reminderTest.testNotification(), true);
 assert.equal(notificationCommands.length, 2);
 assert.ok(notificationCommands.every(command => command.includes('powershell.exe')));
