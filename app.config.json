@@ -10,9 +10,9 @@
   "minWidth": 800,
   "minHeight": 500,
   "miniMode": {
-    "width": 220,
-    "height": 260,
-    "minWidth": 160,
-    "minHeight": 120
+    "width": 240,
+    "height": 288,
+    "minWidth": 220,
+    "minHeight": 220
   }
 }

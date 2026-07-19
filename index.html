@@ -306,19 +306,26 @@
 
   <div id="mini-panel" class="mini-panel hidden">
     <div class="mini-header">
-      <span class="mini-title" id="mini-drag-region">待办事项</span>
+      <div class="mini-brand" id="mini-drag-region">
+        <span class="mini-brand-icon" data-icon="inbox" aria-hidden="true"></span>
+        <div class="mini-brand-copy">
+          <strong class="mini-title">待办事项</strong>
+          <span class="mini-caption">快速处理</span>
+        </div>
+      </div>
       <div class="mini-actions">
-        <button class="mini-btn" id="btn-mini-add" title="快速添加" aria-label="快速添加"><span data-icon="plus"></span></button>
-        <button class="mini-btn" id="btn-exit-mini" title="恢复窗口" aria-label="恢复窗口"><span data-icon="window"></span></button>
+        <button class="mini-btn" id="btn-mini-add" type="button" title="快速添加" aria-label="快速添加"><span data-icon="plus"></span></button>
+        <button class="mini-btn" id="btn-exit-mini" type="button" title="恢复窗口" aria-label="恢复窗口"><span data-icon="window"></span></button>
       </div>
     </div>
     <div class="mini-stats">
-      <span class="mini-stat-item"><span id="mini-pending-count">0</span> 待办</span>
-      <span class="mini-stat-item"><span id="mini-done-count">0</span> 已完成</span>
+      <span class="mini-stat-item mini-stat-pending"><span class="mini-stat-dot" aria-hidden="true"></span><strong id="mini-pending-count">0</strong><span>待办</span></span>
+      <span class="mini-stat-item mini-stat-done"><span class="mini-stat-dot" aria-hidden="true"></span><strong id="mini-done-count">0</strong><span>已完成</span></span>
     </div>
     <div class="mini-list" id="mini-list"></div>
     <div class="mini-input-row hidden" id="mini-input-row">
-      <input type="text" id="mini-quick-add" placeholder="添加任务...">
+      <span class="mini-input-icon" data-icon="plus" aria-hidden="true"></span>
+      <input type="text" id="mini-quick-add" placeholder="添加任务..." aria-label="快速添加任务">
     </div>
     <div class="mini-tooltip hidden" id="mini-tooltip"></div>
   </div>

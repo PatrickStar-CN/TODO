@@ -14,10 +14,10 @@ export function initMiniMode({ data, saveData, render, showToast, isNeutralinoEn
   const miniQuickAdd = document.getElementById('mini-quick-add');
 
   const miniCfg = appConfig?.miniMode || {};
-  const miniWidth = miniCfg.width || 220;
-  const miniHeight = miniCfg.height || 260;
-  const miniMinWidth = miniCfg.minWidth || 160;
-  const miniMinHeight = miniCfg.minHeight || 120;
+  const miniWidth = miniCfg.width || 240;
+  const miniHeight = miniCfg.height || 288;
+  const miniMinWidth = miniCfg.minWidth || 220;
+  const miniMinHeight = miniCfg.minHeight || 220;
 
   function renderMiniPanel() {
     const { pending, done } = splitPendingDone(data.todos);
@@ -26,12 +26,13 @@ export function initMiniMode({ data, saveData, render, showToast, isNeutralinoEn
 
     const sorted = sortByPriority(pending);
     const items = sorted.slice(0, 8);
+    miniList.classList.toggle('is-empty', items.length === 0);
     miniList.innerHTML = items.length === 0
-      ? '<div class="empty-state-sm">暂无待办</div>'
+      ? `<div class="mini-empty-state">${iconSvg('inbox')}<strong>暂无待办</strong><span>点击右上角添加任务</span></div>`
       : items.map(t => {
         const prioCls = t.priority && t.priority !== 'none' ? `p-${t.priority}` : '';
         return `<div class="mini-todo-item" data-id="${t.id}">
-          <div class="mini-checkbox" data-mini-toggle="${t.id}"></div>
+          <button class="mini-checkbox" type="button" data-mini-toggle="${t.id}" aria-label="完成任务：${escapeHtml(t.title)}"></button>
           ${prioCls ? `<div class="mini-priority-dot ${prioCls}"></div>` : ''}
           <span class="mini-todo-title">${escapeHtml(t.title)}</span>
         </div>`;
@@ -79,6 +80,7 @@ export function initMiniMode({ data, saveData, render, showToast, isNeutralinoEn
   async function enterMiniMode() {
     isMiniMode = true;
     reminders.pause();
+    document.documentElement.classList.add('mini-mode-active');
     document.querySelector('.app').style.display = 'none';
     document.body.style.background = 'var(--bg-surface)';
     miniPanel.classList.remove('hidden');
@@ -109,6 +111,7 @@ export function initMiniMode({ data, saveData, render, showToast, isNeutralinoEn
     reminders.resume();
     miniPanel.classList.add('hidden');
     miniInputRow.classList.add('hidden');
+    document.documentElement.classList.remove('mini-mode-active');
     document.body.style.background = '';
     document.querySelector('.app').style.display = '';
     if (isNeutralinoEnv()) {

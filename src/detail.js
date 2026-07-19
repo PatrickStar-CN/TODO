@@ -4,6 +4,7 @@ import { escapeHtml } from './utils/html.js';
 import { getUiMotionDuration } from './uiPreferences.js';
 
 let onDoneTimeChange = null;
+let getDetailTagColor = () => '#6366f1';
 
 /* 优先级选项配置 */
 const PRIORITY_OPTIONS = [
@@ -124,7 +125,7 @@ export function initDetailEditor(callbacks) {
   onDoneTimeChange = callbacks.onDoneTimeChange || null;
   const { data, getTagColor: getColor } = callbacks;
   /* 与列表/侧边栏共用同一套标签取色规则（由 app.js 注入） */
-  const getTagColor = getColor || (() => '#6366f1');
+  getDetailTagColor = getColor || (() => '#6366f1');
 
   document.querySelectorAll('.detail-select').forEach(select => {
     select.addEventListener('keydown', (event) => {
@@ -149,7 +150,7 @@ export function initDetailEditor(callbacks) {
     e.stopPropagation();
     const tagOptions = (data.tags || []).map(tag => ({ value: tag, label: tag }));
     createDetailDropdown(this, tagOptions.length > 0 ? tagOptions : [{ value: '', label: '暂无标签' }], (opt) =>
-      opt.value ? `<span class="tag-dot" style="background:${getTagColor(opt.value)}"></span>${escapeHtml(opt.label)}` : opt.label
+      opt.value ? `<span class="tag-dot" style="background:${getDetailTagColor(opt.value)}"></span>${escapeHtml(opt.label)}` : opt.label
     );
   });
 
@@ -239,7 +240,7 @@ export function openDetail(todo, triggerEl) {
   const tagEl = document.getElementById('detail-tag');
   tagEl.dataset.value = tagVal;
   tagEl.querySelector('.detail-select-trigger').innerHTML = tagVal
-    ? `<span class="tag-dot" style="background:${getTagColor(tagVal)}"></span>${escapeHtml(tagVal)}`
+    ? `<span class="tag-dot" style="background:${getDetailTagColor(tagVal)}"></span>${escapeHtml(tagVal)}`
     : '未设置';
 
   /* 设置自定义下拉值 —— 重复提醒 */

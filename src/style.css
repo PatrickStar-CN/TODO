@@ -3824,7 +3824,7 @@ body::before {
 }
 
 .icon-priority-high { color: var(--danger); }
-.icon-priority-medium { color: var(--warning); }
+.icon-priority-medium { color: var(--warning-text); }
 .icon-priority-low { color: var(--success); }
 .icon-priority-none { color: var(--text-muted); }
 
@@ -7227,7 +7227,14 @@ body,
 
 .detail-panel .detail-select-trigger:has(.prio-dot),
 .detail-panel .detail-select-trigger:has(.tag-dot) {
-  padding-inline-start: 3px;
+  padding-inline-start: 6px;
+}
+
+.detail-panel .detail-select-trigger .tag-dot,
+.detail-dropdown-item .tag-dot {
+  width: 9px;
+  height: 9px;
+  min-width: 9px;
 }
 
 .detail-panel .detail-select-arrow {
@@ -8656,4 +8663,329 @@ body {
   .context-menu-submenu .submenu-indicator {
     transition: none;
   }
+}
+
+/* Mini mode — compact companion window using the main project visual system */
+html.mini-mode-active,
+html.mini-mode-active body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: var(--bg-surface) !important;
+}
+
+.mini-panel {
+  box-sizing: border-box;
+  width: 100vw;
+  height: 100dvh;
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--bg-surface) 96%, transparent);
+  border: 1px solid color-mix(in srgb, var(--glass-stroke-strong) 38%, transparent);
+  border-radius: 12px;
+  box-shadow: var(--glass-panel-shadow), var(--ui-card-highlight);
+}
+
+.mini-header {
+  min-height: 50px;
+  padding: 8px 9px 7px 10px;
+  border-bottom: 1px solid color-mix(in srgb, var(--glass-divider) 58%, transparent);
+}
+
+.mini-brand {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  flex: 1;
+  gap: 8px;
+  cursor: move;
+  user-select: none;
+}
+
+.mini-brand-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  color: var(--accent-text);
+  background: color-mix(in srgb, var(--accent) 14%, var(--glass-control-bg));
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
+  border-radius: calc(var(--ui-radius) - 3px);
+  box-shadow: var(--ui-card-highlight);
+}
+
+.mini-brand-icon .app-icon {
+  width: 15px;
+  height: 15px;
+}
+
+.mini-brand-copy {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+
+.mini-title {
+  overflow: hidden;
+  color: var(--text-heading);
+  font-size: calc(12px * var(--ui-font-scale));
+  font-weight: 650;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mini-caption {
+  color: var(--text-muted);
+  font-size: calc(9px * var(--ui-font-scale));
+  line-height: 1.2;
+}
+
+.mini-actions {
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+.mini-actions .mini-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--glass-control-bg) var(--ui-control-opacity), transparent);
+  border: 1px solid color-mix(in srgb, var(--glass-control-border-hover) 28%, transparent);
+  border-radius: calc(var(--ui-radius) - 3px);
+  box-shadow: var(--glass-inset-highlight);
+}
+
+.mini-actions .mini-btn .app-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.mini-actions .mini-btn:hover,
+.mini-actions .mini-btn:focus-visible {
+  outline: none;
+  color: var(--accent-text);
+  background: color-mix(in srgb, var(--accent) 12%, var(--glass-control-bg-hover));
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 10%, transparent), var(--glass-inset-highlight);
+}
+
+.mini-stats {
+  gap: 5px;
+  padding: 6px 8px;
+  background: transparent;
+  border-bottom: 0;
+}
+
+.mini-stat-item {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  flex: 1;
+  gap: 4px;
+  min-height: 26px;
+  padding: 4px 6px;
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--glass-control-bg) 72%, transparent);
+  border: 1px solid color-mix(in srgb, var(--glass-stroke-strong) 24%, transparent);
+  border-radius: calc(var(--ui-radius) - 4px);
+  font-size: calc(9px * var(--ui-font-scale));
+  line-height: 1;
+}
+
+.mini-stat-item strong {
+  color: var(--text-primary);
+  font-size: calc(11px * var(--ui-font-scale));
+  font-variant-numeric: tabular-nums;
+}
+
+.mini-stat-dot {
+  width: 5px;
+  height: 5px;
+  flex: 0 0 5px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.mini-stat-done .mini-stat-dot {
+  background: var(--success);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--success) 12%, transparent);
+}
+
+.mini-list {
+  display: flex;
+  min-height: 0;
+  padding: 2px 8px 8px;
+  flex-direction: column;
+  gap: 4px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: transparent transparent;
+  scrollbar-width: thin;
+}
+
+.mini-list:hover {
+  scrollbar-color: color-mix(in srgb, var(--accent) 50%, transparent) transparent;
+}
+
+.mini-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.mini-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.mini-list::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 999px;
+}
+
+.mini-list:hover::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--accent) 50%, transparent);
+}
+
+.mini-list.is-empty {
+  overflow: hidden;
+}
+
+.mini-todo-item {
+  min-height: 32px;
+  margin: 0;
+  padding: 5px 8px;
+  gap: 7px;
+  flex: 0 0 auto;
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--glass-surface-input) 72%, transparent);
+  border: 1px solid color-mix(in srgb, var(--glass-stroke-strong) 24%, transparent);
+  border-radius: calc(var(--ui-radius) - 3px);
+  box-shadow: var(--glass-inset-highlight);
+  font-size: calc(11px * var(--ui-font-scale));
+}
+
+.mini-todo-item:hover {
+  background: color-mix(in srgb, var(--glass-surface-hover) 84%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 24%, var(--glass-stroke-strong));
+  box-shadow: var(--glass-control-shadow), var(--glass-inset-highlight);
+  transform: none;
+}
+
+.mini-todo-item .mini-checkbox {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  min-width: 15px;
+  padding: 0;
+  background: color-mix(in srgb, var(--glass-surface-input) 82%, transparent);
+  border: 1.5px solid var(--checkbox-border);
+  border-radius: 50%;
+  box-shadow: var(--glass-inset-highlight);
+}
+
+.mini-todo-item .mini-checkbox:hover,
+.mini-todo-item .mini-checkbox:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent), var(--glass-inset-highlight);
+}
+
+.mini-todo-item .mini-priority-dot {
+  width: 6px;
+  height: 6px;
+  box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 10%, transparent);
+}
+
+.mini-todo-item .mini-todo-title {
+  min-width: 0;
+  font-size: calc(11px * var(--ui-font-scale));
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.mini-input-row {
+  position: relative;
+  padding: 7px 8px 8px;
+  background: color-mix(in srgb, var(--bg-surface) 94%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--glass-divider) 56%, transparent);
+}
+
+.mini-input-icon {
+  position: absolute;
+  top: 50%;
+  left: 18px;
+  z-index: 1;
+  display: inline-flex;
+  color: var(--accent-text);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.mini-input-icon .app-icon {
+  width: 13px;
+  height: 13px;
+}
+
+.mini-input-row input {
+  min-height: 34px;
+  padding: 7px 10px 7px 31px;
+  background: color-mix(in srgb, var(--glass-control-bg) var(--ui-control-opacity), transparent);
+  border: 1px solid color-mix(in srgb, var(--glass-control-border-hover) 34%, transparent);
+  border-radius: calc(var(--ui-radius) - 3px);
+  box-shadow: var(--glass-inset-highlight);
+  font-size: calc(11px * var(--ui-font-scale));
+}
+
+.mini-empty-state {
+  display: flex;
+  min-height: 116px;
+  padding: 18px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.mini-list.is-empty .mini-empty-state {
+  min-height: 0;
+  height: 100%;
+  padding: 10px 12px 18px;
+  flex: 1;
+}
+
+.mini-empty-state .app-icon {
+  width: 24px;
+  height: 24px;
+  margin-bottom: 3px;
+  color: var(--accent-text);
+}
+
+.mini-empty-state strong {
+  color: var(--text-secondary);
+  font-size: calc(11px * var(--ui-font-scale));
+}
+
+.mini-empty-state span {
+  font-size: calc(9px * var(--ui-font-scale));
+}
+
+.mini-tooltip {
+  padding: 9px 10px;
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--glass-surface-strong) 97%, transparent);
+  border-color: color-mix(in srgb, var(--glass-stroke-strong) 42%, transparent);
+  border-radius: var(--ui-radius);
+  box-shadow: var(--glass-panel-shadow), var(--ui-card-highlight);
 }
