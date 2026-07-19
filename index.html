@@ -214,23 +214,43 @@
           </div>
         </div>
       </div>
-      <div class="detail-row checkbox-row">
-        <label>
-          <input type="checkbox" id="detail-todo"> 添加到"TODO"
-        </label>
+      <div class="detail-row-inline detail-toggle-grid">
+        <div class="detail-row checkbox-row">
+          <label for="detail-todo">
+            <span class="detail-toggle-copy">
+              <span class="detail-toggle-title">添加到 TODO</span>
+              <span class="detail-toggle-hint" id="detail-todo-hint">在 TODO 清单中显示</span>
+            </span>
+            <input type="checkbox" id="detail-todo" aria-label="添加到 TODO" aria-describedby="detail-todo-hint">
+            <span class="detail-toggle-control" aria-hidden="true"></span>
+          </label>
+        </div>
+        <div class="detail-row checkbox-row">
+          <label for="detail-important">
+            <span class="detail-toggle-copy">
+              <span class="detail-toggle-title">标记为重要</span>
+              <span class="detail-toggle-hint" id="detail-important-hint">显示在重要视图中</span>
+            </span>
+            <input type="checkbox" id="detail-important" aria-label="标记为重要" aria-describedby="detail-important-hint">
+            <span class="detail-toggle-control" aria-hidden="true"></span>
+          </label>
+        </div>
       </div>
-      <div class="detail-row checkbox-row">
-        <label>
-          <input type="checkbox" id="detail-important"> 标记为重要
-        </label>
-      </div>
-      <div class="detail-row detail-done-time hidden" id="detail-done-row">
-        <label>完成时间</label>
-        <span id="detail-done-time" class="detail-done-value"></span>
-      </div>
-      <div class="detail-row detail-created-time" id="detail-created-row">
-        <label>创建时间</label>
-        <span id="detail-created-time" class="detail-created-value"></span>
+      <div class="detail-meta-grid">
+        <div class="detail-row detail-meta-card detail-done-time hidden" id="detail-done-row">
+          <span class="detail-meta-icon detail-meta-icon-done" data-icon="check" aria-hidden="true"></span>
+          <div class="detail-meta-content">
+            <label>完成时间</label>
+            <span id="detail-done-time" class="detail-done-value"></span>
+          </div>
+        </div>
+        <div class="detail-row detail-meta-card detail-created-time" id="detail-created-row">
+          <span class="detail-meta-icon" data-icon="clock" aria-hidden="true"></span>
+          <div class="detail-meta-content">
+            <label>创建时间</label>
+            <span id="detail-created-time" class="detail-created-value"></span>
+          </div>
+        </div>
       </div>
       <div class="detail-actions">
         <button type="submit" class="btn-primary">保存</button>
@@ -242,28 +262,45 @@
   <!-- AI 总结面板 -->
   <div id="summary-panel" class="summary-panel hidden">
     <div class="summary-header">
-      <h3>AI 总结</h3>
+      <div class="summary-heading">
+        <span class="summary-heading-icon" data-icon="document" aria-hidden="true"></span>
+        <div>
+          <h3>AI 总结</h3>
+          <p>将日历任务整理为清晰的工作报告</p>
+        </div>
+      </div>
       <div class="summary-header-actions">
-        <button class="icon-btn" id="close-summary" aria-label="关闭 AI 总结"><span data-icon="x"></span></button>
+        <button class="icon-btn" id="close-summary" type="button" aria-label="关闭 AI 总结"><span data-icon="x"></span></button>
       </div>
     </div>
     <div class="summary-controls">
-      <div class="summary-type-tabs">
-        <button class="summary-tab active" data-type="daily">日报</button>
-        <button class="summary-tab" data-type="weekly">周报</button>
+      <div class="summary-config-card">
+        <div class="summary-type-tabs" role="tablist" aria-label="报告类型">
+          <button class="summary-tab active" type="button" role="tab" aria-selected="true" data-type="daily">日报</button>
+          <button class="summary-tab" type="button" role="tab" aria-selected="false" data-type="weekly">周报</button>
+        </div>
+        <div class="summary-date-row">
+          <label for="summary-date">报告日期</label>
+          <div class="summary-date-control">
+            <input type="text" id="summary-date" data-dp-mode="date">
+            <span id="summary-date-range" class="summary-date-range"></span>
+          </div>
+        </div>
+        <button class="btn-primary" id="btn-generate-report" type="button">
+          <span data-icon="document" aria-hidden="true"></span>
+          <span class="summary-generate-label">生成报告</span>
+        </button>
       </div>
-      <div class="summary-date-row">
-        <label>日期</label>
-        <input type="text" id="summary-date" data-dp-mode="date">
-        <span id="summary-date-range" class="summary-date-range"></span>
-      </div>
-      <button class="btn-primary" id="btn-generate-report">生成报告</button>
     </div>
-    <div class="summary-output" id="summary-output">
-      <div class="summary-placeholder">选择日期并点击"生成报告"</div>
+    <div class="summary-output" id="summary-output" role="status" aria-live="polite">
+      <div class="summary-placeholder">
+        <span class="summary-placeholder-icon" data-icon="document" aria-hidden="true"></span>
+        <strong>准备生成总结</strong>
+        <span>选择报告类型和日期，AI 将为你整理任务进度</span>
+      </div>
     </div>
     <div class="summary-footer hidden" id="summary-footer">
-      <button class="btn-copy" id="btn-copy-report">复制内容</button>
+      <button class="btn-copy" id="btn-copy-report" type="button"><span data-icon="clipboard" aria-hidden="true"></span><span>复制内容</span></button>
     </div>
   </div>
 

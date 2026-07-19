@@ -2,6 +2,7 @@ import { toLocalDateInput, parseLocalDateInput, formatMonthDay } from './utils/d
 import { escapeHtml } from './utils/html.js';
 import { closeDetail } from './detail.js';
 import { resolveAiApiUrl } from './utils/aiApi.js';
+import { getUiMotionDuration } from './uiPreferences.js';
 
 export function initAiSummary({ data, saveData, showToast }) {
   let summaryType = 'daily';
@@ -10,6 +11,7 @@ export function initAiSummary({ data, saveData, showToast }) {
   const summaryFooter = document.getElementById('summary-footer');
   const summaryDateInput = document.getElementById('summary-date');
   const generateReportBtn = document.getElementById('btn-generate-report');
+  const generateReportLabel = generateReportBtn.querySelector('.summary-generate-label');
   let isGeneratingReport = false;
 
   summaryDateInput.value = toLocalDateInput(new Date());
@@ -54,7 +56,7 @@ export function initAiSummary({ data, saveData, showToast }) {
     summaryPanel.classList.remove('hidden', 'hiding');
     summaryPanel.style.animation = 'none';
     summaryPanel.offsetHeight;
-    summaryPanel.style.animation = 'modalExpandIn 0.28s cubic-bezier(0.16, 1, 0.3, 1)';
+    summaryPanel.style.animation = 'modalExpandIn var(--motion-panel)';
 
     if (!summaryOverlay) {
       summaryOverlay = document.createElement('div');
@@ -69,14 +71,14 @@ export function initAiSummary({ data, saveData, showToast }) {
 
   document.getElementById('close-summary').addEventListener('click', () => {
     summaryPanel.classList.add('hiding');
-    summaryPanel.style.animation = 'modalShrinkOut 0.2s cubic-bezier(0.4, 0, 1, 1) forwards';
+    summaryPanel.style.animation = 'modalShrinkOut var(--motion-normal) forwards';
     if (summaryOverlay) {
       summaryOverlay.classList.add('hiding');
       summaryOverlay.addEventListener('animationend', () => {
         summaryOverlay.remove();
         summaryOverlay = null;
       }, { once: true });
-      setTimeout(() => { if (summaryOverlay && summaryOverlay.parentNode) { summaryOverlay.remove(); summaryOverlay = null; } }, 300);
+      setTimeout(() => { if (summaryOverlay && summaryOverlay.parentNode) { summaryOverlay.remove(); summaryOverlay = null; } }, getUiMotionDuration('normal') + 50);
     }
     summaryPanel.addEventListener('animationend', () => {
       summaryPanel.classList.add('hidden');
@@ -89,13 +91,17 @@ export function initAiSummary({ data, saveData, showToast }) {
         summaryPanel.classList.remove('hiding');
         summaryPanel.style.animation = '';
       }
-    }, 300);
+    }, getUiMotionDuration('normal') + 50);
   });
 
   document.querySelectorAll('.summary-tab').forEach(tab => {
     tab.addEventListener('click', () => {
-      document.querySelectorAll('.summary-tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.summary-tab').forEach(t => {
+        t.classList.remove('active');
+        t.setAttribute('aria-selected', 'false');
+      });
       tab.classList.add('active');
+      tab.setAttribute('aria-selected', 'true');
       summaryType = tab.dataset.type;
       updateSummaryDateRange();
     });
@@ -165,10 +171,12 @@ export function initAiSummary({ data, saveData, showToast }) {
 
     isGeneratingReport = true;
     generateReportBtn.disabled = true;
-    generateReportBtn.textContent = '生成中...';
+    generateReportBtn.classList.add('is-loading');
+    generateReportBtn.setAttribute('aria-busy', 'true');
+    generateReportLabel.textContent = '生成中...';
     summaryOutput.textContent = '';
     summaryFooter.classList.add('hidden');
-    summaryOutput.innerHTML = '<div class="summary-loading">正在生成...</div>';
+    summaryOutput.innerHTML = '<div class="summary-loading"><span class="summary-loading-indicator" aria-hidden="true"></span><strong>正在生成总结</strong><span>AI 正在整理任务进度，请稍候</span></div>';
 
     try {
       const response = await fetch(resolveAiApiUrl(data.aiConfig.apiUrl), {
@@ -227,7 +235,9 @@ export function initAiSummary({ data, saveData, showToast }) {
     } finally {
       isGeneratingReport = false;
       generateReportBtn.disabled = false;
-      generateReportBtn.textContent = '生成报告';
+      generateReportBtn.classList.remove('is-loading');
+      generateReportBtn.removeAttribute('aria-busy');
+      generateReportLabel.textContent = '生成报告';
     }
   });
 

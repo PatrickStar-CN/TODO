@@ -1,6 +1,6 @@
 import { toLocalDatetime } from './utils/date.js';
 
-export function buildTodoContextMenu(todo, { data, updateTodo, openDetail, deleteTodoById, toggleDone }) {
+export function buildTodoContextMenu(todo, { data, getTagColor, updateTodo, openDetail, deleteTodoById, toggleDone }) {
   const items = [];
   if (todo.done) {
     items.push({ icon: 'undo', label: '取消完成', action: () => toggleDone(todo, false) });
@@ -22,8 +22,9 @@ export function buildTodoContextMenu(todo, { data, updateTodo, openDetail, delet
     ]});
     if (data.tags.length > 0) {
       items.push({ icon: 'tag', label: '标签', submenu: data.tags.map(tag => ({
-        icon: todo.tag === tag ? 'check' : null,
+        color: getTagColor?.(tag) || '#6366f1',
         label: tag,
+        selected: todo.tag === tag,
         action: () => updateTodo(todo, { tag: todo.tag === tag ? '' : tag })
       }))});
     }

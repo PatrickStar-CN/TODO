@@ -56,6 +56,10 @@ function getTagDotStyle(tag) {
   return `style="background:${getTagColor(tag)}"`;
 }
 
+function getNextTagDotStyle() {
+  return `style="background:${TAG_COLORS[data.tags.length % TAG_COLORS.length]}"`;
+}
+
 function isNeutralinoEnv() {
   return typeof Neutralino !== 'undefined' && typeof NL_PORT !== 'undefined';
 }
@@ -1123,7 +1127,31 @@ export async function initApp() {
     document.querySelectorAll('.quick-popup').forEach(el => el.remove());
   }
 
-  initQuickAddPopups({ quickAddPreset, updateQuickAddIndicators, data, getTagDotStyle });
+  function createQuickAddTag(rawName) {
+    const name = rawName.trim();
+    if (!name) return { tag: '', message: '请输入标签名称' };
+
+    const existing = data.tags.find(tag => tag === name);
+    if (existing) {
+      showToast('标签已存在，已直接选中');
+      return { tag: existing, created: false };
+    }
+
+    data.tags.push(name);
+    saveData();
+    renderSidebar();
+    showToast('标签创建成功');
+    return { tag: name, created: true };
+  }
+
+  initQuickAddPopups({
+    quickAddPreset,
+    updateQuickAddIndicators,
+    data,
+    getTagDotStyle,
+    getNextTagDotStyle,
+    createTag: createQuickAddTag
+  });
 
   // Date pickers
   initDatePicker(document.getElementById('detail-start'), { mode: 'datetime' });
@@ -1385,7 +1413,7 @@ export async function initApp() {
       const id = todoItem.dataset.id;
       const todo = getTodoById(id);
       if (!todo) return;
-      const items = buildTodoContextMenu(todo, { data, updateTodo, openDetail, deleteTodoById, toggleDone });
+      const items = buildTodoContextMenu(todo, { data, getTagColor, updateTodo, openDetail, deleteTodoById, toggleDone });
       showContextMenu(e.clientX, e.clientY, items);
     } else if (tagItem) {
       const tag = tagItem.dataset.tag;

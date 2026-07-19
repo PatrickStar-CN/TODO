@@ -2,7 +2,7 @@ import { escapeHtml } from './utils/html.js';
 import { applyTheme } from './theme.js';
 import { closeDetail } from './detail.js';
 import { showConfirmDialog } from './overlay.js';
-import { DEFAULT_UI_STYLE, applyUiStyle, normalizeUiStyle } from './uiPreferences.js';
+import { DEFAULT_UI_STYLE, applyUiStyle, getUiMotionDuration, normalizeUiStyle } from './uiPreferences.js';
 import { iconSvg } from './icons.js';
 
 const TAG_COLORS = ['#4f46e5', '#06b6d4', '#f59e0b', '#ef4444', '#10b981', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#6366f1'];
@@ -29,12 +29,12 @@ function getTagTaskCount(tag) {
 function closePanel() {
   if (!settingsOverlay) return;
   const modal = settingsOverlay.querySelector('.settings-modal');
-  if (modal) modal.style.animation = 'modalShrinkOut 0.2s cubic-bezier(0.4, 0, 1, 1) forwards';
+  if (modal) modal.style.animation = 'modalShrinkOut var(--motion-normal) forwards';
   settingsOverlay.classList.add('closing');
   const overlayRef = settingsOverlay;
   settingsOverlay = null;
   overlayRef.addEventListener('animationend', () => overlayRef.remove(), { once: true });
-  setTimeout(() => { if (overlayRef.parentNode) overlayRef.remove(); }, 300);
+  setTimeout(() => { if (overlayRef.parentNode) overlayRef.remove(); }, getUiMotionDuration('normal') + 50);
 }
 
 function openPanel() {
@@ -77,62 +77,90 @@ function openPanel() {
       </div>
       <div class="settings-body">
         <div class="settings-pane active" data-pane="appearance">
-          <div class="settings-row">
-            <label>主题</label>
+          <section class="settings-appearance-card" aria-labelledby="appearance-theme-title">
+            <div class="settings-appearance-card-heading">
+              <div>
+                <strong id="appearance-theme-title">主题模式</strong>
+                <span>选择适合当前环境的显示方式</span>
+              </div>
+            </div>
             <div class="theme-options">
               <button class="theme-opt" type="button" aria-pressed="false" data-theme-value="auto">${iconSvg('monitor')}<span>跟随系统</span></button>
               <button class="theme-opt" type="button" aria-pressed="false" data-theme-value="light">${iconSvg('sun')}<span>白天</span></button>
               <button class="theme-opt" type="button" aria-pressed="false" data-theme-value="dark">${iconSvg('moon')}<span>夜间</span></button>
             </div>
-          </div>
-          <div class="settings-style-section">
+          </section>
+          <section class="settings-style-section settings-appearance-card" aria-labelledby="appearance-style-title">
             <div class="settings-style-heading">
-              <span>界面风格</span>
+              <div>
+                <strong id="appearance-style-title">界面细节</strong>
+                <span>微调圆角、透明度、字号、模糊与动画速度</span>
+              </div>
               <button class="btn-secondary btn-sm settings-secondary-action" id="reset-ui-style" type="button">${iconSvg('undo')}<span>恢复默认</span></button>
             </div>
-            ${createStyleSlider('radius', '圆角', 6, 20, 'px')}
-            ${createStyleSlider('glassOpacity', '玻璃透明度', 35, 100, '%')}
-            ${createStyleSlider('borderStrength', '边框强度', 20, 100, '%')}
-            ${createStyleSlider('fontScale', '字体大小', 90, 115, '%')}
-            ${createStyleSlider('blur', '模糊强度', 8, 28, 'px')}
-          </div>
+            <div class="settings-style-grid">
+              ${createStyleSlider('radius', '圆角', 6, 20, 'px')}
+              ${createStyleSlider('glassOpacity', '玻璃透明度', 35, 100, '%')}
+              ${createStyleSlider('fontScale', '字体大小', 90, 115, '%')}
+              ${createStyleSlider('blur', '模糊强度', 8, 28, 'px')}
+              ${createStyleSlider('motionSpeed', '动画速度', 0, 200, '%', 50)}
+            </div>
+          </section>
         </div>
         <div class="settings-pane" data-pane="ai">
-          <div class="settings-row">
-            <label>API 地址</label>
-            <input type="text" id="set-api-url" placeholder="https://api.openai.com/v1">
-          </div>
-          <div class="settings-row">
-            <label>API Key</label>
-            <input type="password" id="set-api-key" placeholder="sk-...">
-          </div>
-          <div class="settings-row">
-            <label>模型</label>
-            <input type="text" id="set-model" placeholder="gpt-4o-mini">
-          </div>
-          <div class="settings-row">
-            <label>自定义提示词</label>
-            <textarea id="set-prompt" rows="4" placeholder="留空使用默认提示词"></textarea>
-          </div>
-          <button class="btn-primary btn-sm settings-primary-action" id="set-save-ai" type="button">${iconSvg('check')}<span>保存 AI 配置</span></button>
+          <section class="settings-content-card settings-ai-card" aria-labelledby="settings-ai-card-title">
+            <div class="settings-content-card-heading">
+              <div>
+                <strong id="settings-ai-card-title">连接信息</strong>
+                <span>配置信息仅保存在当前设备</span>
+              </div>
+            </div>
+            <div class="settings-form-grid">
+              <div class="settings-row settings-field-wide">
+                <label for="set-api-url">API 地址</label>
+                <input type="text" id="set-api-url" placeholder="https://api.openai.com/v1">
+              </div>
+              <div class="settings-row">
+                <label for="set-api-key">API Key</label>
+                <input type="password" id="set-api-key" placeholder="sk-...">
+              </div>
+              <div class="settings-row">
+                <label for="set-model">模型</label>
+                <input type="text" id="set-model" placeholder="gpt-4o-mini">
+              </div>
+              <div class="settings-row settings-field-wide">
+                <label for="set-prompt">自定义提示词</label>
+                <textarea id="set-prompt" rows="3" placeholder="留空使用默认提示词"></textarea>
+              </div>
+            </div>
+            <button class="btn-primary btn-sm settings-primary-action" id="set-save-ai" type="button">${iconSvg('check')}<span>保存 AI 配置</span></button>
+          </section>
         </div>
         <div class="settings-pane" data-pane="notifications">
-          <div class="notification-setting-card">
-            <span class="notification-status-dot" id="notification-status-dot" aria-hidden="true"></span>
-            <div class="notification-setting-copy">
-              <strong>系统通知</strong>
-              <span id="notification-status-text"></span>
+          <section class="settings-content-card settings-notification-card" aria-labelledby="settings-notification-title">
+            <div class="notification-setting-card">
+              <span class="notification-status-dot" id="notification-status-dot" aria-hidden="true"></span>
+              <div class="notification-setting-copy">
+                <strong id="settings-notification-title">系统通知</strong>
+                <span id="notification-status-text"></span>
+              </div>
+              <button class="btn-secondary btn-sm settings-secondary-action" id="test-notification" type="button">${iconSvg('bell')}<span>发送测试通知</span></button>
             </div>
-            <button class="btn-secondary btn-sm settings-secondary-action" id="test-notification" type="button">${iconSvg('bell')}<span>发送测试通知</span></button>
-          </div>
+            <div class="settings-notification-note">
+              ${iconSvg('clock')}
+              <span>带提醒时间的任务会在应用运行时触发通知。</span>
+            </div>
+          </section>
         </div>
         <div class="settings-pane" data-pane="tags">
-          <div class="settings-tag-add-bar">
-            <span class="tag-dot settings-tag-preview" id="settings-tag-preview" aria-hidden="true"></span>
-            <input type="text" id="set-add-tag-input" placeholder="添加新标签..." maxlength="20" autocomplete="off" spellcheck="false" aria-label="新标签名称">
-            <button class="icon-btn settings-tag-add-btn" id="set-add-tag-btn" type="button" title="添加标签" aria-label="添加标签">${iconSvg('plus')}</button>
-          </div>
-          <div id="settings-tag-list" class="settings-tag-list"></div>
+          <section class="settings-content-card settings-tags-card" aria-label="标签列表与新建标签">
+            <div class="settings-tag-add-bar">
+              <span class="tag-dot settings-tag-preview" id="settings-tag-preview" aria-hidden="true"></span>
+              <input type="text" id="set-add-tag-input" placeholder="添加新标签..." maxlength="20" autocomplete="off" spellcheck="false" aria-label="新标签名称">
+              <button class="icon-btn settings-tag-add-btn" id="set-add-tag-btn" type="button" title="添加标签" aria-label="添加标签">${iconSvg('plus')}</button>
+            </div>
+            <div id="settings-tag-list" class="settings-tag-list"></div>
+          </section>
         </div>
       </div>
     </div>
@@ -148,7 +176,7 @@ function openPanel() {
     modal.style.setProperty('--origin-x', `${rect.left + rect.width / 2 - window.innerWidth / 2}px`);
     modal.style.setProperty('--origin-y', `${rect.top + rect.height / 2 - window.innerHeight / 2}px`);
   }
-  modal.style.animation = 'modalExpandIn 0.28s cubic-bezier(0.16, 1, 0.3, 1)';
+  modal.style.animation = 'modalExpandIn var(--motion-panel)';
 
   // 点击遮罩关闭（点击 modal 内部不触发）
   overlay.addEventListener('click', (e) => {
@@ -346,12 +374,12 @@ function renderTagList(overlay) {
   `).join('');
 }
 
-function createStyleSlider(key, label, min, max, unit) {
+function createStyleSlider(key, label, min, max, unit, step = 1) {
   return `
     <label class="ui-style-control" for="ui-style-${key}">
       <span class="ui-style-control-label">${label}</span>
       <output class="ui-style-value" data-style-value="${key}"></output>
-      <input id="ui-style-${key}" type="range" min="${min}" max="${max}" step="1" data-style-key="${key}" data-style-unit="${unit}">
+      <input id="ui-style-${key}" type="range" min="${min}" max="${max}" step="${step}" data-style-key="${key}" data-style-unit="${unit}">
     </label>
   `;
 }
@@ -389,7 +417,11 @@ function updateUiStyleControls(overlay) {
 function updateUiStyleValue(overlay, key) {
   const control = overlay.querySelector(`[data-style-key="${key}"]`);
   const output = overlay.querySelector(`[data-style-value="${key}"]`);
-  if (control && output) output.textContent = `${control.value}${control.dataset.styleUnit}`;
+  if (control && output) {
+    output.textContent = key === 'motionSpeed' && Number(control.value) === 0
+      ? '关闭'
+      : `${control.value}${control.dataset.styleUnit}`;
+  }
 }
 
 function updateTagCreatePreview(overlay) {

@@ -1,6 +1,7 @@
 import { formatDateTime, toLocalDatetime } from './utils/date.js';
 import { initDatePicker, closeDatePicker } from './datePicker.js';
 import { escapeHtml } from './utils/html.js';
+import { getUiMotionDuration } from './uiPreferences.js';
 
 let onDoneTimeChange = null;
 
@@ -212,7 +213,7 @@ export function openDetail(todo, triggerEl) {
   detailPanel.classList.remove('hidden', 'hiding');
   detailPanel.style.animation = 'none';
   detailPanel.offsetHeight;
-  detailPanel.style.animation = 'modalExpandIn 0.28s cubic-bezier(0.16, 1, 0.3, 1)';
+  detailPanel.style.animation = 'modalExpandIn var(--motion-panel)';
   closeDetailDropdowns();
 
   document.getElementById('detail-id').value = todo.id;
@@ -277,11 +278,11 @@ export function closeDetail() {
     overlay.addEventListener('animationend', () => {
       overlay.remove();
     }, { once: true });
-    setTimeout(() => { if (overlay.parentNode) overlay.remove(); }, 300);
+    setTimeout(() => { if (overlay.parentNode) overlay.remove(); }, getUiMotionDuration('normal') + 50);
   }
 
   panel.classList.add('hiding');
-  panel.style.animation = 'modalShrinkOut 0.2s cubic-bezier(0.4, 0, 1, 1) forwards';
+  panel.style.animation = 'modalShrinkOut var(--motion-normal) forwards';
   panel.addEventListener('animationend', () => {
     panel.classList.add('hidden');
     panel.classList.remove('hiding');
@@ -293,7 +294,7 @@ export function closeDetail() {
       panel.classList.remove('hiding');
       panel.style.animation = '';
     }
-  }, 300);
+  }, getUiMotionDuration('normal') + 50);
 }
 
 function enterDoneTimeEdit(todo) {

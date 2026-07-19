@@ -11,6 +11,8 @@ export function createTodoItemEl(t, { getTagBadgeStyle, currentList }) {
   const item = document.createElement('div');
   item.className = 'todo-item' + (t.done ? ' done' : '') + (t.archived ? ' archived' : '');
   item.dataset.id = t.id;
+  item.dataset.priority = t.priority || 'none';
+  item.dataset.important = String(Boolean(t.important));
 
   const checkbox = document.createElement('div');
   checkbox.className = 'todo-checkbox' + (t.done ? ' checked' : '');

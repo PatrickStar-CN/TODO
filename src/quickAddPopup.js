@@ -34,9 +34,9 @@ function adjustPopupPosition(popup, trigger, container) {
   });
 }
 
-function enhancePopupOptions(popup, trigger, selector) {
-  popup.setAttribute('role', 'listbox');
-  const options = [...popup.querySelectorAll(selector)];
+function enhancePopupOptions(popup, trigger, selector, optionsRoot = popup) {
+  optionsRoot.setAttribute('role', 'listbox');
+  const options = [...optionsRoot.querySelectorAll(selector)];
   if (!options.length) return;
 
   options.forEach((option, index) => {
@@ -59,12 +59,19 @@ function enhancePopupOptions(popup, trigger, selector) {
     });
   });
 
-  const initial = popup.querySelector(`${selector}.selected`) || options[0];
+  const initial = optionsRoot.querySelector(`${selector}.selected`) || options[0];
   initial.tabIndex = 0;
   requestAnimationFrame(() => initial.focus());
 }
 
-export function initQuickAddPopups({ quickAddPreset, updateQuickAddIndicators, data, getTagDotStyle }) {
+export function initQuickAddPopups({
+  quickAddPreset,
+  updateQuickAddIndicators,
+  data,
+  getTagDotStyle,
+  getNextTagDotStyle,
+  createTag
+}) {
   const container = document.querySelector('.add-task-bar');
   const dateButton = document.getElementById('btn-set-date');
   const priorityButton = document.getElementById('btn-set-priority');
@@ -94,7 +101,7 @@ export function initQuickAddPopups({ quickAddPreset, updateQuickAddIndicators, d
       <div class="popup-option ${quickAddPreset.endTime === tomorrowStr ? 'selected' : ''}" data-date="${tomorrowStr}">${iconSvg('calendar')}<span>明天</span></div>
       <div class="popup-option ${quickAddPreset.endTime === nextWeekStr ? 'selected' : ''}" data-date="${nextWeekStr}">${iconSvg('calendar-range')}<span>下周</span></div>
       <div class="popup-divider"></div>
-      <div class="popup-option popup-custom-date">
+      <div class="popup-custom-date">
         <input type="text" class="popup-date-input" value="${quickAddPreset.endTime || ''}">
       </div>
       ${quickAddPreset.endTime ? `<div class="popup-option popup-clear" data-date="">${iconSvg('x')}<span>清除日期</span></div>` : ''}
@@ -155,8 +162,16 @@ export function initQuickAddPopups({ quickAddPreset, updateQuickAddIndicators, d
     ).join('');
     popup.innerHTML = `
       <div class="popup-title">标签</div>
-      ${tagOptions || '<div class="popup-empty">暂无标签</div>'}
-      ${quickAddPreset.tag ? `<div class="popup-option popup-clear" data-tag="">${iconSvg('x')}<span>清除标签</span></div>` : ''}
+      <div class="quick-tag-options" aria-label="可用标签">
+        ${tagOptions || '<div class="popup-empty">暂无标签</div>'}
+      </div>
+      ${quickAddPreset.tag ? `<button class="popup-option popup-clear quick-tag-clear" type="button" data-tag="">${iconSvg('x')}<span>清除标签</span></button>` : ''}
+      <div class="quick-tag-create">
+        <span class="tag-dot quick-tag-create-swatch" ${getNextTagDotStyle()} aria-hidden="true"></span>
+        <input class="quick-tag-create-input" type="text" maxlength="20" autocomplete="off" spellcheck="false" aria-label="新标签名称" placeholder="新建标签">
+        <button class="quick-tag-create-btn" type="button" aria-label="创建并选择标签" title="创建并选择标签">${iconSvg('plus')}<span>创建</span></button>
+      </div>
+      <div class="quick-tag-feedback" role="status" aria-live="polite"></div>
     `;
     container.appendChild(popup);
     adjustPopupPosition(popup, tagButton, container);
@@ -168,7 +183,48 @@ export function initQuickAddPopups({ quickAddPreset, updateQuickAddIndicators, d
         closePopup(popup, tagButton);
       });
     });
-    enhancePopupOptions(popup, tagButton, '[data-tag]');
+
+    const input = popup.querySelector('.quick-tag-create-input');
+    const feedback = popup.querySelector('.quick-tag-feedback');
+    const submitTag = () => {
+      const name = input.value.trim();
+      if (!name) {
+        input.setAttribute('aria-invalid', 'true');
+        feedback.textContent = '请输入标签名称';
+        input.focus();
+        return;
+      }
+
+      const result = createTag(name);
+      if (!result?.tag) {
+        input.setAttribute('aria-invalid', 'true');
+        feedback.textContent = result?.message || '无法创建标签';
+        input.focus();
+        return;
+      }
+
+      quickAddPreset.tag = result.tag;
+      updateQuickAddIndicators();
+      closePopup(popup, tagButton);
+      tagButton.focus();
+    };
+
+    input.addEventListener('input', () => {
+      input.removeAttribute('aria-invalid');
+      feedback.textContent = '';
+    });
+    input.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        submitTag();
+      } else if (event.key === 'Escape') {
+        event.preventDefault();
+        closePopup(popup, tagButton);
+        tagButton.focus();
+      }
+    });
+    popup.querySelector('.quick-tag-create-btn').addEventListener('click', submitTag);
+    enhancePopupOptions(popup, tagButton, '[data-tag]', popup.querySelector('.quick-tag-options'));
   });
 
   document.addEventListener('click', (e) => {

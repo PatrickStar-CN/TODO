@@ -1,10 +1,17 @@
 import { createIcon } from './icons.js';
 
-function createMenuItemContent(icon, label, iconClass = '') {
+function createMenuItemContent(icon, label, iconClass = '', color = '') {
   const iconSpan = document.createElement('span');
   iconSpan.className = 'menu-icon';
-  const iconEl = icon ? createIcon(icon, iconClass) : null;
-  if (iconEl) iconSpan.appendChild(iconEl);
+  if (color) {
+    const colorDot = document.createElement('span');
+    colorDot.className = 'menu-color-dot';
+    colorDot.style.setProperty('--menu-item-color', color);
+    iconSpan.appendChild(colorDot);
+  } else {
+    const iconEl = icon ? createIcon(icon, iconClass) : null;
+    if (iconEl) iconSpan.appendChild(iconEl);
+  }
   const textNode = document.createTextNode(label);
   const frag = document.createDocumentFragment();
   frag.appendChild(iconSpan);
@@ -36,15 +43,17 @@ function positionSubmenu(wrapper, submenu) {
   const maxHeight = Math.max(120, Math.min(320, availableHeight));
   submenu.style.maxHeight = `${maxHeight}px`;
   submenu.style.overflowY = submenu.scrollHeight > maxHeight ? 'auto' : 'visible';
-  submenu.style.left = '100%';
+  submenu.style.left = 'calc(100% + 6px)';
   submenu.style.right = 'auto';
   submenu.style.top = '-4px';
+  wrapper.dataset.submenuSide = 'right';
 
   const width = submenu.offsetWidth;
   const height = submenu.offsetHeight;
-  if (wrapperRect.right + width > window.innerWidth - VIEWPORT_MARGIN) {
+  if (wrapperRect.right + 6 + width > window.innerWidth - VIEWPORT_MARGIN) {
     submenu.style.left = 'auto';
-    submenu.style.right = '100%';
+    submenu.style.right = 'calc(100% + 6px)';
+    wrapper.dataset.submenuSide = 'left';
   }
 
   const desiredViewportTop = Math.min(
@@ -89,18 +98,44 @@ export function showContextMenu(x, y, items) {
         subEl.className = 'context-menu-item';
         subEl.setAttribute('role', 'menuitem');
         subEl.tabIndex = -1;
-        subEl.appendChild(createMenuItemContent(subItem.icon, subItem.label, subItem.iconClass));
+        subEl.appendChild(createMenuItemContent(subItem.icon, subItem.label, subItem.iconClass, subItem.color));
+        if (subItem.selected) {
+          subEl.classList.add('is-selected');
+          subEl.setAttribute('aria-current', 'true');
+          const selectedIcon = createIcon('check', 'menu-item-check');
+          if (selectedIcon) subEl.appendChild(selectedIcon);
+        }
         subEl.addEventListener('click', () => { closeContextMenu(); subItem.action(); });
         sub.appendChild(subEl);
       });
       wrapper.appendChild(sub);
+      let closeTimer = null;
+      const cancelClose = () => {
+        if (closeTimer) {
+          window.clearTimeout(closeTimer);
+          closeTimer = null;
+        }
+      };
       const openSubmenu = () => {
+        cancelClose();
+        menu.querySelectorAll(':scope > .context-menu-submenu[aria-expanded="true"]').forEach(openItem => {
+          if (openItem !== wrapper) openItem.setAttribute('aria-expanded', 'false');
+        });
         positionSubmenu(wrapper, sub);
         wrapper.setAttribute('aria-expanded', 'true');
       };
+      const scheduleClose = () => {
+        cancelClose();
+        closeTimer = window.setTimeout(() => {
+          wrapper.setAttribute('aria-expanded', 'false');
+          closeTimer = null;
+        }, 140);
+      };
       wrapper.addEventListener('mouseenter', openSubmenu);
       wrapper.addEventListener('focusin', openSubmenu);
-      wrapper.addEventListener('mouseleave', () => wrapper.setAttribute('aria-expanded', 'false'));
+      wrapper.addEventListener('mouseleave', scheduleClose);
+      sub.addEventListener('mouseenter', cancelClose);
+      sub.addEventListener('mouseleave', scheduleClose);
       menu.appendChild(wrapper);
       return;
     }

@@ -50,9 +50,10 @@ assert.deepEqual(normalizeUiStyle(), DEFAULT_UI_STYLE);
 assert.deepEqual(normalizeUiStyle({ radius: 99, glassOpacity: 10, borderStrength: '60', fontScale: 104.6, blur: 'bad' }), {
   radius: 20,
   glassOpacity: 35,
-  borderStrength: 60,
+  borderStrength: 0,
   fontScale: 105,
-  blur: 18
+  blur: 18,
+  motionSpeed: 100
 });
 
 const activity = buildMonthActivityIndex(2026, 0, {

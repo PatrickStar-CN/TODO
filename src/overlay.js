@@ -1,4 +1,5 @@
 import { escapeHtml } from './utils/html.js';
+import { getUiMotionDuration } from './uiPreferences.js';
 
 export function createOverlay(title, content, actions, triggerEl) {
   const overlay = document.createElement('div');
@@ -22,7 +23,7 @@ export function createOverlay(title, content, actions, triggerEl) {
     box.style.setProperty('--origin-x', `${rect.left + rect.width / 2 - window.innerWidth / 2}px`);
     box.style.setProperty('--origin-y', `${rect.top + rect.height / 2 - window.innerHeight / 2}px`);
   }
-  box.style.animation = 'modalExpandIn 0.28s cubic-bezier(0.16, 1, 0.3, 1)';
+  box.style.animation = 'modalExpandIn var(--motion-panel)';
 
   const firstBtn = overlay.querySelector('button');
   if (firstBtn) firstBtn.focus();
@@ -32,10 +33,10 @@ export function createOverlay(title, content, actions, triggerEl) {
 export function closeOverlay(overlay) {
   if (overlay) {
     const box = overlay.querySelector('.tag-input-box');
-    if (box) box.style.animation = 'modalShrinkOut 0.2s cubic-bezier(0.4, 0, 1, 1) forwards';
+    if (box) box.style.animation = 'modalShrinkOut var(--motion-normal) forwards';
     overlay.classList.add('closing');
     overlay.addEventListener('animationend', () => overlay.remove(), { once: true });
-    setTimeout(() => { if (overlay.parentNode) overlay.remove(); }, 300);
+    setTimeout(() => { if (overlay.parentNode) overlay.remove(); }, getUiMotionDuration('normal') + 50);
   }
 }
 
