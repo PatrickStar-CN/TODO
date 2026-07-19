@@ -7690,17 +7690,19 @@ body,
   display: none;
 }
 
+.overlay-scrollbar-host-static {
+  position: relative;
+}
+
 .overlay-scrollbar-layer {
-  position: fixed;
-  inset: 0;
-  z-index: 9500;
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 20;
   pointer-events: none;
   opacity: 0;
   transition: opacity 160ms ease;
-}
-
-.overlay-scrollbar-layer.elevated {
-  z-index: 11000;
+  will-change: transform;
 }
 
 .overlay-scrollbar-layer.visible {
@@ -7708,7 +7710,7 @@ body,
 }
 
 .overlay-scrollbar {
-  position: fixed;
+  position: absolute;
   top: 0;
   left: 0;
   display: none;

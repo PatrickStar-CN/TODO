@@ -23,47 +23,81 @@ function findScrollable(start) {
 }
 
 export function initOverlayScrollbars() {
-  const layer = document.createElement('div');
-  layer.className = 'overlay-scrollbar-layer';
-  layer.setAttribute('aria-hidden', 'true');
-  layer.innerHTML = `
-    <i class="overlay-scrollbar overlay-scrollbar-y"></i>
-    <i class="overlay-scrollbar overlay-scrollbar-x"></i>
-  `;
-  document.body.appendChild(layer);
-
-  const vertical = layer.querySelector('.overlay-scrollbar-y');
-  const horizontal = layer.querySelector('.overlay-scrollbar-x');
+  const instances = new WeakMap();
   let activeScroller = null;
+  let activeInstance = null;
   let hideTimer = null;
   let frame = null;
+
+  function createInstance(scroller) {
+    const layer = document.createElement('div');
+    layer.className = 'overlay-scrollbar-layer';
+    layer.setAttribute('aria-hidden', 'true');
+    layer.innerHTML = `
+      <i class="overlay-scrollbar overlay-scrollbar-y"></i>
+      <i class="overlay-scrollbar overlay-scrollbar-x"></i>
+    `;
+    scroller.classList.add('overlay-scrollbar-host');
+    if (window.getComputedStyle(scroller).position === 'static') {
+      scroller.classList.add('overlay-scrollbar-host-static');
+    }
+    scroller.appendChild(layer);
+    const instance = {
+      layer,
+      vertical: layer.querySelector('.overlay-scrollbar-y'),
+      horizontal: layer.querySelector('.overlay-scrollbar-x')
+    };
+    instances.set(scroller, instance);
+    return instance;
+  }
+
+  function getInstance(scroller) {
+    const existing = instances.get(scroller);
+    return existing?.layer.isConnected ? existing : createInstance(scroller);
+  }
+
+  function conceal(instance) {
+    if (!instance) return;
+    instance.layer.classList.remove('visible');
+    instance.vertical.classList.remove('active');
+    instance.horizontal.classList.remove('active');
+  }
+
+  function hideNow() {
+    window.clearTimeout(hideTimer);
+    if (frame !== null) {
+      window.cancelAnimationFrame(frame);
+      frame = null;
+    }
+    conceal(activeInstance);
+    activeScroller = null;
+    activeInstance = null;
+  }
 
   function hide(delay = IDLE_HIDE_DELAY) {
     window.clearTimeout(hideTimer);
     hideTimer = window.setTimeout(() => {
-      layer.classList.remove('visible');
-      layer.classList.remove('elevated');
+      conceal(activeInstance);
       activeScroller = null;
+      activeInstance = null;
     }, delay);
   }
 
   function render() {
     frame = null;
     const scroller = activeScroller;
-    if (!scroller || !scroller.isConnected || !isScrollable(scroller)) {
-      layer.classList.remove('visible');
+    const instance = activeInstance;
+    if (!scroller || !instance || !scroller.isConnected || !isScrollable(scroller)) {
+      hideNow();
       return;
     }
 
-    const rect = scroller === document.documentElement
-      ? { top: 0, left: 0, right: window.innerWidth, bottom: window.innerHeight, width: window.innerWidth, height: window.innerHeight }
-      : scroller.getBoundingClientRect();
-    const visibleTop = Math.max(0, rect.top);
-    const visibleLeft = Math.max(0, rect.left);
-    const visibleRight = Math.min(window.innerWidth, rect.right);
-    const visibleBottom = Math.min(window.innerHeight, rect.bottom);
-    const visibleHeight = Math.max(0, visibleBottom - visibleTop);
-    const visibleWidth = Math.max(0, visibleRight - visibleLeft);
+    const { layer, vertical, horizontal } = instance;
+    const visibleHeight = scroller.clientHeight;
+    const visibleWidth = scroller.clientWidth;
+    layer.style.width = `${visibleWidth}px`;
+    layer.style.height = `${visibleHeight}px`;
+    layer.style.transform = `translate3d(${scroller.scrollLeft}px, ${scroller.scrollTop}px, 0)`;
 
     const showY = scroller.scrollHeight > scroller.clientHeight + 1 && visibleHeight > MIN_THUMB_SIZE;
     const showX = scroller.scrollWidth > scroller.clientWidth + 1 && visibleWidth > MIN_THUMB_SIZE;
@@ -76,7 +110,7 @@ export function initOverlayScrollbars() {
       const maxScroll = Math.max(1, scroller.scrollHeight - scroller.clientHeight);
       const offset = (track - thumb) * scroller.scrollTop / maxScroll;
       vertical.style.height = `${thumb}px`;
-      vertical.style.transform = `translate3d(${Math.max(visibleLeft, visibleRight - 7)}px, ${visibleTop + EDGE_INSET + offset}px, 0)`;
+      vertical.style.transform = `translate3d(${Math.max(0, visibleWidth - 7)}px, ${EDGE_INSET + offset}px, 0)`;
     }
 
     if (showX) {
@@ -85,7 +119,7 @@ export function initOverlayScrollbars() {
       const maxScroll = Math.max(1, scroller.scrollWidth - scroller.clientWidth);
       const offset = (track - thumb) * scroller.scrollLeft / maxScroll;
       horizontal.style.width = `${thumb}px`;
-      horizontal.style.transform = `translate3d(${visibleLeft + EDGE_INSET + offset}px, ${Math.max(visibleTop, visibleBottom - 7)}px, 0)`;
+      horizontal.style.transform = `translate3d(${EDGE_INSET + offset}px, ${Math.max(0, visibleHeight - 7)}px, 0)`;
     }
 
     layer.classList.toggle('visible', showX || showY);
@@ -97,10 +131,9 @@ export function initOverlayScrollbars() {
 
   function activate(scroller, autoHide = false) {
     if (!scroller) return;
+    if (activeScroller !== scroller) conceal(activeInstance);
     activeScroller = scroller;
-    layer.classList.toggle('elevated', Boolean(scroller.closest?.(
-      '.date-picker, .context-menu, .quick-popup, .glass-select-menu, .detail-dropdown, .month-picker-menu'
-    )));
+    activeInstance = getInstance(scroller);
     window.clearTimeout(hideTimer);
     queueRender();
     if (autoHide) hide();
