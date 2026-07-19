@@ -269,7 +269,7 @@ class DatePicker {
         <button type="button" class="dp-nav-btn" data-nav="prev" aria-label="上一个月">${iconSvg('chevron-left')}</button>
         <button type="button" class="dp-title" data-action="pick-month">${year}\u5E74${month + 1}\u6708</button>
         <button type="button" class="dp-nav-btn" data-nav="next" aria-label="下一个月">${iconSvg('chevron-right')}</button>
-        ${isToday(todayDate) ? '<button type="button" class="dp-today-btn">\u4ECA\u5929</button>' : ''}
+        ${isToday(todayDate) ? `<button type="button" class="icon-btn dp-today-btn today-jump-btn" title="\u56DE\u5230\u4ECA\u5929" aria-label="\u56DE\u5230\u4ECA\u5929">${iconSvg('today')}</button>` : ''}
       </div>
       <div class="dp-weekdays"><span>\u65E5</span><span>\u4E00</span><span>\u4E8C</span><span>\u4E09</span><span>\u56DB</span><span>\u4E94</span><span>\u516D</span></div>
       <div class="dp-grid">${dayCells}</div>

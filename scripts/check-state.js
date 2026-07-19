@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { webcrypto } from 'node:crypto';
 import { countByList, countTagUndone, getFilteredTodos, sortByPriority, splitPendingDone } from '../src/selectors.js';
 import { DEFAULT_UI_STYLE, normalizeUiStyle } from '../src/uiPreferences.js';
-import { buildMonthActivityIndex, buildYearCompletionIndex, buildYearTaskIndex } from '../src/calendar.js';
+import { buildMonthActivityIndex, buildYearCompletionIndex, buildYearTaskIndex, getCompletedTodosForDate, getTaskTodosForDate } from '../src/calendar.js';
 import { initReminders } from '../src/reminder.js';
 import { createRuntimeIndex } from '../src/runtimeIndex.js';
 import { encrypt, initCrypto, tryDecrypt } from '../src/utils/crypto.js';
@@ -74,6 +74,7 @@ const yearTaskActivity = buildYearTaskIndex(2026, {
     { createdAt: '2026-01-06T08:00:00', endTime: '2026-01-08T10:00:00' },
     { createdAt: '2025-12-31T12:00:00', doneAt: '2026-01-09T10:00:00' },
     { createdAt: '2026-01-10T08:00:00' },
+    { createdAt: '2026-01-10T08:00:00', startTime: '2026-01-11T18:00:00', endTime: '2026-01-12T10:00:00' },
     { createdAt: 'invalid', doneAt: null }
   ]
 });
@@ -83,7 +84,18 @@ assert.equal(yearTaskActivity.get('2026-01-05'), 1);
 assert.equal(yearTaskActivity.get('2026-01-07'), 1);
 assert.equal(yearTaskActivity.get('2026-01-09'), 1);
 assert.equal(yearTaskActivity.get('2026-01-10'), 1);
+assert.equal(yearTaskActivity.get('2026-01-11'), 1);
+assert.equal(yearTaskActivity.get('2026-01-12'), 1);
 assert.equal(yearTaskActivity.has('2025-12-31'), false);
+
+const tasksOnDateData = {
+  todos: [
+    { id: 'spans-date', createdAt: '2026-01-10T08:00:00', startTime: '2026-01-11T18:00:00', endTime: '2026-01-12T10:00:00' },
+    { id: 'other-date', createdAt: '2026-01-13T08:00:00' },
+    { id: 'invalid', createdAt: 'invalid' }
+  ]
+};
+assert.deepEqual(getTaskTodosForDate(new Date(2026, 0, 12), tasksOnDateData).map(todo => todo.id), ['spans-date']);
 
 const yearCompletionActivity = buildYearCompletionIndex(2026, {
   todos: [
@@ -95,6 +107,17 @@ const yearCompletionActivity = buildYearCompletionIndex(2026, {
 });
 assert.equal(yearCompletionActivity.get('2026-02-03'), 2);
 assert.equal(yearCompletionActivity.has('2025-12-31'), false);
+
+const completedOnDate = getCompletedTodosForDate(new Date(2026, 1, 3), {
+  todos: [
+    { id: 'done-morning', doneAt: new Date(2026, 1, 3, 9, 0).toISOString() },
+    { id: 'done-evening', doneAt: new Date(2026, 1, 3, 20, 0).toISOString() },
+    { id: 'done-other-day', doneAt: new Date(2026, 1, 4, 9, 0).toISOString() },
+    { id: 'pending', doneAt: null },
+    { id: 'invalid', doneAt: 'invalid' }
+  ]
+});
+assert.deepEqual(completedOnDate.map(todo => todo.id), ['done-morning', 'done-evening']);
 
 const indexedData = {
   todos: [

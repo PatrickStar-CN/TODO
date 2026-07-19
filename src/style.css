@@ -383,6 +383,8 @@ body::before {
 
 /* Sidebar */
 .sidebar {
+  --sidebar-edge-space: 12px;
+  --sidebar-compact-control-size: 40px;
   width: 220px;
   background: var(--glass-bg);
   backdrop-filter: var(--glass-blur);
@@ -407,7 +409,7 @@ body::before {
 }
 
 .sidebar-header {
-  padding: 16px 16px 12px;
+  padding: 16px var(--sidebar-edge-space) 12px;
   position: relative;
   display: flex;
   flex-wrap: wrap;
@@ -459,7 +461,7 @@ body::before {
 }
 
 .sidebar-nav {
-  padding: 0 8px;
+  padding: 0 var(--sidebar-edge-space);
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -525,7 +527,7 @@ body::before {
 
 .sidebar-section {
   margin-top: 18px;
-  padding: 0 8px;
+  padding: 0 var(--sidebar-edge-space);
   flex: 1;
   overflow: hidden;
   display: flex;
@@ -640,7 +642,7 @@ body::before {
 }
 
 .sidebar-footer {
-  padding: 12px;
+  padding: var(--sidebar-edge-space);
   border-top: 1px solid var(--glass-divider);
   margin-top: auto;
   display: flex;
@@ -652,7 +654,8 @@ body::before {
   display: flex;
   align-items: center;
   gap: 9px;
-  min-height: 38px;
+  height: var(--sidebar-compact-control-size);
+  min-height: var(--sidebar-compact-control-size);
   background: var(--glass-control-bg);
   border: 1px solid var(--glass-control-border);
   color: var(--text-muted);
@@ -693,7 +696,7 @@ body::before {
 }
 
 .sidebar.mini {
-  width: 56px;
+  width: calc(var(--sidebar-compact-control-size) + (var(--sidebar-edge-space) * 2));
 }
 
 .sidebar.mini .sidebar-header h2,
@@ -705,12 +708,12 @@ body::before {
 }
 
 .sidebar.mini .sidebar-header {
-  padding: 12px 8px;
+  padding: 12px var(--sidebar-edge-space);
   justify-content: center;
 }
 
 .sidebar.mini .sidebar-nav {
-  padding: 0 8px;
+  padding: 0 var(--sidebar-edge-space);
 }
 
 .sidebar.mini .nav-item {
@@ -730,7 +733,7 @@ body::before {
 }
 
 .sidebar.mini .sidebar-footer {
-  padding: 12px 8px;
+  padding: 12px var(--sidebar-edge-space);
   border-top: 1px solid var(--glass-divider);
   margin-top: auto;
   gap: 8px;
@@ -741,8 +744,8 @@ body::before {
 }
 
 .sidebar.mini .sidebar-footer button {
-  width: 40px;
-  min-height: 40px;
+  width: var(--sidebar-compact-control-size);
+  min-height: var(--sidebar-compact-control-size);
   padding: 0;
   justify-content: center;
   text-align: center;
@@ -2277,7 +2280,7 @@ body::before {
 }
 
 .calendar-container {
-  padding: 0 32px 24px;
+  padding: 0 32px 16px;
   flex: 1;
   min-height: 0;
   overflow: hidden;
@@ -2450,6 +2453,10 @@ body::before {
   transition:
     flex-basis var(--motion-panel),
     max-height var(--motion-panel),
+    padding-top var(--motion-panel),
+    padding-bottom var(--motion-panel),
+    border-top-width var(--motion-panel),
+    border-bottom-width var(--motion-panel),
     opacity var(--motion-normal),
     transform var(--motion-panel),
     visibility 0s linear 0s;
@@ -2458,6 +2465,10 @@ body::before {
 .calendar-container.chart-collapsed .calendar-chart-body {
   flex-basis: 0;
   max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-top-width: 0;
+  border-bottom-width: 0;
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
@@ -2465,6 +2476,10 @@ body::before {
   transition:
     flex-basis var(--motion-panel),
     max-height var(--motion-panel),
+    padding-top var(--motion-panel),
+    padding-bottom var(--motion-panel),
+    border-top-width var(--motion-panel),
+    border-bottom-width var(--motion-panel),
     opacity var(--motion-normal),
     transform var(--motion-panel),
     visibility 0s linear var(--duration-panel);
@@ -3039,7 +3054,7 @@ body::before {
   display: flex;
   flex-direction: column;
   flex: 1;
-  margin: 0 0 14px;
+  margin: 0;
   padding: 0;
   background: color-mix(in srgb, var(--glass-surface-strong) var(--ui-glass-opacity), transparent);
   backdrop-filter: blur(var(--ui-glass-blur)) saturate(135%);
@@ -5878,18 +5893,6 @@ body::before {
   margin: 0;
 }
 
-#btn-today {
-  color: var(--accent-text);
-  background: color-mix(in srgb, var(--accent) 12%, var(--glass-control-bg));
-  border-color: color-mix(in srgb, var(--accent) 32%, var(--glass-control-border));
-}
-
-#btn-today:hover {
-  color: var(--text-primary);
-  background: color-mix(in srgb, var(--accent) 20%, var(--glass-control-bg-hover));
-  border-color: color-mix(in srgb, var(--accent) 48%, var(--glass-control-border-hover));
-}
-
 .tag-input-box.month-picker-dialog {
   width: min(360px, calc(100vw - 32px));
   padding: 18px;
@@ -6072,16 +6075,6 @@ body::before {
   border-radius: max(8px, var(--ui-radius-sm));
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.dp-today-btn {
-  height: 30px;
-  margin-left: 1px;
-  padding: 0 9px;
-  border-radius: max(7px, calc(var(--ui-radius-sm) - 1px));
-  color: var(--accent-text);
-  background: color-mix(in srgb, var(--accent) 10%, var(--glass-control-bg));
-  border-color: color-mix(in srgb, var(--accent) 28%, var(--glass-control-border));
 }
 
 .dp-weekdays {
@@ -7076,8 +7069,7 @@ body,
 
 .btn-primary:hover:not(:disabled),
 .btn-ok:hover:not(:disabled),
-.dp-btn.dp-btn-confirm:hover:not(:disabled),
-.date-picker .dp-today-btn:hover:not(:disabled) {
+.dp-btn.dp-btn-confirm:hover:not(:disabled) {
   color: #fff;
   background: var(--accent-hover);
   border-color: color-mix(in srgb, var(--accent-hover) 76%, white 24%);
@@ -7791,7 +7783,7 @@ select {
 
 @media (max-width: 620px) {
   .sidebar {
-    width: 56px;
+    width: calc(var(--sidebar-compact-control-size) + (var(--sidebar-edge-space) * 2));
   }
 
   .sidebar .sidebar-header h2,
@@ -7803,7 +7795,7 @@ select {
   }
 
   .sidebar .sidebar-header {
-    padding: 12px 8px;
+    padding: 12px var(--sidebar-edge-space);
     justify-content: center;
   }
 
@@ -7812,7 +7804,7 @@ select {
   }
 
   .sidebar .sidebar-nav {
-    padding: 0 8px;
+    padding: 0 var(--sidebar-edge-space);
   }
 
   .sidebar .nav-item {
@@ -7827,7 +7819,7 @@ select {
   }
 
   .sidebar .sidebar-footer {
-    padding: 12px 8px;
+    padding: 12px var(--sidebar-edge-space);
     gap: 8px;
   }
 
@@ -7836,8 +7828,8 @@ select {
   }
 
   .sidebar .sidebar-footer button {
-    width: 40px;
-    min-height: 40px;
+    width: var(--sidebar-compact-control-size);
+    min-height: var(--sidebar-compact-control-size);
     padding: 0;
     justify-content: center;
   }
@@ -8393,6 +8385,12 @@ body {
   border: 1px solid color-mix(in srgb, var(--glass-stroke-strong) 30%, transparent);
   border-radius: var(--ui-radius);
   box-shadow: var(--ui-card-highlight);
+}
+
+.summary-output:has(> .summary-placeholder),
+.summary-output:has(> .summary-loading) {
+  overflow-y: hidden;
+  white-space: normal;
 }
 
 .summary-placeholder,
@@ -8990,4 +8988,108 @@ html.mini-mode-active body {
   border-color: color-mix(in srgb, var(--glass-stroke-strong) 42%, transparent);
   border-radius: var(--ui-radius);
   box-shadow: var(--glass-panel-shadow), var(--ui-card-highlight);
+}
+
+/* Shared "back to today" control used by calendar and date-time pickers. */
+.today-jump-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
+  margin: 0;
+  padding: 0;
+  color: var(--accent-text);
+  background: color-mix(in srgb, var(--glass-control-bg) var(--ui-control-opacity), transparent);
+  border: 1px solid color-mix(in srgb, var(--glass-control-border-hover) var(--ui-border-strength), transparent);
+  border-radius: var(--ui-radius-sm);
+  box-shadow: var(--glass-control-shadow), var(--glass-inset-highlight);
+  cursor: pointer;
+  transition:
+    color var(--motion-fast),
+    background var(--motion-fast),
+    border-color var(--motion-fast),
+    box-shadow var(--motion-fast),
+    transform var(--motion-fast);
+}
+
+.today-jump-btn .app-icon {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+}
+
+.today-jump-btn:hover:not(:disabled) {
+  color: var(--accent-text);
+  background: color-mix(in srgb, var(--accent) 14%, var(--glass-control-bg-hover));
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--glass-control-border-hover));
+  box-shadow: var(--glass-control-shadow-hover), var(--glass-inset-highlight);
+  transform: var(--lift-subtle);
+}
+
+.today-jump-btn:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--focus-ring), var(--glass-control-shadow), var(--glass-inset-highlight);
+}
+
+.today-jump-btn:active:not(:disabled) {
+  transform: var(--press-subtle);
+}
+
+.today-jump-btn:disabled {
+  cursor: default;
+  opacity: 0.48;
+}
+
+/* Collapsed sidebar footer actions use the shared glass icon-button system. */
+.sidebar.mini .sidebar-footer {
+  align-items: center;
+}
+
+.sidebar.mini .sidebar-footer button,
+.sidebar.mini .sidebar-footer .btn-mini-mode-footer {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: var(--sidebar-compact-control-size);
+  min-width: var(--sidebar-compact-control-size);
+  height: var(--sidebar-compact-control-size);
+  min-height: var(--sidebar-compact-control-size);
+  padding: 0;
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--glass-control-bg) 72%, transparent);
+  border: 1px solid color-mix(in srgb, var(--glass-control-border-hover) var(--ui-border-strength), transparent);
+  border-radius: var(--ui-radius-sm);
+  box-shadow: var(--glass-control-shadow), var(--glass-inset-highlight);
+}
+
+.sidebar.mini .sidebar-footer button:hover {
+  color: var(--text-primary);
+  background: var(--glass-control-bg-hover);
+  border-color: var(--glass-control-border-hover);
+  box-shadow: var(--glass-control-shadow-hover), var(--glass-inset-highlight);
+  transform: var(--lift-subtle);
+}
+
+.sidebar.mini .sidebar-footer button:focus-visible {
+  outline: none;
+  color: var(--accent-text);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--focus-ring), var(--glass-control-shadow), var(--glass-inset-highlight);
+}
+
+.sidebar.mini .sidebar-footer button:active {
+  transform: var(--press-subtle);
+}
+
+.sidebar.mini .sidebar-footer button .btn-icon,
+.sidebar.mini .sidebar-footer button .btn-icon .app-icon {
+  width: 18px;
+  min-width: 18px;
+  height: 18px;
+  margin: 0;
 }

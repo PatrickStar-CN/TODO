@@ -18,27 +18,27 @@
         <span class="date" id="today-date"></span>
       </div>
       <nav class="sidebar-nav">
-        <a href="#" class="nav-item active" data-list="todo" title="TODO">
+        <a href="#" class="nav-item active" data-list="todo" title="TODO" draggable="false">
           <span class="nav-icon" data-icon="sun"></span>
           <span class="nav-text">TODO</span>
           <span class="nav-count" id="count-todo">0</span>
         </a>
-        <a href="#" class="nav-item" data-list="important" title="重要">
+        <a href="#" class="nav-item" data-list="important" title="重要" draggable="false">
           <span class="nav-icon" data-icon="star-filled"></span>
           <span class="nav-text">重要</span>
           <span class="nav-count" id="count-important">0</span>
         </a>
-        <a href="#" class="nav-item" data-list="all" title="所有">
+        <a href="#" class="nav-item" data-list="all" title="所有" draggable="false">
           <span class="nav-icon" data-icon="inbox"></span>
           <span class="nav-text">所有</span>
           <span class="nav-count" id="count-all">0</span>
         </a>
-        <a href="#" class="nav-item" data-list="archived" title="归档">
+        <a href="#" class="nav-item" data-list="archived" title="归档" draggable="false">
           <span class="nav-icon" data-icon="archive"></span>
           <span class="nav-text">归档</span>
           <span class="nav-count" id="count-archived">0</span>
         </a>
-        <a href="#" class="nav-item" data-list="calendar" title="日历">
+        <a href="#" class="nav-item" data-list="calendar" title="日历" draggable="false">
           <span class="nav-icon" data-icon="calendar"></span>
           <span class="nav-text">日历</span>
           <span class="nav-count"></span>
@@ -49,8 +49,8 @@
         <div id="tag-list" class="tag-list"></div>
       </div>
       <div class="sidebar-footer">
-        <button id="btn-mini-mode-footer" class="btn-mini-mode-footer" title="迷你模式"><span class="btn-icon" data-icon="pin"></span><span class="btn-text">迷你模式</span></button>
-        <button id="btn-toggle-sidebar" class="btn-toggle-sidebar" title="折叠侧边栏"><span class="btn-icon" data-icon="chevron-left"></span><span class="btn-text">折叠侧边栏</span></button>
+        <button id="btn-mini-mode-footer" class="btn-mini-mode-footer" title="迷你模式" aria-label="迷你模式"><span class="btn-icon" data-icon="pin"></span><span class="btn-text">迷你模式</span></button>
+        <button id="btn-toggle-sidebar" class="btn-toggle-sidebar" title="折叠侧栏" aria-label="折叠侧栏"><span class="btn-icon" data-icon="chevron-left"></span><span class="btn-text">折叠侧栏</span></button>
       </div>
     </aside>
 
@@ -128,7 +128,7 @@
               <button class="icon-btn" id="prev-month" aria-label="上一个月"><span data-icon="chevron-left"></span></button>
               <button class="calendar-title-btn" id="calendar-title" title="点击选择年月"></button>
               <button class="icon-btn" id="next-month" aria-label="下一个月"><span data-icon="chevron-right"></span></button>
-              <button class="icon-btn" id="btn-today" title="回到今天" aria-label="回到今天"><span data-icon="today"></span></button>
+              <button class="icon-btn today-jump-btn" id="btn-today" title="回到今天" aria-label="回到今天"><span data-icon="today"></span></button>
             </div>
             <div class="calendar-toolbar-actions">
               <button class="btn-glass calendar-collapse-btn" id="toggle-calendar-chart" type="button" aria-expanded="true" aria-controls="calendar-chart-body">

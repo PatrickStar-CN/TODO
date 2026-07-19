@@ -606,7 +606,7 @@ function renderSidebar() {
     return undone > 0;
   });
   tagListEl.innerHTML = visibleTags.map(tag => `
-    <a href="#" class="tag-item ${currentTag === tag ? 'active' : ''}" data-tag="${escapeHtml(tag)}">
+    <a href="#" class="tag-item ${currentTag === tag ? 'active' : ''}" data-tag="${escapeHtml(tag)}" draggable="false">
       <span class="tag-dot" ${getTagDotStyle(tag)}></span>
       <span class="tag-label">${escapeHtml(tag)}</span>
       <span class="nav-count">${countTagUndone(data, tag)}</span>
@@ -768,7 +768,7 @@ function getTodosForDate(date) {
 }
 
 function renderCalendarDetail(monthIndex) {
-  _renderCalendarDetail({ selectedDate, data, renderTodoItem }, monthIndex);
+  _renderCalendarDetail({ selectedDate, data, renderTodoItem, mode: calendarMode }, monthIndex);
 }
 
 function showMonthPicker(currentMonth, onConfirm) {
@@ -1017,13 +1017,18 @@ export async function initApp() {
   const sidebar = document.querySelector('.sidebar');
   const toggleSidebarBtn = document.getElementById('btn-toggle-sidebar');
 
+  // Sidebar entries behave like in-app controls, not draggable browser links.
+  sidebar.addEventListener('dragstart', (event) => event.preventDefault());
+
   function applySidebarState() {
     sidebar.classList.toggle('mini', data.sidebarMini);
     const icon = toggleSidebarBtn.querySelector('.btn-icon');
     const text = toggleSidebarBtn.querySelector('.btn-text');
     setIcon(icon, data.sidebarMini ? 'chevron-right' : 'chevron-left');
-    text.textContent = data.sidebarMini ? '展开侧边栏' : '折叠侧边栏';
-    toggleSidebarBtn.title = data.sidebarMini ? '展开侧边栏' : '折叠侧边栏';
+    const label = data.sidebarMini ? '展开侧栏' : '折叠侧栏';
+    text.textContent = label;
+    toggleSidebarBtn.title = label;
+    toggleSidebarBtn.setAttribute('aria-label', label);
   }
 
   toggleSidebarBtn.addEventListener('click', () => {

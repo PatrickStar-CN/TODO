@@ -6,6 +6,34 @@ function fmtYMD(date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
+function parseValidDate(value) {
+  if (value === null || typeof value === 'undefined' || value === '') return null;
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) ? date : null;
+}
+
+function startOfDay(date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function getTodoTaskDateRange(todo) {
+  const start = parseValidDate(todo.startTime);
+  const end = parseValidDate(todo.endTime);
+  const doneAt = parseValidDate(todo.doneAt);
+  const createdAt = parseValidDate(todo.createdAt);
+
+  if (start && end) {
+    return end >= start ? [startOfDay(start), startOfDay(end)] : null;
+  }
+  if (start) return [startOfDay(start), startOfDay(start)];
+  if (end && createdAt) {
+    return end >= createdAt ? [startOfDay(createdAt), startOfDay(end)] : null;
+  }
+  if (doneAt) return [startOfDay(doneAt), startOfDay(doneAt)];
+  if (createdAt) return [startOfDay(createdAt), startOfDay(createdAt)];
+  return null;
+}
+
 export function buildMonthActivityIndex(year, month, data) {
   const index = new Map();
   const monthStart = new Date(year, month, 1).getTime();
@@ -34,42 +62,16 @@ export function buildYearTaskIndex(year, data) {
   const index = new Map();
   const yearStart = new Date(year, 0, 1);
   const yearEnd = new Date(year + 1, 0, 1);
-  const yearStartTime = yearStart.getTime();
-  const yearEndTime = yearEnd.getTime();
-
-  const addDate = (date) => {
-    const time = date.getTime();
-    if (!Number.isFinite(time) || time < yearStartTime || time >= yearEndTime) return;
-    const key = fmtYMD(date);
-    index.set(key, (index.get(key) || 0) + 1);
-  };
 
   for (const todo of data.todos || []) {
-    const start = todo.startTime ? new Date(todo.startTime) : null;
-    const end = todo.endTime ? new Date(todo.endTime) : null;
-    const doneAt = todo.doneAt ? new Date(todo.doneAt) : null;
-    const createdAt = new Date(todo.createdAt);
-
-    if (start && Number.isFinite(start.getTime()) && end && Number.isFinite(end.getTime())) {
-      let date = new Date(Math.max(start.getTime(), yearStartTime));
-      const rangeEnd = Math.min(end.getTime(), yearEndTime - 1);
-      while (date.getTime() <= rangeEnd) {
-        addDate(date);
-        date = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1);
-      }
-    } else if (start && Number.isFinite(start.getTime())) {
-      addDate(start);
-    } else if (end && Number.isFinite(end.getTime()) && Number.isFinite(createdAt.getTime())) {
-      let date = new Date(Math.max(createdAt.getTime(), yearStartTime));
-      const rangeEnd = Math.min(end.getTime(), yearEndTime - 1);
-      while (date.getTime() <= rangeEnd) {
-        addDate(date);
-        date = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1);
-      }
-    } else if (doneAt && Number.isFinite(doneAt.getTime())) {
-      addDate(doneAt);
-    } else if (Number.isFinite(createdAt.getTime())) {
-      addDate(createdAt);
+    const range = getTodoTaskDateRange(todo);
+    if (!range) continue;
+    let date = new Date(Math.max(range[0].getTime(), yearStart.getTime()));
+    const rangeEnd = Math.min(range[1].getTime(), yearEnd.getTime() - 1);
+    while (date.getTime() <= rangeEnd) {
+      const key = fmtYMD(date);
+      index.set(key, (index.get(key) || 0) + 1);
+      date.setDate(date.getDate() + 1);
     }
   }
 
@@ -125,34 +127,16 @@ export function buildMonthIndex(year, month, data) {
     arr.push(todo);
   };
 
-  for (const todo of data.todos) {
+  for (const todo of data.todos || []) {
     addActivity(todo.createdAt, 'created');
     addActivity(todo.doneAt, 'done');
-    const start = todo.startTime ? new Date(todo.startTime) : null;
-    const end = todo.endTime ? new Date(todo.endTime) : null;
-    const doneAt = todo.doneAt ? new Date(todo.doneAt) : null;
-    const createdAt = new Date(todo.createdAt);
-
-    if (start && end) {
-      let d = new Date(Math.max(start.getTime(), monthStartTime));
-      const eTime = Math.min(end.getTime(), monthEndTime - 1);
-      while (d.getTime() <= eTime) {
-        addToIndex(d, todo);
-        d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
-      }
-    } else if (start) {
-      addToIndex(start, todo);
-    } else if (end) {
-      let d = new Date(Math.max(createdAt.getTime(), monthStartTime));
-      const eTime = Math.min(end.getTime(), monthEndTime - 1);
-      while (d.getTime() <= eTime) {
-        addToIndex(d, todo);
-        d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
-      }
-    } else if (doneAt) {
-      addToIndex(doneAt, todo);
-    } else {
-      addToIndex(createdAt, todo);
+    const range = getTodoTaskDateRange(todo);
+    if (!range) continue;
+    let date = new Date(Math.max(range[0].getTime(), monthStartTime));
+    const rangeEnd = Math.min(range[1].getTime(), monthEndTime - 1);
+    while (date.getTime() <= rangeEnd) {
+      addToIndex(date, todo);
+      date.setDate(date.getDate() + 1);
     }
   }
 
@@ -278,49 +262,55 @@ function renderYearHeatmap({ year, selectedDate, data, calendarDays, monthLabels
   calendarDays.innerHTML = html;
 }
 
-export function getTodosForDate(date, data) {
-  const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  const dayEnd = new Date(dayStart);
-  dayEnd.setDate(dayEnd.getDate() + 1);
-
-  return data.todos.filter(t => {
-    const start = t.startTime ? new Date(t.startTime) : null;
-    const end = t.endTime ? new Date(t.endTime) : null;
-    const doneAt = t.doneAt ? new Date(t.doneAt) : null;
-
-    if (start && end) {
-      return start < dayEnd && end >= dayStart;
-    }
-    if (start) return isSameDay(start, date);
-    if (end) {
-      const created = new Date(t.createdAt);
-      return created <= dayEnd && end >= dayStart;
-    }
-    if (doneAt) return isSameDay(doneAt, date);
-    return isSameDay(new Date(t.createdAt), date);
+export function getTaskTodosForDate(date, data) {
+  const targetTime = startOfDay(date).getTime();
+  return (data.todos || []).filter(todo => {
+    const range = getTodoTaskDateRange(todo);
+    return range && range[0].getTime() <= targetTime && range[1].getTime() >= targetTime;
   });
 }
 
-export function renderCalendarDetail({ selectedDate, data, renderTodoItem }, monthIndex) {
+export function getTodosForDate(date, data) {
+  return getTaskTodosForDate(date, data);
+}
+
+export function getCompletedTodosForDate(date, data) {
+  return (data.todos || []).filter(todo => {
+    if (!todo.doneAt) return false;
+    const doneAt = new Date(todo.doneAt);
+    return Number.isFinite(doneAt.getTime()) && isSameDay(doneAt, date);
+  });
+}
+
+export function renderCalendarDetail({ selectedDate, data, renderTodoItem, mode = 'month' }, monthIndex) {
   const calendarDetail = document.getElementById('calendar-detail');
-  const previousDate = calendarDetail.dataset.renderedDate || '';
+  const previousSelection = calendarDetail.dataset.renderedSelection || '';
   if (!selectedDate) {
-    calendarDetail.dataset.renderedDate = '';
+    calendarDetail.dataset.renderedSelection = '';
     calendarDetail.innerHTML = '<div class="calendar-detail-scroll"><p class="empty-state-hint">点击日期查看事项</p></div>';
     return;
   }
   const dateKey = fmtYMD(selectedDate);
-  const dateChanged = previousDate !== dateKey;
-  calendarDetail.dataset.renderedDate = dateKey;
-  const dayTodos = monthIndex
-    ? (monthIndex.get(dateKey) || [])
-    : getTodosForDate(selectedDate, data);
+  const selectionKey = `${mode}:${dateKey}`;
+  const dateChanged = previousSelection !== selectionKey;
+  calendarDetail.dataset.renderedSelection = selectionKey;
+  const completedMode = mode === 'completed';
+  const tasksMode = mode === 'tasks';
+  const dayTodos = completedMode
+    ? getCompletedTodosForDate(selectedDate, data)
+    : tasksMode
+      ? getTaskTodosForDate(selectedDate, data)
+      : monthIndex
+        ? (monthIndex.get(dateKey) || [])
+        : getTodosForDate(selectedDate, data);
   const dateStr = `${selectedDate.getMonth() + 1}月${selectedDate.getDate()}日`;
   if (dayTodos.length === 0) {
-    calendarDetail.innerHTML = `<h3>${dateStr}</h3><div class="calendar-detail-scroll"><p class="empty-state-hint">当天无事项</p></div>`;
+    const emptyText = completedMode ? '当天无完成事项' : tasksMode ? '当天无任务' : '当天无事项';
+    calendarDetail.innerHTML = `<h3>${dateStr}</h3><div class="calendar-detail-scroll"><p class="empty-state-hint">${emptyText}</p></div>`;
     return;
   }
-  calendarDetail.innerHTML = `<h3>${dateStr} (${dayTodos.length}项)</h3><div class="calendar-detail-scroll"><div id="calendar-todo-list" class="todo-list calendar-todo-list"></div></div>`;
+  const detailLabel = completedMode ? ' · 完成事项' : tasksMode ? ' · 任务事项' : '';
+  calendarDetail.innerHTML = `<h3>${dateStr}${detailLabel} (${dayTodos.length}项)</h3><div class="calendar-detail-scroll"><div id="calendar-todo-list" class="todo-list calendar-todo-list"></div></div>`;
   const calendarTodoList = calendarDetail.querySelector('#calendar-todo-list');
   dayTodos.forEach(t => calendarTodoList.appendChild(renderTodoItem(t)));
   if (dateChanged) {
