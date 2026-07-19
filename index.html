@@ -51,7 +51,6 @@
       <div class="sidebar-footer">
         <button id="btn-mini-mode-footer" class="btn-mini-mode-footer" title="迷你模式"><span class="btn-icon" data-icon="pin"></span><span class="btn-text">迷你模式</span></button>
         <button id="btn-toggle-sidebar" class="btn-toggle-sidebar" title="折叠侧边栏"><span class="btn-icon" data-icon="chevron-left"></span><span class="btn-text">折叠侧边栏</span></button>
-        <button id="btn-clear-done" title="清空已完成"><span class="btn-icon" data-icon="trash"></span><span class="btn-text">清空已完成</span></button>
       </div>
     </aside>
 
@@ -94,7 +93,8 @@
           <div class="done-header" id="done-toggle">
             <span>已完成 (<span id="done-count">0</span>)</span>
             <div class="done-header-actions">
-              <button class="btn-archive-all" id="btn-archive-done" title="归档已完成"><span data-icon="archive"></span><span></span></button>
+              <button class="btn-archive-all" id="btn-archive-done" type="button" title="归档已完成" aria-label="归档已完成"><span data-icon="archive"></span></button>
+              <button class="btn-archive-all btn-clear-done" id="btn-clear-done" type="button" title="清空已完成" aria-label="清空已完成"><span data-icon="trash"></span></button>
               <span class="arrow" data-icon="chevron-down"></span>
             </div>
           </div>

@@ -694,18 +694,6 @@ body::before {
   box-shadow: var(--glass-control-shadow-hover), var(--glass-inset-highlight);
 }
 
-.sidebar-footer #btn-clear-done {
-  color: var(--danger-text);
-  background: color-mix(in srgb, var(--danger-bg) 44%, var(--glass-control-bg));
-  border-color: color-mix(in srgb, var(--danger-text) 20%, var(--glass-control-border));
-}
-
-.sidebar-footer #btn-clear-done:hover {
-  background: color-mix(in srgb, var(--danger-bg) 58%, var(--glass-control-bg-hover));
-  border-color: color-mix(in srgb, var(--danger-text) 34%, var(--glass-control-border-hover));
-  color: var(--danger-text);
-}
-
 .sidebar.mini {
   width: 56px;
 }
@@ -1446,8 +1434,14 @@ body::before {
 }
 
 .btn-archive-all {
+  width: 32px;
+  min-width: 32px;
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-size: 12px;
-  padding: 4px 10px;
+  padding: 0;
   background: var(--glass-btn-bg);
   backdrop-filter: var(--glass-btn-blur);
   -webkit-backdrop-filter: var(--glass-btn-blur);
@@ -1459,11 +1453,28 @@ body::before {
   box-shadow: var(--glass-btn-shadow);
 }
 
+.btn-archive-all .app-icon {
+  width: 14px;
+  height: 14px;
+}
+
 .btn-archive-all:hover {
   background: var(--glass-btn-bg-hover);
   border-color: var(--glass-btn-border-hover);
   color: var(--text-primary);
   box-shadow: var(--glass-btn-shadow-hover);
+}
+
+.done-header-actions .btn-clear-done {
+  color: var(--danger-text);
+  background: color-mix(in srgb, var(--danger-bg) 52%, var(--glass-control-bg));
+  border-color: color-mix(in srgb, var(--danger-text) 28%, var(--glass-control-border));
+}
+
+.done-header-actions .btn-clear-done:hover {
+  color: var(--danger-text);
+  background: color-mix(in srgb, var(--danger-bg) 72%, var(--glass-control-bg-hover));
+  border-color: color-mix(in srgb, var(--danger-text) 46%, var(--glass-control-border-hover));
 }
 
 .done-header .arrow {
@@ -2420,7 +2431,7 @@ body::before {
   gap: 10px;
   flex: 1;
   min-height: 0;
-  overflow: hidden;
+  overflow: visible;
   transition: gap var(--motion-panel);
 }
 
@@ -3029,7 +3040,7 @@ body::before {
   display: flex;
   flex-direction: column;
   flex: 1;
-  margin: 0 2px 2px;
+  margin: 0 10px 14px;
   padding: 0;
   background: color-mix(in srgb, var(--glass-surface-strong) var(--ui-glass-opacity), transparent);
   backdrop-filter: blur(var(--ui-glass-blur)) saturate(135%);
@@ -6544,5 +6555,489 @@ body::before {
     bottom: 5px;
     min-height: 26px;
     padding: 4px 7px;
+  }
+}
+
+/* ========== Cohesive appearance, alignment and motion layer ========== */
+:root {
+  --ui-glass-strong-opacity: 90%;
+  --ui-control-opacity: 82%;
+  --ui-overlay-opacity: 42%;
+}
+
+body::before {
+  background:
+    radial-gradient(circle at 12% 8%, rgba(99, 102, 241, 0.13), transparent 34%),
+    radial-gradient(circle at 88% 92%, rgba(34, 211, 238, 0.08), transparent 32%),
+    linear-gradient(145deg, #0d111a 0%, var(--bg-base) 48%, #111827 100%);
+  transition: opacity var(--motion-panel), filter var(--motion-panel);
+}
+
+:root[data-theme="light"] body::before {
+  background:
+    radial-gradient(circle at 10% 8%, rgba(99, 102, 241, 0.13), transparent 34%),
+    radial-gradient(circle at 88% 90%, rgba(14, 165, 233, 0.09), transparent 32%),
+    linear-gradient(145deg, #f8f9fc 0%, var(--bg-base) 48%, #e9eef7 100%);
+}
+
+body,
+.sidebar,
+.main-content,
+.add-task-bar,
+.todo-item,
+.done-section,
+.calendar-detail,
+.detail-panel,
+.summary-panel,
+.settings-modal,
+.tag-input-box,
+.quick-popup,
+.context-menu,
+.mini-panel,
+.mini-tooltip,
+.dp-panel,
+.date-picker,
+.glass-select-menu,
+.detail-dropdown,
+.month-picker-menu,
+.toast-msg {
+  transition:
+    background-color var(--motion-normal),
+    border-color var(--motion-normal),
+    color var(--motion-normal),
+    box-shadow var(--motion-normal),
+    opacity var(--motion-fast),
+    transform var(--motion-fast);
+}
+
+.sidebar,
+.add-task-bar,
+.todo-item,
+.done-section,
+.calendar-detail,
+.settings-tag-add-bar,
+.settings-pane[data-pane="tags"] .tag-manage-item,
+.notification-setting-card {
+  background: color-mix(in srgb, var(--glass-surface) var(--ui-glass-opacity), transparent);
+  border-color: color-mix(in srgb, var(--glass-stroke-strong) var(--ui-border-strength), transparent);
+}
+
+.detail-panel,
+.summary-panel,
+.settings-modal,
+.tag-input-box,
+.quick-popup,
+.context-menu,
+.mini-panel,
+.mini-tooltip,
+.dp-panel,
+.date-picker,
+.glass-select-menu,
+.detail-dropdown,
+.month-picker-menu,
+.toast-msg {
+  background: color-mix(in srgb, var(--glass-surface-strong) var(--ui-glass-strong-opacity), transparent);
+  backdrop-filter: blur(var(--ui-glass-blur)) saturate(140%);
+  -webkit-backdrop-filter: blur(var(--ui-glass-blur)) saturate(140%);
+  border-color: color-mix(in srgb, var(--glass-stroke-strong) var(--ui-border-strength), transparent);
+}
+
+.icon-btn,
+.btn-glass,
+.btn-header-action,
+.btn-secondary,
+.btn-cancel,
+.btn-ai-summary,
+.btn-archive-all,
+.btn-copy,
+.btn-theme-toggle,
+.btn-mini-mode-footer,
+.btn-toggle-sidebar,
+.sidebar-footer button,
+.settings-tab,
+.theme-opt,
+.calendar-mode-btn,
+.calendar-collapse-btn,
+.calendar-title-btn,
+.summary-tab,
+.mini-btn,
+.dp-btn,
+.month-picker-actions button {
+  background-color: color-mix(in srgb, var(--glass-control-bg) var(--ui-control-opacity), transparent);
+  border-color: color-mix(in srgb, var(--glass-control-border-hover) var(--ui-border-strength), transparent);
+  border-radius: var(--ui-radius-sm);
+}
+
+/* Semantic action buttons keep their contrast instead of inheriting the
+   translucent neutral-control background in light mode. */
+.btn-primary,
+.btn-ok,
+.dp-btn.dp-btn-confirm {
+  color: #fff;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--accent) 92%, white), var(--accent));
+  border-color: color-mix(in srgb, var(--accent) 72%, white 28%);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--accent) 28%, transparent), var(--glass-inset-highlight);
+}
+
+.btn-primary:hover:not(:disabled),
+.btn-ok:hover:not(:disabled),
+.dp-btn.dp-btn-confirm:hover:not(:disabled),
+.date-picker .dp-today-btn:hover:not(:disabled) {
+  color: #fff;
+  background: linear-gradient(145deg, var(--accent), var(--accent-hover));
+  border-color: color-mix(in srgb, var(--accent-hover) 76%, white 24%);
+}
+
+.btn-danger {
+  color: #fff;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--danger) 90%, white), var(--danger));
+  border-color: color-mix(in srgb, var(--danger) 72%, white 28%);
+}
+
+.btn-danger:hover:not(:disabled) {
+  color: #fff;
+  background: linear-gradient(145deg, var(--danger), var(--danger-hover));
+}
+
+.btn-primary .app-icon,
+.btn-ok .app-icon,
+.dp-btn.dp-btn-confirm .app-icon,
+.btn-danger .app-icon {
+  color: currentColor;
+}
+
+.tag-input-overlay,
+.detail-overlay,
+.summary-overlay,
+.settings-overlay {
+  background: color-mix(in srgb, var(--overlay) var(--ui-overlay-opacity), transparent);
+}
+
+.main-header,
+.sidebar-header,
+.settings-header,
+.detail-header,
+.summary-header,
+.done-header,
+.calendar-toolbar,
+.view-header-actions,
+.add-task-actions,
+.todo-actions,
+.detail-actions,
+.summary-footer,
+.btn-row {
+  align-items: center;
+}
+
+.icon-btn,
+.btn-header-action,
+.todo-actions button,
+.tag-delete-btn,
+.dp-nav-btn,
+.dp-clear-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.settings-header,
+.detail-header,
+.summary-header {
+  min-height: 58px;
+}
+
+.settings-body,
+.detail-panel form,
+.summary-controls {
+  min-width: 0;
+}
+
+.settings-row label,
+.detail-row label,
+.ui-style-control-label,
+.task-summary,
+.section-title {
+  line-height: 1.4;
+}
+
+.theme-transitioning body::before {
+  filter: saturate(1.04);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-transitioning body::before {
+    filter: none;
+  }
+}
+
+/* Task editor date, priority and tag controls use the live appearance system. */
+.detail-panel .detail-row label {
+  color: var(--text-muted);
+  font-size: calc(12px * var(--ui-font-scale));
+}
+
+.detail-panel .detail-select,
+.detail-panel .dp-trigger {
+  min-height: 42px;
+  padding: 9px 36px 9px 12px;
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--glass-control-bg) var(--ui-control-opacity), transparent);
+  backdrop-filter: blur(var(--ui-glass-blur-light)) saturate(125%);
+  -webkit-backdrop-filter: blur(var(--ui-glass-blur-light)) saturate(125%);
+  border: 1px solid color-mix(in srgb, var(--glass-control-border-hover) var(--ui-border-strength), transparent);
+  border-radius: var(--ui-radius-sm);
+  box-shadow: var(--glass-control-shadow), var(--glass-inset-highlight);
+  font-size: calc(13px * var(--ui-font-scale));
+  line-height: 1.35;
+}
+
+.detail-panel .detail-select {
+  padding-right: 12px;
+}
+
+.detail-panel .detail-select:hover,
+.detail-panel .detail-select:focus-visible,
+.detail-panel .detail-select.is-open,
+.detail-panel .dp-trigger:hover,
+.detail-panel .dp-trigger:focus-visible {
+  outline: none;
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--glass-control-bg-hover) var(--ui-control-opacity), transparent);
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--glass-control-border-hover));
+  box-shadow: 0 0 0 3px var(--focus-ring), var(--glass-control-shadow-hover), var(--glass-inset-highlight);
+}
+
+.detail-panel .detail-select-trigger {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 9px;
+  overflow: hidden;
+  color: inherit;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail-panel .detail-select-trigger .prio-dot,
+.detail-panel .detail-select-trigger .tag-dot {
+  flex: 0 0 auto;
+  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 9%, transparent);
+}
+
+.detail-panel .detail-select-arrow {
+  color: var(--text-muted);
+}
+
+.detail-panel .detail-select.is-open .detail-select-arrow {
+  color: var(--accent-text);
+}
+
+.detail-dropdown {
+  padding: 7px;
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--glass-surface-strong) var(--ui-glass-strong-opacity), transparent);
+  backdrop-filter: blur(var(--ui-glass-blur)) saturate(145%);
+  -webkit-backdrop-filter: blur(var(--ui-glass-blur)) saturate(145%);
+  border: 1px solid color-mix(in srgb, var(--glass-stroke-strong) var(--ui-border-strength), transparent);
+  border-radius: var(--ui-radius);
+  box-shadow: var(--glass-panel-shadow), var(--glass-inset-highlight);
+}
+
+.detail-dropdown-item {
+  min-height: 38px;
+  margin-top: 3px;
+  padding: 8px 10px;
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--glass-control-bg) var(--ui-control-opacity), transparent);
+  border-color: color-mix(in srgb, var(--glass-control-border) var(--ui-border-strength), transparent);
+  border-radius: var(--ui-radius-sm);
+  box-shadow: var(--glass-inset-highlight);
+  font-size: calc(13px * var(--ui-font-scale));
+  line-height: 1.35;
+}
+
+.detail-dropdown-item:hover,
+.detail-dropdown-item:focus-visible {
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--glass-control-bg-hover) var(--ui-control-opacity), transparent);
+  border-color: color-mix(in srgb, var(--glass-control-border-hover) var(--ui-border-strength), transparent);
+  box-shadow: var(--glass-control-shadow-hover), var(--glass-inset-highlight);
+  transform: translateY(-1px);
+}
+
+.detail-dropdown-item.selected {
+  color: var(--accent-text);
+  background: color-mix(in srgb, var(--accent) 18%, var(--glass-control-bg));
+  border-color: color-mix(in srgb, var(--accent) 46%, var(--glass-control-border-hover));
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 14%, transparent), var(--glass-inset-highlight);
+}
+
+/* Quick-add controls share the live appearance system used by the rest of the app. */
+.add-task-actions .icon-btn {
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--glass-control-bg) var(--ui-control-opacity), transparent);
+  backdrop-filter: blur(var(--ui-glass-blur-light)) saturate(125%);
+  -webkit-backdrop-filter: blur(var(--ui-glass-blur-light)) saturate(125%);
+  border-color: color-mix(in srgb, var(--glass-control-border-hover) var(--ui-border-strength), transparent);
+  border-radius: var(--ui-radius-sm);
+  box-shadow: var(--glass-control-shadow), var(--glass-inset-highlight);
+}
+
+.add-task-actions .icon-btn:hover,
+.add-task-actions .icon-btn[aria-expanded="true"] {
+  color: var(--accent-text);
+  background: color-mix(in srgb, var(--accent) 14%, var(--glass-control-bg-hover));
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--glass-control-border-hover));
+  box-shadow: var(--glass-control-shadow-hover), var(--glass-inset-highlight);
+}
+
+.add-task-actions .icon-btn.preset-active {
+  color: var(--accent-text);
+  background: color-mix(in srgb, var(--accent) 18%, var(--glass-control-bg));
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--glass-control-border-hover));
+}
+
+.add-task-bar .quick-popup {
+  padding: 7px;
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--glass-surface-strong) var(--ui-glass-strong-opacity), transparent);
+  backdrop-filter: blur(var(--ui-glass-blur)) saturate(145%);
+  -webkit-backdrop-filter: blur(var(--ui-glass-blur)) saturate(145%);
+  border: 1px solid color-mix(in srgb, var(--glass-stroke-strong) var(--ui-border-strength), transparent);
+  border-radius: var(--ui-radius);
+  box-shadow: var(--glass-panel-shadow), var(--glass-inset-highlight);
+}
+
+.quick-popup .popup-title {
+  margin: 0 2px 6px;
+  padding: 5px 8px 9px;
+  color: var(--text-muted);
+  border-color: color-mix(in srgb, var(--glass-divider) var(--ui-border-strength), transparent);
+  font-size: calc(12px * var(--ui-font-scale));
+  line-height: 1.35;
+}
+
+.quick-popup .popup-option {
+  min-height: 38px;
+  margin-top: 3px;
+  padding: 8px 10px;
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--glass-control-bg) var(--ui-control-opacity), transparent);
+  backdrop-filter: blur(var(--ui-glass-blur-light)) saturate(120%);
+  -webkit-backdrop-filter: blur(var(--ui-glass-blur-light)) saturate(120%);
+  border-color: color-mix(in srgb, var(--glass-control-border) var(--ui-border-strength), transparent);
+  border-radius: var(--ui-radius-sm);
+  box-shadow: var(--glass-inset-highlight);
+  font-size: calc(13px * var(--ui-font-scale));
+  line-height: 1.35;
+}
+
+.quick-popup .popup-option:hover,
+.quick-popup .popup-option:focus-visible {
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--glass-control-bg-hover) var(--ui-control-opacity), transparent);
+  border-color: color-mix(in srgb, var(--glass-control-border-hover) var(--ui-border-strength), transparent);
+  box-shadow: var(--glass-control-shadow-hover), var(--glass-inset-highlight);
+  transform: translateY(-1px);
+}
+
+.quick-popup .popup-option.selected {
+  color: var(--accent-text);
+  background: color-mix(in srgb, var(--accent) 18%, var(--glass-control-bg));
+  border-color: color-mix(in srgb, var(--accent) 46%, var(--glass-control-border-hover));
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 14%, transparent), var(--glass-inset-highlight);
+}
+
+.quick-popup .popup-option.popup-clear {
+  color: var(--danger-text);
+}
+
+.quick-popup .popup-option.popup-clear:hover,
+.quick-popup .popup-option.popup-clear:focus-visible {
+  color: var(--danger-text);
+  background: color-mix(in srgb, var(--danger) 12%, var(--glass-control-bg-hover));
+  border-color: color-mix(in srgb, var(--danger) 38%, var(--glass-control-border-hover));
+}
+
+.quick-popup .popup-divider {
+  background: color-mix(in srgb, var(--glass-divider) var(--ui-border-strength), transparent);
+}
+
+.quick-popup .popup-empty {
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--glass-surface-input) var(--ui-glass-opacity), transparent);
+  border-color: color-mix(in srgb, var(--glass-stroke) var(--ui-border-strength), transparent);
+  border-radius: var(--ui-radius-sm);
+  font-size: calc(12px * var(--ui-font-scale));
+}
+
+.quick-popup .popup-custom-date,
+.quick-popup .popup-custom-date:hover,
+.quick-popup .popup-custom-date:focus-visible {
+  min-height: 0;
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  transform: none;
+}
+
+.quick-popup .popup-custom-date .dp-trigger {
+  min-height: 40px;
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--glass-control-bg) var(--ui-control-opacity), transparent);
+  backdrop-filter: blur(var(--ui-glass-blur-light)) saturate(120%);
+  -webkit-backdrop-filter: blur(var(--ui-glass-blur-light)) saturate(120%);
+  border-color: color-mix(in srgb, var(--glass-control-border-hover) var(--ui-border-strength), transparent);
+  border-radius: var(--ui-radius-sm);
+  box-shadow: var(--glass-inset-highlight);
+  font-size: calc(13px * var(--ui-font-scale));
+}
+
+.quick-popup .prio-dot,
+.quick-popup .tag-dot {
+  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 10%, transparent);
+}
+
+/* Project-wide replacement for unstyleable native title tooltips. */
+.glass-tooltip {
+  position: fixed;
+  z-index: 12000;
+  max-width: min(260px, calc(100vw - 16px));
+  padding: 7px 10px;
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--glass-surface-strong) var(--ui-glass-strong-opacity), transparent);
+  backdrop-filter: blur(var(--ui-glass-blur-light)) saturate(145%);
+  -webkit-backdrop-filter: blur(var(--ui-glass-blur-light)) saturate(145%);
+  border: 1px solid color-mix(in srgb, var(--glass-stroke-strong) var(--ui-border-strength), transparent);
+  border-radius: var(--ui-radius-sm);
+  box-shadow: var(--glass-panel-shadow), var(--glass-inset-highlight);
+  font-size: calc(12px * var(--ui-font-scale));
+  font-weight: 500;
+  line-height: 1.35;
+  text-align: center;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(4px) scale(0.97);
+  transform-origin: center top;
+  transition: opacity var(--motion-fast), transform var(--motion-fast);
+}
+
+.glass-tooltip[data-placement="top"] {
+  transform: translateY(-4px) scale(0.97);
+  transform-origin: center bottom;
+}
+
+.glass-tooltip.visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glass-tooltip,
+  .glass-tooltip[data-placement="top"] {
+    transform: none;
   }
 }

@@ -80,9 +80,9 @@ function openPanel() {
           <div class="settings-row">
             <label>主题</label>
             <div class="theme-options">
-              <button class="theme-opt" type="button" aria-pressed="false" data-theme="auto">${iconSvg('monitor')}<span>跟随系统</span></button>
-              <button class="theme-opt" type="button" aria-pressed="false" data-theme="light">${iconSvg('sun')}<span>白天</span></button>
-              <button class="theme-opt" type="button" aria-pressed="false" data-theme="dark">${iconSvg('moon')}<span>夜间</span></button>
+              <button class="theme-opt" type="button" aria-pressed="false" data-theme-value="auto">${iconSvg('monitor')}<span>跟随系统</span></button>
+              <button class="theme-opt" type="button" aria-pressed="false" data-theme-value="light">${iconSvg('sun')}<span>白天</span></button>
+              <button class="theme-opt" type="button" aria-pressed="false" data-theme-value="dark">${iconSvg('moon')}<span>夜间</span></button>
             </div>
           </div>
           <div class="settings-style-section">
@@ -168,9 +168,9 @@ function openPanel() {
   // 主题切换
   overlay.querySelectorAll('.theme-opt').forEach(btn => {
     btn.addEventListener('click', () => {
-      data.theme = btn.dataset.theme;
+      data.theme = btn.dataset.themeValue;
       saveData();
-      applyTheme(data.theme);
+      applyTheme(data.theme, { animate: true });
       updateThemeSelection(overlay);
     });
   });
@@ -313,7 +313,7 @@ function updateNotificationStatus(overlay) {
 
 function updateThemeSelection(overlay) {
   overlay.querySelectorAll('.theme-opt').forEach(btn => {
-    const active = btn.dataset.theme === data.theme;
+    const active = btn.dataset.themeValue === data.theme;
     btn.classList.toggle('active', active);
     btn.setAttribute('aria-pressed', String(active));
   });

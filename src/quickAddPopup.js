@@ -172,7 +172,10 @@ export function initQuickAddPopups({ quickAddPreset, updateQuickAddIndicators, d
   });
 
   document.addEventListener('click', (e) => {
-    if (!e.target.closest('.quick-popup') && !e.target.closest('.add-task-actions')) {
+    const interactionSelector =
+      '.quick-popup, .add-task-actions, .date-picker, .glass-select-menu, .month-picker-menu';
+    const isQuickAddInteraction = e.composedPath().some(node => node?.matches?.(interactionSelector));
+    if (!isQuickAddInteraction) {
       closeAllPopups();
     }
   });

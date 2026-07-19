@@ -191,9 +191,20 @@ class DatePicker {
     requestAnimationFrame(() => {
       const pH = this.panel.offsetHeight;
       const pW = this.panel.offsetWidth;
-      if (top + pH > window.innerHeight + window.scrollY) {
-        top = rect.top + window.scrollY - pH - 6;
+      const viewportTop = window.scrollY + 8;
+      const viewportBottom = window.scrollY + window.innerHeight - 8;
+      const availableHeight = Math.max(240, window.innerHeight - 16);
+
+      this.panel.style.maxHeight = `${availableHeight}px`;
+      this.panel.style.overflowY = pH > availableHeight ? 'auto' : '';
+
+      if (top + pH > viewportBottom) {
+        const aboveTop = rect.top + window.scrollY - pH - 6;
+        top = aboveTop >= viewportTop
+          ? aboveTop
+          : Math.max(viewportTop, viewportBottom - Math.min(pH, availableHeight));
       }
+      top = Math.max(viewportTop, Math.min(top, viewportBottom - Math.min(pH, availableHeight)));
       if (left + pW > window.innerWidth + window.scrollX) {
         left = window.innerWidth + window.scrollX - pW - 8;
       }

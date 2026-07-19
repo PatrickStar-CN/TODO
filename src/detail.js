@@ -80,7 +80,7 @@ function createDetailDropdown(selectEl, options, getOptionHtml) {
       const trigger = selectEl.querySelector('.detail-select-trigger');
       if (trigger) {
         const opt = options.find(o => o.value === val);
-        trigger.textContent = opt ? opt.label : val;
+        trigger.innerHTML = opt ? getOptionHtml(opt) : escapeHtml(val);
       }
       /* 更新选中态 */
       items.forEach(i => {
@@ -228,14 +228,18 @@ export function openDetail(todo, triggerEl) {
   const priorityVal = todo.priority || 'none';
   const priorityEl = document.getElementById('detail-priority');
   priorityEl.dataset.value = priorityVal;
-  priorityEl.querySelector('.detail-select-trigger').textContent =
-    PRIORITY_OPTIONS.find(o => o.value === priorityVal)?.label || '无';
+  const priorityOption = PRIORITY_OPTIONS.find(o => o.value === priorityVal) || PRIORITY_OPTIONS[0];
+  priorityEl.querySelector('.detail-select-trigger').innerHTML = priorityOption.dotClass
+    ? `<span class="prio-dot ${priorityOption.dotClass}"></span>${priorityOption.label}`
+    : priorityOption.label;
 
   /* 设置自定义下拉值 —— 标签 */
   const tagVal = todo.tag || '';
   const tagEl = document.getElementById('detail-tag');
   tagEl.dataset.value = tagVal;
-  tagEl.querySelector('.detail-select-trigger').textContent = tagVal || '未设置';
+  tagEl.querySelector('.detail-select-trigger').innerHTML = tagVal
+    ? `<span class="tag-dot" style="background:${getTagColor(tagVal)}"></span>${escapeHtml(tagVal)}`
+    : '未设置';
 
   /* 设置自定义下拉值 —— 重复提醒 */
   const repeatVal = todo.reminderRepeat || 'none';

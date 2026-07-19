@@ -38,6 +38,9 @@ export function applyUiStyle(value) {
   root.style.setProperty('--ui-radius-xs', `${Math.max(2, Math.round(style.radius * 0.42))}px`);
   root.style.setProperty('--ui-radius-lg', `${style.radius + 6}px`);
   root.style.setProperty('--ui-glass-opacity', `${style.glassOpacity}%`);
+  root.style.setProperty('--ui-glass-strong-opacity', `${Math.min(100, style.glassOpacity + 18)}%`);
+  root.style.setProperty('--ui-control-opacity', `${Math.min(100, Math.max(48, style.glassOpacity + 10))}%`);
+  root.style.setProperty('--ui-overlay-opacity', `${Math.min(72, Math.max(28, Math.round(style.glassOpacity * 0.58)))}%`);
   root.style.setProperty('--ui-border-strength', `${style.borderStrength}%`);
   root.style.setProperty('--ui-font-scale', String(style.fontScale / 100));
   root.style.setProperty('--ui-glass-blur', `${style.blur}px`);

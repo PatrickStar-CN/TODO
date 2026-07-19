@@ -976,7 +976,7 @@ export async function initApp() {
   applyUiStyle(data.uiStyle);
 
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-    if (data.theme === 'auto') applyTheme(data.theme);
+    if (data.theme === 'auto') applyTheme(data.theme, { animate: true });
   });
 
   // --- Search ---
@@ -1276,7 +1276,8 @@ export async function initApp() {
   });
 
   // Clear done
-  document.getElementById('btn-clear-done').addEventListener('click', () => {
+  document.getElementById('btn-clear-done').addEventListener('click', (e) => {
+    e.stopPropagation();
     clearDoneTasks();
   });
 

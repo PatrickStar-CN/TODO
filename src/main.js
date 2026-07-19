@@ -3,6 +3,7 @@ import { flushAppData, initApp } from './app.js';
 import { initRipple } from './ripple.js';
 import { registerWindowsToastApp } from './windowsToast.js';
 import { hydrateIcons } from './icons.js';
+import { initGlassTooltip } from './glassTooltip.js';
 
 function setupTray() {
   Neutralino.os.setTray({
@@ -33,6 +34,7 @@ function setupTray() {
 document.addEventListener('DOMContentLoaded', () => {
   hydrateIcons();
   initRipple();
+  initGlassTooltip();
   if (typeof Neutralino !== 'undefined') {
     Neutralino.init();
     Neutralino.events.on('ready', () => {
