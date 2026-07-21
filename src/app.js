@@ -277,6 +277,13 @@ let chartCollapsed = false;
 let currentMonth = new Date();
 let doneCollapsed = true;
 let searchKeyword = '';
+const DONE_PAGE_SIZE = 25;
+const DONE_LOAD_AHEAD_PX = 96;
+const TASK_PAGE_SIZE = DONE_PAGE_SIZE;
+let visibleDoneCount = DONE_PAGE_SIZE;
+let visibleTaskCount = TASK_PAGE_SIZE;
+let doneLoadFrame = null;
+let taskLoadFrame = null;
 
 function showToast(msg) {
   const toast = document.createElement('div');
@@ -469,6 +476,66 @@ function getFilteredTodos() {
   return _getFilteredTodos(data, currentList, currentTag);
 }
 
+function resetDoneIncrementalLoad() {
+  visibleDoneCount = DONE_PAGE_SIZE;
+}
+
+function resetTaskIncrementalLoad() {
+  visibleTaskCount = TASK_PAGE_SIZE;
+}
+
+function resetListIncrementalLoad() {
+  resetTaskIncrementalLoad();
+  resetDoneIncrementalLoad();
+}
+
+function isNearScrollBottom(el) {
+  if (!el) return false;
+  return el.scrollHeight - el.scrollTop - el.clientHeight <= DONE_LOAD_AHEAD_PX;
+}
+
+function loadMoreTasksIfNeeded(scrollEl = null) {
+  if (currentList === 'calendar') return;
+  if (scrollEl && !isNearScrollBottom(scrollEl)) return;
+
+  const todoListEl = document.getElementById('todo-list');
+  const total = Number(todoListEl?.dataset.total || 0);
+  const rendered = Number(todoListEl?.dataset.rendered || 0);
+  if (!total || rendered >= total) return;
+
+  visibleTaskCount = Math.min(total, visibleTaskCount + TASK_PAGE_SIZE);
+  renderTodoList();
+}
+
+function loadMoreDoneIfNeeded(scrollEl = null) {
+  if (doneCollapsed || searchKeyword || currentList === 'archived') return;
+  if (scrollEl && !isNearScrollBottom(scrollEl)) return;
+
+  const doneListEl = document.getElementById('done-list');
+  const total = Number(doneListEl?.dataset.total || 0);
+  const rendered = Number(doneListEl?.dataset.rendered || 0);
+  if (!total || rendered >= total) return;
+
+  visibleDoneCount = Math.min(total, visibleDoneCount + DONE_PAGE_SIZE);
+  renderTodoList();
+}
+
+function scheduleTaskIncrementalLoad(scrollEl) {
+  if (taskLoadFrame) return;
+  taskLoadFrame = requestAnimationFrame(() => {
+    taskLoadFrame = null;
+    loadMoreTasksIfNeeded(scrollEl);
+  });
+}
+
+function scheduleDoneIncrementalLoad(scrollEl) {
+  if (doneLoadFrame) return;
+  doneLoadFrame = requestAnimationFrame(() => {
+    doneLoadFrame = null;
+    loadMoreDoneIfNeeded(scrollEl);
+  });
+}
+
 // --- Render ---
 const todoDoneTransitions = new Set();
 
@@ -629,6 +696,23 @@ function renderTodoList() {
   const filtered = getFilteredTodos();
   const addTaskBar = document.querySelector('.add-task-bar');
 
+  const renderTaskItems = (items, emptyHtml) => {
+    todoListEl.innerHTML = '';
+    todoListEl.dataset.total = String(items.length);
+    if (items.length === 0) {
+      todoListEl.dataset.rendered = '0';
+      todoListEl.innerHTML = emptyHtml;
+      return;
+    }
+
+    const visibleItems = items.slice(0, visibleTaskCount);
+    todoListEl.dataset.rendered = String(visibleItems.length);
+    appendTodoItems(todoListEl, visibleItems);
+    requestAnimationFrame(() => {
+      scheduleTaskIncrementalLoad(document.querySelector('.task-scroll-area'));
+    });
+  };
+
   if (currentList === 'archived') {
     addTaskBar.style.display = 'none';
     const sorted = filtered.slice().sort((a, b) => {
@@ -636,12 +720,7 @@ function renderTodoList() {
       const tb = b.archivedAt ? new Date(b.archivedAt).getTime() : 0;
       return tb - ta;
     });
-    todoListEl.innerHTML = '';
-    if (sorted.length === 0) {
-      todoListEl.innerHTML = '<div class="empty-state">暂无归档任务</div>';
-    } else {
-      appendTodoItems(todoListEl, sorted);
-    }
+    renderTaskItems(sorted, '<div class="empty-state">暂无归档任务</div>');
     doneSection.style.display = 'none';
     taskSummary.textContent = `${sorted.length} 个归档`;
     return;
@@ -650,12 +729,7 @@ function renderTodoList() {
   if (searchKeyword) {
     addTaskBar.style.display = 'none';
     const sorted = sortByPriority(filtered);
-    todoListEl.innerHTML = '';
-    if (sorted.length === 0) {
-      todoListEl.innerHTML = '<div class="empty-state">未找到匹配的任务</div>';
-    } else {
-      appendTodoItems(todoListEl, sorted);
-    }
+    renderTaskItems(sorted, '<div class="empty-state">未找到匹配的任务</div>');
     doneSection.style.display = 'none';
     taskSummary.textContent = `搜索到 ${sorted.length} 个任务`;
     return;
@@ -665,19 +739,22 @@ function renderTodoList() {
   const { pending, done } = splitPendingDone(filtered);
   const sorted = sortByPriority(pending);
 
-  todoListEl.innerHTML = '';
-  if (sorted.length === 0) {
-    todoListEl.innerHTML = '<div class="empty-state">暂无待办事项</div>';
-  } else {
-    appendTodoItems(todoListEl, sorted);
-  }
+  renderTaskItems(sorted, '<div class="empty-state">暂无待办事项</div>');
 
   doneCountEl.textContent = done.length;
   doneSection.style.display = done.length > 0 ? 'block' : 'none';
   doneToggleEl.classList.toggle('collapsed', doneCollapsed);
   doneListEl.innerHTML = '';
+  doneListEl.dataset.total = String(done.length);
   if (!doneCollapsed) {
-    appendTodoItems(doneListEl, done);
+    const visibleDone = done.slice(0, visibleDoneCount);
+    doneListEl.dataset.rendered = String(visibleDone.length);
+    appendTodoItems(doneListEl, visibleDone);
+    requestAnimationFrame(() => {
+      scheduleDoneIncrementalLoad(document.getElementById('done-list-wrapper'));
+    });
+  } else {
+    doneListEl.dataset.rendered = '0';
   }
 
   taskSummary.textContent = `${sorted.length} 个任务`;
@@ -995,6 +1072,7 @@ export async function initApp() {
     } else {
       searchInput.value = '';
       searchKeyword = '';
+      resetListIncrementalLoad();
       renderTodoList();
     }
   });
@@ -1003,6 +1081,7 @@ export async function initApp() {
     searchBar.classList.add('hidden');
     searchInput.value = '';
     searchKeyword = '';
+    resetListIncrementalLoad();
     renderTodoList();
   });
 
@@ -1010,6 +1089,7 @@ export async function initApp() {
     clearTimeout(searchTimer);
     searchTimer = setTimeout(() => {
       searchKeyword = searchInput.value.trim();
+      resetListIncrementalLoad();
       scheduleRender({ list: true });
     }, 200);
   });
@@ -1043,6 +1123,7 @@ export async function initApp() {
   const doneToggle = document.getElementById('done-toggle');
   const listView = document.getElementById('view-list');
   const doneSection = document.getElementById('done-section');
+  const doneListWrapper = document.getElementById('done-list-wrapper');
   const taskScrollArea = document.querySelector('.task-scroll-area');
   const addTaskBar = document.querySelector('.add-task-bar');
   const detailForm = document.getElementById('detail-form');
@@ -1068,6 +1149,15 @@ export async function initApp() {
     donePanelObserver.observe(addTaskBar);
   }
 
+  doneListWrapper.addEventListener('scroll', () => {
+    scheduleDoneIncrementalLoad(doneListWrapper);
+  }, { passive: true });
+
+  taskScrollArea.addEventListener('scroll', () => {
+    scheduleTaskIncrementalLoad(taskScrollArea);
+    scheduleDoneIncrementalLoad(taskScrollArea);
+  }, { passive: true });
+
   // Set today's date
   const today = new Date();
   document.getElementById('today-date').textContent =
@@ -1083,6 +1173,7 @@ export async function initApp() {
     searchKeyword = '';
     searchInput.value = '';
     searchBar.classList.add('hidden');
+    resetListIncrementalLoad();
 
     if (currentList === 'calendar') {
       document.getElementById('view-list').classList.remove('active');
@@ -1104,6 +1195,7 @@ export async function initApp() {
     searchKeyword = '';
     searchInput.value = '';
     searchBar.classList.add('hidden');
+    resetListIncrementalLoad();
     document.getElementById('view-calendar').classList.remove('active');
     document.getElementById('view-list').classList.add('active');
     render();
@@ -1242,6 +1334,7 @@ export async function initApp() {
   doneToggle.addEventListener('click', (e) => {
     if (e.target.closest('.btn-archive-all')) return;
     doneCollapsed = !doneCollapsed;
+    resetDoneIncrementalLoad();
     doneToggle.classList.toggle('collapsed', doneCollapsed);
     const wrapper = document.getElementById('done-list-wrapper');
     if (doneCollapsed) {
@@ -1422,7 +1515,7 @@ export async function initApp() {
       showContextMenu(e.clientX, e.clientY, items);
     } else if (tagItem) {
       const tag = tagItem.dataset.tag;
-      const setCurrentTag = (t) => { currentTag = t; currentList = null; };
+      const setCurrentTag = (t) => { currentTag = t; currentList = null; resetListIncrementalLoad(); };
       showContextMenu(e.clientX, e.clientY, buildTagContextMenu(tag, { setCurrentTag, render, deleteTagFromMenu }));
     } else if (navItem) {
       showContextMenu(e.clientX, e.clientY, buildNavContextMenu({ clearDoneTasks }));
