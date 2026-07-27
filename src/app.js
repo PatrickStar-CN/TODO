@@ -476,8 +476,9 @@ function getFilteredTodos() {
   return _getFilteredTodos(data, currentList, currentTag);
 }
 
-function resetDoneIncrementalLoad() {
+function resetDoneIncrementalLoad({ resetScroll = false } = {}) {
   visibleDoneCount = DONE_PAGE_SIZE;
+  if (resetScroll) resetDoneListScroll();
 }
 
 function resetTaskIncrementalLoad() {
@@ -486,12 +487,25 @@ function resetTaskIncrementalLoad() {
 
 function resetListIncrementalLoad() {
   resetTaskIncrementalLoad();
-  resetDoneIncrementalLoad();
+  resetDoneIncrementalLoad({ resetScroll: true });
 }
 
 function isNearScrollBottom(el) {
   if (!el) return false;
   return el.scrollHeight - el.scrollTop - el.clientHeight <= DONE_LOAD_AHEAD_PX;
+}
+
+function resetDoneListScroll() {
+  const wrapper = document.getElementById('done-list-wrapper');
+  if (!wrapper) return;
+
+  wrapper.scrollTop = 0;
+  wrapper.scrollLeft = 0;
+  requestAnimationFrame(() => {
+    if (!wrapper.isConnected) return;
+    wrapper.scrollTop = 0;
+    wrapper.scrollLeft = 0;
+  });
 }
 
 function loadMoreTasksIfNeeded(scrollEl = null) {
@@ -1142,6 +1156,11 @@ export async function initApp() {
     }
   };
 
+  const scheduleDonePanelLayoutSync = () => {
+    syncDonePanelLayout();
+    requestAnimationFrame(syncDonePanelLayout);
+  };
+
   if (typeof ResizeObserver !== 'undefined') {
     const donePanelObserver = new ResizeObserver(syncDonePanelLayout);
     donePanelObserver.observe(doneSection);
@@ -1340,16 +1359,20 @@ export async function initApp() {
     if (doneCollapsed) {
       wrapper.classList.remove('expanding');
       wrapper.classList.add('collapsing');
+      scheduleDonePanelLayoutSync();
       wrapper.addEventListener('animationend', () => {
         renderTodoList();
         wrapper.classList.remove('collapsing');
+        scheduleDonePanelLayoutSync();
       }, { once: true });
     } else {
       renderTodoList();
       wrapper.classList.remove('collapsing');
       wrapper.classList.add('expanding');
+      scheduleDonePanelLayoutSync();
       wrapper.addEventListener('animationend', () => {
         wrapper.classList.remove('expanding');
+        scheduleDonePanelLayoutSync();
       }, { once: true });
     }
   });
