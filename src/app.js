@@ -1631,6 +1631,11 @@ export async function initApp() {
 
   // --- Mini Mode ---
   const mini = initMiniMode({ data, saveData, render, showToast, isNeutralinoEnv, getTagDotStyle, showContextMenu, closeWindow, reminders, appConfig, todoStore: runtimeIndex });
+  document.addEventListener('todo-tools:restore-main-window', () => {
+    if (mini.isMiniMode()) {
+      mini.exitMiniMode();
+    }
+  });
 
   // --- Summary Panel ---
   initAiSummary({ data, saveData, showToast });

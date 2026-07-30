@@ -21,6 +21,7 @@
       "minWidth": 800,
       "minHeight": 500,
       "center": true,
+      "hidden": true,
       "icon": "/dist/icon.png",
       "exitProcessOnClose": false
     }
