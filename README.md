@@ -201,6 +201,10 @@ TODO/
       "createdAt": 1700000000000
     }
   ],
+  "timeline": {
+    "enabled": false,
+    "sortBy": "created | completed"
+  },
   "tags": ["工作", "学习"],
   "aiConfig": {
     "apiUrl": "",

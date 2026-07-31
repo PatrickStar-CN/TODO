@@ -7,6 +7,7 @@ import { initReminders } from '../src/reminder.js';
 import { createRuntimeIndex } from '../src/runtimeIndex.js';
 import { encrypt, initCrypto, tryDecrypt } from '../src/utils/crypto.js';
 import { resolveAiApiUrl } from '../src/utils/aiApi.js';
+import { DEFAULT_TIMELINE_SETTINGS, formatTimelineTime, getTimelineDateParts, normalizeTimelineSettings, sortTimelineTodos } from '../src/timeline.js';
 
 assert.equal(resolveAiApiUrl('https://api.openai.com/v1'), 'https://api.openai.com/v1/chat/completions');
 assert.equal(resolveAiApiUrl('https://api.openai.com/v1/'), 'https://api.openai.com/v1/chat/completions');
@@ -45,6 +46,44 @@ assert.deepEqual(sortByPriority(todos.filter(t => !t.archived)).map(t => t.id), 
 const split = splitPendingDone(todos.filter(t => !t.archived));
 assert.deepEqual(split.pending.map(t => t.id), ['1', '4']);
 assert.deepEqual(split.done.map(t => t.id), ['2']);
+
+assert.deepEqual(normalizeTimelineSettings(), DEFAULT_TIMELINE_SETTINGS);
+assert.deepEqual(normalizeTimelineSettings({ enabled: true, sortBy: 'completed' }), {
+  enabled: true,
+  sortBy: 'completed'
+});
+assert.deepEqual(normalizeTimelineSettings({ enabled: 'yes', sortBy: 'unknown' }), {
+  enabled: false,
+  sortBy: 'created'
+});
+const timelineTodos = [
+  { id: 'old-created', createdAt: '2026-01-01T08:00:00', doneAt: null },
+  { id: 'new-created', createdAt: '2026-01-03T08:00:00', doneAt: '2026-01-04T08:00:00' },
+  { id: 'old-completed', createdAt: '2026-01-02T08:00:00', doneAt: '2026-01-02T08:00:00' }
+];
+assert.deepEqual(sortTimelineTodos(timelineTodos, 'created').map(t => t.id), [
+  'new-created',
+  'old-completed',
+  'old-created'
+]);
+assert.deepEqual(sortTimelineTodos(timelineTodos, 'completed').map(t => t.id), [
+  'new-created',
+  'old-completed'
+]);
+assert.equal(formatTimelineTime('2026-01-02T08:09:00'), '08:09');
+assert.deepEqual(getTimelineDateParts(timelineTodos[1], 'created'), {
+  year: 2026,
+  month: 1,
+  day: 3,
+  time: '08:00'
+});
+assert.deepEqual(getTimelineDateParts(timelineTodos[1], 'completed'), {
+  year: 2026,
+  month: 1,
+  day: 4,
+  time: '08:00'
+});
+assert.equal(getTimelineDateParts(timelineTodos[0], 'completed'), null);
 
 assert.deepEqual(normalizeUiStyle(), DEFAULT_UI_STYLE);
 assert.deepEqual(normalizeUiStyle({ radius: 99, glassOpacity: 10, borderStrength: '60', fontScale: 104.6, blur: 'bad' }), {

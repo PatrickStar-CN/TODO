@@ -28,6 +28,57 @@ export function initOverlayScrollbars() {
   let activeInstance = null;
   let hideTimer = null;
   let frame = null;
+  let dragState = null;
+
+  function getDragMetrics(scroller, axis) {
+    const viewportSize = axis === 'y' ? scroller.clientHeight : scroller.clientWidth;
+    const contentSize = axis === 'y' ? scroller.scrollHeight : scroller.scrollWidth;
+    const trackSize = Math.max(MIN_THUMB_SIZE, viewportSize - EDGE_INSET * 2);
+    const thumbSize = Math.max(MIN_THUMB_SIZE, trackSize * viewportSize / contentSize);
+    return {
+      maxScroll: Math.max(0, contentSize - viewportSize),
+      travel: Math.max(1, trackSize - thumbSize),
+    };
+  }
+
+  function endDrag(event) {
+    if (!dragState || (event && event.pointerId !== dragState.pointerId)) return;
+    const { thumb, pointerId, scroller } = dragState;
+    dragState = null;
+    thumb.classList.remove('dragging');
+    if (thumb.hasPointerCapture?.(pointerId)) thumb.releasePointerCapture(pointerId);
+    activate(scroller, true);
+  }
+
+  function beginDrag(event, scroller, instance, axis) {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const thumb = axis === 'y' ? instance.vertical : instance.horizontal;
+    dragState = {
+      axis,
+      pointerId: event.pointerId,
+      pointerStart: axis === 'y' ? event.clientY : event.clientX,
+      scrollStart: axis === 'y' ? scroller.scrollTop : scroller.scrollLeft,
+      scroller,
+      thumb,
+    };
+    window.clearTimeout(hideTimer);
+    thumb.classList.add('dragging');
+    thumb.setPointerCapture(event.pointerId);
+  }
+
+  function moveDrag(event) {
+    if (!dragState || event.pointerId !== dragState.pointerId) return;
+    event.preventDefault();
+    const { axis, pointerStart, scrollStart, scroller } = dragState;
+    const pointerNow = axis === 'y' ? event.clientY : event.clientX;
+    const { maxScroll, travel } = getDragMetrics(scroller, axis);
+    const nextScroll = scrollStart + (pointerNow - pointerStart) * maxScroll / travel;
+    if (axis === 'y') scroller.scrollTop = nextScroll;
+    else scroller.scrollLeft = nextScroll;
+    activate(scroller);
+  }
 
   function createInstance(scroller) {
     const layer = document.createElement('div');
@@ -47,6 +98,14 @@ export function initOverlayScrollbars() {
       vertical: layer.querySelector('.overlay-scrollbar-y'),
       horizontal: layer.querySelector('.overlay-scrollbar-x')
     };
+    instance.vertical.addEventListener('pointerdown', event => beginDrag(event, scroller, instance, 'y'));
+    instance.horizontal.addEventListener('pointerdown', event => beginDrag(event, scroller, instance, 'x'));
+    instance.vertical.addEventListener('pointermove', moveDrag);
+    instance.horizontal.addEventListener('pointermove', moveDrag);
+    instance.vertical.addEventListener('pointerup', endDrag);
+    instance.horizontal.addEventListener('pointerup', endDrag);
+    instance.vertical.addEventListener('pointercancel', endDrag);
+    instance.horizontal.addEventListener('pointercancel', endDrag);
     instances.set(scroller, instance);
     return instance;
   }
@@ -75,6 +134,7 @@ export function initOverlayScrollbars() {
   }
 
   function hide(delay = IDLE_HIDE_DELAY) {
+    if (dragState) return;
     window.clearTimeout(hideTimer);
     hideTimer = window.setTimeout(() => {
       conceal(activeInstance);
@@ -95,8 +155,6 @@ export function initOverlayScrollbars() {
     const { layer, vertical, horizontal } = instance;
     const visibleHeight = scroller.clientHeight;
     const visibleWidth = scroller.clientWidth;
-    layer.style.width = `${visibleWidth}px`;
-    layer.style.height = `${visibleHeight}px`;
     layer.style.transform = `translate3d(${scroller.scrollLeft}px, ${scroller.scrollTop}px, 0)`;
 
     const showY = scroller.scrollHeight > scroller.clientHeight + 1 && visibleHeight > MIN_THUMB_SIZE;

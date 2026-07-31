@@ -6,6 +6,7 @@ import { sortByPriority, getFilteredTodos as _getFilteredTodos, countByList, cou
 import { showContextMenu, closeContextMenu } from './contextMenu.js';
 import { buildTodoContextMenu, buildTagContextMenu, buildNavContextMenu, buildListAreaMenu } from './contextMenuConfig.js';
 import { createTodoItemEl } from './renderTodoItem.js';
+import { formatTimelineTime, getTimelineDateParts, normalizeTimelineSettings, sortTimelineTodos } from './timeline.js';
 import { renderCalendar as _renderCalendar, getTodosForDate as _getTodosForDate, renderCalendarDetail as _renderCalendarDetail, buildMonthIndex } from './calendar.js';
 import { openDetail as _openDetail, closeDetail, initDetailEditor } from './detail.js';
 import { createOverlay, closeOverlay, showConfirmDialog } from './overlay.js';
@@ -268,7 +269,7 @@ function subscribeDataChanges(listener) {
   return () => dataChangeListeners.delete(listener);
 }
 
-let data = { todos: [], tags: ['计划内'], aiConfig: { apiUrl: '', apiKey: '', model: '', customPrompt: '' }, theme: 'auto', uiStyle: normalizeUiStyle(), sidebarMini: false };
+let data = { todos: [], tags: ['计划内'], aiConfig: { apiUrl: '', apiKey: '', model: '', customPrompt: '' }, theme: 'auto', uiStyle: normalizeUiStyle(), timeline: normalizeTimelineSettings(), sidebarMini: false };
 let currentList = 'todo';
 let currentTag = null;
 let selectedDate = null;
@@ -301,7 +302,7 @@ function showToast(msg) {
 function normalizeData() {
   /* 防御：loadData 可能因文件为空/损坏返回非对象（如空字符串） */
   if (!data || typeof data !== 'object' || Array.isArray(data)) {
-    data = { todos: [], tags: [], aiConfig: {}, theme: 'auto', uiStyle: normalizeUiStyle(), sidebarMini: false };
+    data = { todos: [], tags: [], aiConfig: {}, theme: 'auto', uiStyle: normalizeUiStyle(), timeline: normalizeTimelineSettings(), sidebarMini: false };
   }
   if (!Array.isArray(data.tags)) {
     data.tags = [];
@@ -351,6 +352,7 @@ function normalizeData() {
     data.theme = 'auto';
   }
   data.uiStyle = normalizeUiStyle(data.uiStyle);
+  data.timeline = normalizeTimelineSettings(data.timeline);
   if (typeof data.sidebarMini !== 'boolean') {
     data.sidebarMini = false;
   }
@@ -709,9 +711,11 @@ function renderTodoList() {
 
   const filtered = getFilteredTodos();
   const addTaskBar = document.querySelector('.add-task-bar');
+  const timelineEnabled = data.timeline.enabled;
 
   const renderTaskItems = (items, emptyHtml) => {
     todoListEl.innerHTML = '';
+    todoListEl.classList.toggle('timeline-enabled', timelineEnabled);
     todoListEl.dataset.total = String(items.length);
     if (items.length === 0) {
       todoListEl.dataset.rendered = '0';
@@ -726,6 +730,20 @@ function renderTodoList() {
       scheduleTaskIncrementalLoad(document.querySelector('.task-scroll-area'));
     });
   };
+
+  if (timelineEnabled) {
+    addTaskBar.style.display = currentList === 'archived' || searchKeyword ? 'none' : '';
+    const sorted = sortTimelineTodos(filtered, data.timeline.sortBy);
+    renderTaskItems(sorted, data.timeline.sortBy === 'completed'
+      ? '<div class="empty-state">暂无已完成任务</div>'
+      : '<div class="empty-state">暂无任务</div>');
+    doneSection.style.display = 'none';
+    doneListEl.innerHTML = '';
+    doneListEl.dataset.total = '0';
+    doneListEl.dataset.rendered = '0';
+    taskSummary.textContent = `${sorted.length} 个任务`;
+    return;
+  }
 
   if (currentList === 'archived') {
     addTaskBar.style.display = 'none';
@@ -776,12 +794,90 @@ function renderTodoList() {
 
 function appendTodoItems(container, todos) {
   const fragment = document.createDocumentFragment();
-  todos.forEach(todo => fragment.appendChild(renderTodoItem(todo)));
+  let previousTimelineDate = null;
+  let hasPreviousTimelineDate = false;
+  todos.forEach(todo => {
+    if (!data.timeline.enabled || container.id !== 'todo-list') {
+      fragment.appendChild(renderTodoItem(todo));
+      return;
+    }
+    const timelineDate = getTimelineDateParts(todo, data.timeline.sortBy);
+    if (!hasPreviousTimelineDate || timelineDate?.year !== previousTimelineDate?.year) {
+      fragment.appendChild(createTimelineGroupRow('year', timelineDate ? `${timelineDate.year}年` : '时间未知'));
+    }
+    if (!hasPreviousTimelineDate ||
+        timelineDate?.year !== previousTimelineDate?.year ||
+        timelineDate?.month !== previousTimelineDate?.month) {
+      fragment.appendChild(createTimelineGroupRow('month', timelineDate ? `${timelineDate.month}月` : '未知月份'));
+    }
+    if (!hasPreviousTimelineDate ||
+        timelineDate?.year !== previousTimelineDate?.year ||
+        timelineDate?.month !== previousTimelineDate?.month ||
+        timelineDate?.day !== previousTimelineDate?.day) {
+      fragment.appendChild(createTimelineGroupRow('day', timelineDate ? `${timelineDate.day}号` : '未知日期'));
+    }
+    const row = document.createElement('div');
+    row.className = 'timeline-row';
+    row.appendChild(renderTodoItem(todo));
+    row.appendChild(createTimelineEntry(todo));
+    fragment.appendChild(row);
+    previousTimelineDate = timelineDate;
+    hasPreviousTimelineDate = true;
+  });
   container.appendChild(fragment);
 }
 
 function renderTodoItem(t) {
   return createTodoItemEl(t, { getTagBadgeStyle, currentList });
+}
+
+function createTimelineGroupRow(level, label) {
+  const row = document.createElement('div');
+  row.className = `timeline-group-row timeline-group-${level}`;
+
+  const spacer = document.createElement('span');
+  spacer.setAttribute('aria-hidden', 'true');
+  row.appendChild(spacer);
+
+  const heading = document.createElement('div');
+  heading.className = 'timeline-group-label';
+  heading.textContent = label;
+  heading.setAttribute('role', 'heading');
+  heading.setAttribute('aria-level', String({ year: 2, month: 3, day: 4 }[level] || 4));
+  row.appendChild(heading);
+  return row;
+}
+
+function createTimelineEntry(todo) {
+  const entry = document.createElement('div');
+  entry.className = 'timeline-entry';
+
+  const marker = document.createElement('span');
+  marker.className = 'timeline-marker';
+  marker.setAttribute('aria-hidden', 'true');
+  entry.appendChild(marker);
+
+  const times = document.createElement('div');
+  times.className = 'timeline-times';
+
+  const primary = document.createElement('span');
+  primary.className = 'timeline-time timeline-time-primary';
+  primary.textContent = data.timeline.sortBy === 'completed'
+    ? formatTimelineTime(todo.doneAt) || '时间未知'
+    : formatTimelineTime(todo.createdAt) || '时间未知';
+  times.appendChild(primary);
+
+  const secondary = document.createElement('span');
+  secondary.className = 'timeline-time timeline-time-secondary';
+  secondary.textContent = data.timeline.sortBy === 'completed'
+    ? `创建 ${formatTimelineTime(todo.createdAt) || '时间未知'}`
+    : (todo.doneAt ? `完成 ${formatTimelineTime(todo.doneAt) || '时间未知'}` : '完成 未完成');
+  times.appendChild(secondary);
+
+  entry.setAttribute('aria-label', `${primary.textContent}，${secondary.textContent}`);
+  times.setAttribute('aria-hidden', 'true');
+  entry.appendChild(times);
+  return entry;
 }
 
 function renderStatus() {

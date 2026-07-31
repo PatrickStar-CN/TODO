@@ -4,6 +4,7 @@ import { closeDetail } from './detail.js';
 import { showConfirmDialog } from './overlay.js';
 import { DEFAULT_UI_STYLE, applyUiStyle, getUiMotionDuration, normalizeUiStyle } from './uiPreferences.js';
 import { iconSvg } from './icons.js';
+import { normalizeTimelineSettings } from './timeline.js';
 
 const TAG_COLORS = ['#4f46e5', '#06b6d4', '#f59e0b', '#ef4444', '#10b981', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#6366f1'];
 
@@ -73,6 +74,7 @@ function openPanel() {
         <button class="settings-tab active" type="button" role="tab" aria-selected="true" data-tab="appearance">${iconSvg('settings')}<span>外观</span></button>
         <button class="settings-tab" type="button" role="tab" aria-selected="false" data-tab="ai">${iconSvg('document')}<span>AI 配置</span></button>
         <button class="settings-tab" type="button" role="tab" aria-selected="false" data-tab="notifications">${iconSvg('bell')}<span>提醒</span></button>
+        <button class="settings-tab" type="button" role="tab" aria-selected="false" data-tab="timeline">${iconSvg('clock')}<span>时间线</span></button>
         <button class="settings-tab" type="button" role="tab" aria-selected="false" data-tab="tags">${iconSvg('tag')}<span>标签管理</span></button>
       </div>
       <div class="settings-body">
@@ -152,6 +154,29 @@ function openPanel() {
             </div>
           </section>
         </div>
+        <div class="settings-pane" data-pane="timeline">
+          <section class="settings-content-card settings-timeline-card" aria-labelledby="settings-timeline-title">
+            <div class="timeline-setting-row">
+              <div class="settings-content-card-heading">
+                <div>
+                  <strong id="settings-timeline-title">任务时间线</strong>
+                  <span>在主任务列表右侧显示创建与完成时间</span>
+                </div>
+              </div>
+              <button class="settings-switch" id="set-timeline-enabled" type="button" role="switch" aria-checked="false" aria-label="开启任务时间线">
+                <span aria-hidden="true"></span>
+              </button>
+            </div>
+            <div class="timeline-sort-settings" id="timeline-sort-settings">
+              <span class="timeline-sort-label">排序依据</span>
+              <div class="timeline-sort-options" role="group" aria-label="时间线排序依据">
+                <button type="button" data-timeline-sort="created" aria-pressed="false">创建时间</button>
+                <button type="button" data-timeline-sort="completed" aria-pressed="false">完成时间</button>
+              </div>
+              <p>开启时间线后生效；按完成时间排序时隐藏未完成任务，所有模式均为最新在上。</p>
+            </div>
+          </section>
+        </div>
         <div class="settings-pane" data-pane="tags">
           <section class="settings-content-card settings-tags-card" aria-label="标签列表与新建标签">
             <div class="settings-tag-add-bar">
@@ -228,6 +253,7 @@ function openPanel() {
   });
 
   bindUiStyleControls(overlay);
+  bindTimelineControls(overlay);
 
   overlay.querySelector('#test-notification').addEventListener('click', async (event) => {
     const button = event.currentTarget;
@@ -328,6 +354,7 @@ function renderContent(overlay) {
   updateUiStyleControls(overlay);
   fillAiConfigFields(overlay);
   updateNotificationStatus(overlay);
+  updateTimelineControls(overlay);
   renderTagList(overlay);
 }
 
@@ -353,6 +380,45 @@ function fillAiConfigFields(overlay) {
   overlay.querySelector('#set-api-key').value = cfg.apiKey || '';
   overlay.querySelector('#set-model').value = cfg.model || '';
   overlay.querySelector('#set-prompt').value = cfg.customPrompt || '';
+}
+
+function bindTimelineControls(overlay) {
+  const enabledButton = overlay.querySelector('#set-timeline-enabled');
+  enabledButton.addEventListener('click', () => {
+    data.timeline = normalizeTimelineSettings({
+      ...data.timeline,
+      enabled: !data.timeline?.enabled,
+    });
+    saveData();
+    render();
+    updateTimelineControls(overlay);
+  });
+
+  overlay.querySelectorAll('[data-timeline-sort]').forEach(button => {
+    button.addEventListener('click', () => {
+      data.timeline = normalizeTimelineSettings({
+        ...data.timeline,
+        sortBy: button.dataset.timelineSort,
+      });
+      saveData();
+      render();
+      updateTimelineControls(overlay);
+    });
+  });
+}
+
+function updateTimelineControls(overlay) {
+  data.timeline = normalizeTimelineSettings(data.timeline);
+  const enabledButton = overlay.querySelector('#set-timeline-enabled');
+  enabledButton.classList.toggle('active', data.timeline.enabled);
+  enabledButton.setAttribute('aria-checked', String(data.timeline.enabled));
+
+  const sortSettings = overlay.querySelector('#timeline-sort-settings');
+  sortSettings.querySelectorAll('[data-timeline-sort]').forEach(button => {
+    const active = button.dataset.timelineSort === data.timeline.sortBy;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', String(active));
+  });
 }
 
 // --- 标签管理 ---
