@@ -8,3 +8,5 @@ todo_data.json
 .trae/
 AGENTS.md
 .codex/
+.claude/
+.agents/

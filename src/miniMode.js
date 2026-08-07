@@ -14,10 +14,11 @@ export function initMiniMode({ data, saveData, render, showToast, isNeutralinoEn
   const miniQuickAdd = document.getElementById('mini-quick-add');
 
   const miniCfg = appConfig?.miniMode || {};
-  const miniWidth = miniCfg.width || 240;
-  const miniHeight = miniCfg.height || 288;
   const miniMinWidth = miniCfg.minWidth || 220;
   const miniMinHeight = miniCfg.minHeight || 220;
+  /* 当前会话内记住手动缩放后的尺寸，再次进入迷你模式时沿用 */
+  let miniWidth = miniCfg.width || 240;
+  let miniHeight = miniCfg.height || 288;
 
   function renderMiniPanel() {
     const { pending, done } = splitPendingDone(data.todos);
@@ -77,23 +78,71 @@ export function initMiniMode({ data, saveData, render, showToast, isNeutralinoEn
     miniTooltip.classList.add('hidden');
   }
 
+  /* Win11 DWM 平滑圆角：无边框窗口默认直角，通过 dwmapi 的 DWMWA_WINDOW_CORNER_PREFERENCE
+     (33) 设为 ROUND (2)，圆角外的区域由系统自动穿透点击。
+     在应用启动时（窗口仍处于 hidden 状态）就设置，进入迷你模式时属性已就绪，不会闪现直角。
+     定位窗口用 EnumWindows 按标题（config 的 window.title）匹配——隐藏窗口也能枚举到，
+     不依赖 MainWindowHandle（窗口隐藏时它为 0）。
+     PowerShell 脚本经 UTF-16LE base64 编码后执行，避免引号转义问题。 */
+  function encodeUtf16LeBase64(str) {
+    const bytes = [];
+    for (let i = 0; i < str.length; i++) {
+      const code = str.charCodeAt(i);
+      bytes.push(code & 0xff, code >> 8);
+    }
+    let bin = '';
+    for (const b of bytes) bin += String.fromCharCode(b);
+    return btoa(bin);
+  }
+
+  const roundCornerCommand = 'powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand ' +
+    encodeUtf16LeBase64(
+      `Add-Type -TypeDefinition 'using System;using System.Text;using System.Runtime.InteropServices;public class DwmRounder{[DllImport("dwmapi.dll")]public static extern int DwmSetWindowAttribute(IntPtr hwnd,int attr,ref int value,int size);[DllImport("user32.dll")]public static extern bool EnumWindows(EnumWindowsProc cb,IntPtr lParam);[DllImport("user32.dll",CharSet=CharSet.Unicode)]public static extern int GetWindowText(IntPtr hwnd,StringBuilder sb,int max);public delegate bool EnumWindowsProc(IntPtr hwnd,IntPtr lParam);}'
+$script:hwnd = [IntPtr]::Zero
+$cb = [DwmRounder+EnumWindowsProc]{ param($h,$l) $sb = New-Object System.Text.StringBuilder 256; [DwmRounder]::GetWindowText($h,$sb,256) | Out-Null; if ($sb.ToString() -eq 'TODO') { $script:hwnd = $h; return $false }; return $true }
+[DwmRounder]::EnumWindows($cb,[IntPtr]::Zero) | Out-Null
+if ($script:hwnd -ne [IntPtr]::Zero) { $v = 2; [DwmRounder]::DwmSetWindowAttribute($script:hwnd, 33, [ref]$v, 4) | Out-Null; 'OK' } else { 'NO_WINDOW' }`
+    );
+
+  let cornerRoundApplied = false;
+
+  /* 设置窗口 DWM 圆角（幂等）：成功一次后置位，避免重复启动 PowerShell；
+     stdOut 不是 OK 说明未找到目标窗口，记入控制台便于排查 */
+  function applyRoundedCorners() {
+    if (!isNeutralinoEnv() || cornerRoundApplied) return;
+    Neutralino.os.execCommand(roundCornerCommand).then(r => {
+      if (r?.stdOut?.trim() === 'OK') {
+        cornerRoundApplied = true;
+      } else {
+        console.warn('mini corner round: window not found,', r?.stdOut?.trim() || r?.stdErr || r?.exitCode);
+      }
+    }).catch(e => console.warn('mini corner round error:', e));
+  }
+
   async function enterMiniMode() {
     isMiniMode = true;
     reminders.pause();
     document.documentElement.classList.add('mini-mode-active');
     document.querySelector('.app').style.display = 'none';
-    document.body.style.background = 'var(--bg-surface)';
+    /* 与 .mini-panel 的 96% 玻璃背景保持一致，避免窗口边缘露出纯白底色 */
+    document.body.style.background = 'color-mix(in srgb, var(--bg-surface) 96%, transparent)';
     miniPanel.classList.remove('hidden');
     renderMiniPanel();
     if (isNeutralinoEnv()) {
       try {
         await Neutralino.window.setAlwaysOnTop(true);
+        /* 先移除边框再调整尺寸：
+           1) setSize 必须带 resizable: false，否则 webview 会重新加回 WS_THICKFRAME，
+              在 Windows 顶部重绘出一条残留横条（neutralinojs #948/#1328）；
+           2) 先移除边框会触发客户区变化，让 WebView2 视口先同步到完整窗口，
+              再缩小到 mini 尺寸时视口跟随真实尺寸，避免右侧/底部残留旧视口的白边 */
         await Neutralino.window.setBorderless(true);
         await Neutralino.window.setSize({
           width: miniWidth,
           height: miniHeight,
           minWidth: miniMinWidth,
-          minHeight: miniMinHeight
+          minHeight: miniMinHeight,
+          resizable: false
         });
         const displays = await Neutralino.computer.getDisplays();
         const primary = displays[0];
@@ -101,6 +150,9 @@ export function initMiniMode({ data, saveData, render, showToast, isNeutralinoEn
         const y = 20;
         await Neutralino.window.move(x, y);
         await Neutralino.window.setDraggableRegion('mini-drag-region');
+        /* DWM 圆角在应用启动时已设置（applyRoundedCorners），这里仅在启动设置
+           失败时兜底重试一次；已成功则跳过，避免反复启动 PowerShell */
+        if (!cornerRoundApplied) applyRoundedCorners();
       } catch (e) { console.warn('enterMiniMode error:', e); }
     }
   }
@@ -180,6 +232,58 @@ export function initMiniMode({ data, saveData, render, showToast, isNeutralinoEn
     }
   });
 
+  /* ---- 迷你窗口缩放：无边框模式下 native 缩放条不可用，用右下角手柄 + setSize 实现 ---- */
+  const miniResizeHandle = document.getElementById('mini-resize-handle');
+  let resizeState = null;
+  let resizeRafId = null;
+
+  function applyMiniResize(width, height) {
+    const w = Math.max(miniMinWidth, Math.round(width));
+    const h = Math.max(miniMinHeight, Math.round(height));
+    miniWidth = w;
+    miniHeight = h;
+    Neutralino.window.setSize({ width: w, height: h, minWidth: miniMinWidth, minHeight: miniMinHeight, resizable: false })
+      .catch(e => console.warn('mini resize error:', e));
+  }
+
+  if (miniResizeHandle) {
+    if (!isNeutralinoEnv()) miniResizeHandle.classList.add('hidden');
+    miniResizeHandle.addEventListener('pointerdown', (e) => {
+      if (!isMiniMode) return;
+      e.preventDefault();
+      miniResizeHandle.setPointerCapture(e.pointerId);
+      resizeState = {
+        pointerId: e.pointerId,
+        startX: e.clientX,
+        startY: e.clientY,
+        startWidth: window.innerWidth,
+        startHeight: window.innerHeight
+      };
+    });
+    miniResizeHandle.addEventListener('pointermove', (e) => {
+      if (!resizeState || e.pointerId !== resizeState.pointerId || resizeRafId != null) return;
+      resizeRafId = requestAnimationFrame(() => {
+        resizeRafId = null;
+        applyMiniResize(resizeState.startWidth + e.clientX - resizeState.startX,
+                        resizeState.startHeight + e.clientY - resizeState.startY);
+      });
+    });
+    const endMiniResize = (e) => {
+      if (!resizeState) return;
+      if (resizeRafId != null) {
+        cancelAnimationFrame(resizeRafId);
+        resizeRafId = null;
+      }
+      if (e && e.pointerId === resizeState.pointerId) {
+        applyMiniResize(resizeState.startWidth + e.clientX - resizeState.startX,
+                        resizeState.startHeight + e.clientY - resizeState.startY);
+      }
+      resizeState = null;
+    };
+    miniResizeHandle.addEventListener('pointerup', endMiniResize);
+    miniResizeHandle.addEventListener('pointercancel', endMiniResize);
+  }
+
   miniList.addEventListener('click', (e) => {
     const checkbox = e.target.closest('[data-mini-toggle]');
     if (checkbox) {
@@ -227,5 +331,5 @@ export function initMiniMode({ data, saveData, render, showToast, isNeutralinoEn
     ]);
   });
 
-  return { enterMiniMode, exitMiniMode, renderMiniPanel, isMiniMode: () => isMiniMode };
+  return { enterMiniMode, exitMiniMode, renderMiniPanel, isMiniMode: () => isMiniMode, applyRoundedCorners };
 }

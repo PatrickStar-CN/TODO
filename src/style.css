@@ -4094,6 +4094,41 @@ body::before {
   display: none;
 }
 
+/* Mini mode — 右下角拖拽缩放手柄（无边框窗口下替代 native 缩放条） */
+.mini-resize-handle {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  width: 22px;
+  height: 22px;
+  cursor: nwse-resize;
+  touch-action: none;
+  z-index: 10;
+  opacity: 0.55;
+  transition: opacity 0.15s;
+}
+
+.mini-resize-handle:hover,
+.mini-resize-handle:active {
+  opacity: 1;
+}
+
+.mini-resize-handle::after {
+  content: '';
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 9px;
+  height: 9px;
+  border-right: 2px solid var(--text-secondary);
+  border-bottom: 2px solid var(--text-secondary);
+  border-bottom-right-radius: 2px;
+}
+
+.mini-resize-handle:hover::after {
+  border-color: var(--accent);
+}
+
 .mini-tooltip-title {
   font-size: 13px;
   font-weight: 600;
@@ -8687,7 +8722,13 @@ html.mini-mode-active body {
   height: 100%;
   margin: 0;
   overflow: hidden;
-  background: var(--bg-surface) !important;
+  /* 与 .mini-panel 的 96% 玻璃背景保持一致，避免窗口边缘/圆角外露出纯白底色 */
+  background: color-mix(in srgb, var(--bg-surface) 96%, transparent) !important;
+}
+
+/* Win11 DWM 圆角约为 8px，面板圆角跟随窗口边缘，边框线才不会偏离直角角落 */
+html.mini-mode-active .mini-panel {
+  border-radius: 8px;
 }
 
 .mini-panel {
