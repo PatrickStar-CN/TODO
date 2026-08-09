@@ -8715,6 +8715,38 @@ body {
   }
 }
 
+/* Mini mode — 紧凑动作菜单：窗口最小 ~240px，压缩条目与图标尺寸，避免占满小窗 */
+html.mini-mode-active .context-menu.context-menu--mini {
+  z-index: 3200;
+  min-width: 104px;
+  max-width: calc(100vw - 20px);
+  padding: 4px;
+  border-radius: var(--ui-radius);
+}
+
+html.mini-mode-active .context-menu.context-menu--mini .context-menu-item {
+  min-height: 28px;
+  padding: 5px 8px;
+  gap: 7px;
+  font-size: calc(12px * var(--ui-font-scale));
+  border-radius: calc(var(--ui-radius) - 3px);
+}
+
+html.mini-mode-active .context-menu.context-menu--mini .context-menu-item .menu-icon {
+  width: 16px;
+  height: 16px;
+}
+
+html.mini-mode-active .context-menu.context-menu--mini .context-menu-item .menu-icon .app-icon {
+  width: 14px;
+  height: 14px;
+}
+
+html.mini-mode-active .context-menu.context-menu--mini .context-menu-separator {
+  height: 1px;
+  margin: 3px 3px;
+}
+
 /* Mini mode — compact companion window using the main project visual system */
 html.mini-mode-active,
 html.mini-mode-active body {
@@ -8743,8 +8775,8 @@ html.mini-mode-active .mini-panel {
 }
 
 .mini-header {
-  min-height: 50px;
-  padding: 8px 9px 7px 10px;
+  min-height: 36px;
+  padding: 4px 8px 4px 9px;
   border-bottom: 1px solid color-mix(in srgb, var(--glass-divider) 58%, transparent);
 }
 
@@ -8753,7 +8785,7 @@ html.mini-mode-active .mini-panel {
   align-items: center;
   min-width: 0;
   flex: 1;
-  gap: 8px;
+  gap: 7px;
   cursor: move;
   user-select: none;
 }
@@ -8762,9 +8794,9 @@ html.mini-mode-active .mini-panel {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
-  flex: 0 0 30px;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
   color: var(--accent-text);
   background: color-mix(in srgb, var(--accent) 14%, var(--glass-control-bg));
   border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
@@ -8773,30 +8805,30 @@ html.mini-mode-active .mini-panel {
 }
 
 .mini-brand-icon .app-icon {
-  width: 15px;
-  height: 15px;
+  width: 12px;
+  height: 12px;
 }
 
 .mini-brand-copy {
   display: grid;
   min-width: 0;
-  gap: 1px;
+  gap: 0;
 }
 
 .mini-title {
   overflow: hidden;
   color: var(--text-heading);
-  font-size: calc(12px * var(--ui-font-scale));
+  font-size: calc(11px * var(--ui-font-scale));
   font-weight: 650;
-  line-height: 1.25;
+  line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .mini-caption {
   color: var(--text-muted);
-  font-size: calc(9px * var(--ui-font-scale));
-  line-height: 1.2;
+  font-size: calc(8px * var(--ui-font-scale));
+  line-height: 1.15;
 }
 
 .mini-actions {
@@ -8808,8 +8840,8 @@ html.mini-mode-active .mini-panel {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   padding: 0;
   color: var(--text-secondary);
   background: color-mix(in srgb, var(--glass-control-bg) var(--ui-control-opacity), transparent);
@@ -8819,8 +8851,8 @@ html.mini-mode-active .mini-panel {
 }
 
 .mini-actions .mini-btn .app-icon {
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
 }
 
 .mini-actions .mini-btn:hover,
@@ -8833,8 +8865,8 @@ html.mini-mode-active .mini-panel {
 }
 
 .mini-stats {
-  gap: 5px;
-  padding: 6px 8px;
+  gap: 4px;
+  padding: 4px 8px;
   background: transparent;
   border-bottom: 0;
 }
@@ -8846,8 +8878,8 @@ html.mini-mode-active .mini-panel {
   min-width: 0;
   flex: 1;
   gap: 4px;
-  min-height: 26px;
-  padding: 4px 6px;
+  min-height: 22px;
+  padding: 3px 6px;
   color: var(--text-muted);
   background: color-mix(in srgb, var(--glass-control-bg) 72%, transparent);
   border: 1px solid color-mix(in srgb, var(--glass-stroke-strong) 24%, transparent);
@@ -8915,6 +8947,7 @@ html.mini-mode-active .mini-panel {
 }
 
 .mini-todo-item {
+  position: relative;
   min-height: 32px;
   margin: 0;
   padding: 5px 8px;
@@ -8926,13 +8959,48 @@ html.mini-mode-active .mini-panel {
   border-radius: calc(var(--ui-radius) - 3px);
   box-shadow: var(--glass-inset-highlight);
   font-size: calc(11px * var(--ui-font-scale));
+  overflow: hidden;
+  transition:
+    color var(--motion-fast),
+    background var(--motion-fast),
+    border-color var(--motion-fast),
+    box-shadow var(--motion-fast),
+    transform var(--motion-fast);
+}
+
+/* 优先级用左侧高亮条呈现，不挤占标题宽度 */
+.mini-todo-item.p-high::before,
+.mini-todo-item.p-medium::before,
+.mini-todo-item.p-low::before {
+  content: "";
+  position: absolute;
+  top: 7px;
+  bottom: 7px;
+  left: 0;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+}
+
+.mini-todo-item.p-high::before {
+  background: var(--danger-text);
+  box-shadow: 0 0 8px 1px color-mix(in srgb, var(--danger-text) 45%, transparent);
+}
+
+.mini-todo-item.p-medium::before {
+  background: var(--warning-text);
+  box-shadow: 0 0 8px 1px color-mix(in srgb, var(--warning-text) 45%, transparent);
+}
+
+.mini-todo-item.p-low::before {
+  background: var(--low-text);
+  box-shadow: 0 0 8px 1px color-mix(in srgb, var(--low-text) 45%, transparent);
 }
 
 .mini-todo-item:hover {
   background: color-mix(in srgb, var(--glass-surface-hover) 84%, transparent);
   border-color: color-mix(in srgb, var(--accent) 24%, var(--glass-stroke-strong));
   box-shadow: var(--glass-control-shadow), var(--glass-inset-highlight);
-  transform: none;
+  transform: translateY(-1px);
 }
 
 .mini-todo-item .mini-checkbox {
@@ -8964,9 +9032,49 @@ html.mini-mode-active .mini-panel {
 
 .mini-todo-item .mini-todo-title {
   min-width: 0;
+  flex: 1 1 auto;
   font-size: calc(11px * var(--ui-font-scale));
   font-weight: 500;
   line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+/* 标签 chip：进入迷你模式时让标签用主题色呈现，与主界面 badge 一致且不超小窗宽度 */
+/* Mini 列表标签沿用主列表的边框气泡样式：--tag-color-rgb 浅色底 + 内圈描边 */
+.mini-todo-item .mini-item-tag {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 4px;
+  min-width: 0;
+  max-width: 42%;
+  padding: 2px 6px;
+  color: color-mix(in srgb, var(--tag-color) 78%, var(--text-primary));
+  background: rgba(var(--tag-color-rgb), 0.16);
+  box-shadow: inset 0 0 0 1px rgba(var(--tag-color-rgb), 0.38);
+  border-radius: 999px;
+  font-size: calc(9px * var(--ui-font-scale));
+  line-height: 1.2;
+}
+
+[data-theme="light"] .mini-todo-item .mini-item-tag {
+  background: rgba(var(--tag-color-rgb), 0.12);
+  color: color-mix(in srgb, var(--tag-color) 74%, #111827);
+  box-shadow: inset 0 0 0 1px rgba(var(--tag-color-rgb), 0.34);
+}
+
+.mini-todo-item .mini-item-tag .tag-dot {
+  width: 5px;
+  height: 5px;
+  flex: 0 0 5px;
+  border-radius: 50%;
+  background: var(--tag-color);
+}
+
+.mini-todo-item .mini-item-tag-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .mini-input-row {
@@ -9038,12 +9146,325 @@ html.mini-mode-active .mini-panel {
 }
 
 .mini-tooltip {
+  /* 迷你窗口空间有限：限制宽高并在内容超高时内部滚动，避免悬浮详情被裁切 */
+  max-width: min(220px, calc(100vw - 16px));
+  max-height: calc(100vh - 24px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 9px 10px;
   color: var(--text-secondary);
   background: color-mix(in srgb, var(--glass-surface-strong) 97%, transparent);
   border-color: color-mix(in srgb, var(--glass-stroke-strong) 42%, transparent);
   border-radius: var(--ui-radius);
   box-shadow: var(--glass-panel-shadow), var(--ui-card-highlight);
+}
+
+.mini-tooltip-title {
+  font-size: calc(12px * var(--ui-font-scale));
+  font-weight: 650;
+  color: var(--text-heading);
+  margin-bottom: 6px;
+  overflow-wrap: anywhere;
+}
+
+.mini-tooltip-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: calc(10px * var(--ui-font-scale));
+  line-height: 1.35;
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.mini-tooltip-row .app-icon {
+  flex: 0 0 auto;
+  margin-top: 1px;
+  width: 12px;
+  height: 12px;
+}
+
+.mini-detail-meta-value .mini-priority-dot {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 6px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 10%, transparent);
+}
+
+.mini-detail-meta-value .mini-priority-dot.p-high {
+  background: var(--danger-text);
+}
+
+.mini-detail-meta-value .mini-priority-dot.p-medium {
+  background: var(--warning-text);
+}
+
+.mini-detail-meta-value .mini-priority-dot.p-low {
+  background: var(--low-text);
+}
+
+.mini-detail-meta-value .tag-dot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 10%, transparent);
+}
+
+/* Mini mode — 任务详情卡：点击任务打开的完整信息面板，内容超高时内部滚动 */
+.mini-detail-card {
+  position: absolute;
+  inset: 0;
+  z-index: 3100;
+  display: flex;
+  box-sizing: border-box;
+  flex-direction: column;
+  background: color-mix(in srgb, var(--bg-surface) 97%, transparent);
+  backdrop-filter: blur(var(--ui-glass-blur)) saturate(140%);
+  -webkit-backdrop-filter: blur(var(--ui-glass-blur)) saturate(140%);
+  border: 1px solid color-mix(in srgb, var(--glass-stroke-strong) 42%, transparent);
+  border-radius: 8px;
+  box-shadow: var(--glass-panel-shadow), var(--ui-card-highlight);
+  animation: miniDetailIn var(--motion-fast) cubic-bezier(0.2, 0, 0.2, 1);
+}
+
+.mini-detail-card.hidden {
+  display: none;
+}
+
+.mini-detail-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 10px 9px 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--glass-divider) 56%, transparent);
+}
+
+.mini-detail-heading {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.mini-detail-heading-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  margin-top: 1px;
+  color: var(--accent-text);
+  background: color-mix(in srgb, var(--accent) 14%, var(--glass-control-bg));
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
+  border-radius: calc(var(--ui-radius) - 3px);
+  box-shadow: var(--ui-card-highlight);
+}
+
+.mini-detail-heading-icon .app-icon {
+  width: 13px;
+  height: 13px;
+}
+
+.mini-detail-heading-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+#mini-detail-title {
+  margin: 0;
+  overflow: hidden;
+  color: var(--text-heading);
+  font-size: calc(12px * var(--ui-font-scale));
+  font-weight: 650;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#mini-detail-subtitle {
+  color: var(--text-muted);
+  font-size: calc(9px * var(--ui-font-scale));
+  line-height: 1.2;
+}
+
+.mini-detail-header-actions .mini-btn {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--glass-control-bg) var(--ui-control-opacity), transparent);
+  border: 1px solid color-mix(in srgb, var(--glass-control-border-hover) 28%, transparent);
+  border-radius: calc(var(--ui-radius) - 3px);
+  box-shadow: var(--glass-inset-highlight);
+}
+
+.mini-detail-header-actions .mini-btn .app-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.mini-detail-header-actions .mini-btn:hover,
+.mini-detail-header-actions .mini-btn:focus-visible {
+  outline: none;
+  color: var(--accent-text);
+  background: color-mix(in srgb, var(--accent) 12%, var(--glass-control-bg-hover));
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+.mini-detail-body {
+  flex: 1;
+  min-height: 0;
+  padding: 10px 12px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: transparent transparent;
+  scrollbar-width: thin;
+}
+
+.mini-detail-body:hover {
+  scrollbar-color: color-mix(in srgb, var(--accent) 50%, transparent) transparent;
+}
+
+.mini-detail-body::-webkit-scrollbar {
+  width: 4px;
+}
+
+.mini-detail-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.mini-detail-body::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 999px;
+}
+
+.mini-detail-body:hover::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--accent) 50%, transparent);
+}
+
+.mini-detail-desc {
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--glass-surface-input) 72%, transparent);
+  border: 1px solid color-mix(in srgb, var(--glass-stroke-strong) 24%, transparent);
+  border-radius: calc(var(--ui-radius) - 3px);
+  font-size: calc(11px * var(--ui-font-scale));
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  box-shadow: var(--glass-inset-highlight);
+}
+
+.mini-detail-meta {
+  display: grid;
+  gap: 1px;
+}
+
+.mini-detail-meta-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  padding: 4px 2px;
+  color: var(--text-secondary);
+  font-size: calc(11px * var(--ui-font-scale));
+}
+
+.mini-detail-meta-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: var(--text-muted);
+}
+
+.mini-detail-meta-icon .app-icon {
+  width: 13px;
+  height: 13px;
+}
+
+.mini-detail-meta-label {
+  flex: 0 0 52px;
+  color: var(--text-muted);
+}
+
+.mini-detail-meta-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--text-primary);
+  font-weight: 500;
+  word-break: break-word;
+}
+
+.mini-detail-footer {
+  padding: 9px 12px 10px;
+  border-top: 1px solid color-mix(in srgb, var(--glass-divider) 56%, transparent);
+}
+
+.mini-detail-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 34px;
+  padding: 0 12px;
+  color: var(--text-primary);
+  background: var(--glass-control-bg);
+  border: 1px solid color-mix(in srgb, var(--glass-control-border-hover) var(--ui-border-strength), transparent);
+  border-radius: calc(var(--ui-radius) - 3px);
+  box-shadow: var(--glass-control-shadow), var(--glass-inset-highlight);
+  font-size: calc(11px * var(--ui-font-scale));
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    color var(--motion-fast),
+    background var(--motion-fast),
+    border-color var(--motion-fast),
+    box-shadow var(--motion-fast),
+    transform var(--motion-fast);
+}
+
+.mini-detail-primary:hover:not(:disabled) {
+  color: var(--accent-text);
+  background: color-mix(in srgb, var(--accent) 14%, var(--glass-control-bg-hover));
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--glass-control-border-hover));
+  box-shadow: var(--glass-control-shadow-hover), var(--glass-inset-highlight);
+  transform: var(--lift-subtle);
+}
+
+.mini-detail-primary:active:not(:disabled) {
+  transform: var(--press-subtle);
+}
+
+.mini-detail-primary:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--focus-ring), var(--glass-control-shadow), var(--glass-inset-highlight);
+}
+
+.mini-detail-primary .app-icon {
+  width: 13px;
+  height: 13px;
+}
+
+@keyframes miniDetailIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* Shared "back to today" control used by calendar and date-time pickers. */

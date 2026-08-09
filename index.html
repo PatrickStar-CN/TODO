@@ -327,6 +327,24 @@
       <span class="mini-input-icon" data-icon="plus" aria-hidden="true"></span>
       <input type="text" id="mini-quick-add" placeholder="添加任务..." aria-label="快速添加任务">
     </div>
+    <div class="mini-detail-card hidden" id="mini-detail-card" role="dialog" aria-label="任务详情">
+      <div class="mini-detail-header">
+        <div class="mini-detail-heading">
+          <span class="mini-detail-heading-icon" data-icon="document" aria-hidden="true"></span>
+          <div class="mini-detail-heading-copy">
+            <strong id="mini-detail-title">任务详情</strong>
+            <span id="mini-detail-subtitle">点击任务查看完整信息</span>
+          </div>
+        </div>
+        <div class="mini-detail-header-actions">
+          <button class="mini-btn" id="btn-mini-detail-close" type="button" title="关闭详情" aria-label="关闭详情"><span data-icon="x"></span></button>
+        </div>
+      </div>
+      <div class="mini-detail-body" id="mini-detail-body"></div>
+      <div class="mini-detail-footer">
+        <button class="mini-detail-primary" id="btn-mini-detail-toggle" type="button"><span data-icon="check" aria-hidden="true"></span><span id="mini-detail-toggle-label">标记完成</span></button>
+      </div>
+    </div>
     <span class="mini-resize-handle" id="mini-resize-handle" title="拖拽调整窗口大小" aria-label="拖拽调整窗口大小"></span>
     <div class="mini-tooltip hidden" id="mini-tooltip"></div>
   </div>

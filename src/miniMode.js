@@ -4,14 +4,19 @@ import { genId } from './utils/id.js';
 import { sortByPriority, splitPendingDone } from './selectors.js';
 import { iconSvg } from './icons.js';
 
-export function initMiniMode({ data, saveData, render, showToast, isNeutralinoEnv, getTagDotStyle, showContextMenu, closeWindow, reminders, appConfig, todoStore }) {
+export function initMiniMode({ data, saveData, render, showToast, isNeutralinoEnv, getTagDotStyle, getTagBadgeStyle, showContextMenu, closeWindow, reminders, appConfig, todoStore }) {
   let isMiniMode = false;
   let miniTooltipTimer = null;
+  let currentMiniDetailId = null;
   const miniPanel = document.getElementById('mini-panel');
   const miniList = document.getElementById('mini-list');
   const miniTooltip = document.getElementById('mini-tooltip');
   const miniInputRow = document.getElementById('mini-input-row');
   const miniQuickAdd = document.getElementById('mini-quick-add');
+  const miniDetailCard = document.getElementById('mini-detail-card');
+  const miniDetailBody = document.getElementById('mini-detail-body');
+  const miniDetailTitle = document.getElementById('mini-detail-title');
+  const miniDetailToggleLabel = document.getElementById('mini-detail-toggle-label');
 
   const miniCfg = appConfig?.miniMode || {};
   const miniMinWidth = miniCfg.minWidth || 220;
@@ -31,13 +36,23 @@ export function initMiniMode({ data, saveData, render, showToast, isNeutralinoEn
     miniList.innerHTML = items.length === 0
       ? `<div class="mini-empty-state">${iconSvg('inbox')}<strong>暂无待办</strong><span>点击右上角添加任务</span></div>`
       : items.map(t => {
-        const prioCls = t.priority && t.priority !== 'none' ? `p-${t.priority}` : '';
-        return `<div class="mini-todo-item" data-id="${t.id}">
+        const prioCls = t.priority && t.priority !== 'none' ? t.priority : '';
+        const tagChip = t.tag
+          ? `<span class="mini-item-tag" ${getTagBadgeStyle(t.tag)}><span class="tag-dot" aria-hidden="true"></span><span class="mini-item-tag-label">${escapeHtml(t.tag)}</span></span>`
+          : '';
+        return `<div class="mini-todo-item${prioCls ? ` p-${prioCls}` : ''}" data-id="${t.id}">
           <button class="mini-checkbox" type="button" data-mini-toggle="${t.id}" aria-label="完成任务：${escapeHtml(t.title)}"></button>
-          ${prioCls ? `<div class="mini-priority-dot ${prioCls}"></div>` : ''}
           <span class="mini-todo-title">${escapeHtml(t.title)}</span>
+          ${tagChip}
         </div>`;
       }).join('');
+
+    /* 详情卡打开时若任务被移除/已完成则关闭，保持与列表同步 */
+    if (currentMiniDetailId) {
+      const syncedTodo = todoStore?.get(currentMiniDetailId)
+        || data.todos.find(t => t.id === currentMiniDetailId);
+      if (!syncedTodo || syncedTodo.done) closeMiniDetail();
+    }
   }
 
   function showMiniTooltip(todoId, anchorEl) {
@@ -63,19 +78,115 @@ export function initMiniMode({ data, saveData, render, showToast, isNeutralinoEn
     }
     miniTooltip.innerHTML = html;
     miniTooltip.classList.remove('hidden');
-    miniTooltip.style.left = `${rect.left}px`;
-    miniTooltip.style.top = `${rect.bottom + 4}px`;
-    const tooltipRect = miniTooltip.getBoundingClientRect();
-    if (tooltipRect.bottom > window.innerHeight) {
-      miniTooltip.style.top = `${rect.top - tooltipRect.height - 4}px`;
+    positionMiniTooltip(rect);
+  }
+
+  /* 三级定位：下方放不下再翻到上方，上下都放不下则贴底夹紧（配合 max-height 内部滚动）。
+     左侧同理做视口夹紧，避免迷你窗口边缘裁切。 */
+  function positionMiniTooltip(rect) {
+    const gap = 4;
+    const safe = 8;
+    const tipWidth = miniTooltip.offsetWidth;
+    const tipHeight = miniTooltip.offsetHeight;
+
+    let top = rect.bottom + gap;
+    if (top + tipHeight > window.innerHeight - safe
+        && rect.top - tipHeight - gap >= safe) {
+      top = rect.top - tipHeight - gap;
     }
-    if (tooltipRect.right > window.innerWidth) {
-      miniTooltip.style.left = `${window.innerWidth - tooltipRect.width - 8}px`;
+    if (top + tipHeight > window.innerHeight - safe) {
+      top = Math.max(safe, window.innerHeight - tipHeight - safe);
     }
+
+    let left = rect.left;
+    if (left + tipWidth > window.innerWidth - safe) {
+      left = Math.max(safe, window.innerWidth - tipWidth - safe);
+    }
+
+    miniTooltip.style.left = `${Math.round(left)}px`;
+    miniTooltip.style.top = `${Math.round(top)}px`;
   }
 
   function hideMiniTooltip() {
     miniTooltip.classList.add('hidden');
+  }
+
+  /* ---- 任务详情卡：点击任务打开完整信息，窗口空间不足时内部滚动 ---- */
+  function getMiniPriorityLabel(todo) {
+    return { high: '高', medium: '中', low: '低', none: '无' }[todo.priority || 'none'] || '无';
+  }
+
+  function getMiniPriorityDotClass(todo) {
+    return { high: 'p-high', medium: 'p-medium', low: 'p-low', none: '' }[todo.priority || 'none'] || '';
+  }
+
+  function buildMiniDetailRows(todo) {
+    const rows = [];
+    const addRow = (icon, label, valueHtml) => {
+      rows.push(`<div class="mini-detail-meta-item"><span class="mini-detail-meta-icon">${iconSvg(icon)}</span><span class="mini-detail-meta-label">${label}</span><span class="mini-detail-meta-value">${valueHtml}</span></div>`);
+    };
+    const dotClass = getMiniPriorityDotClass(todo);
+    addRow('flag', '优先级', `<span class="mini-priority-dot ${dotClass}" aria-hidden="true"></span>${getMiniPriorityLabel(todo)}`);
+    if (todo.tag) {
+      addRow('tag', '标签', `<span class="tag-dot" ${getTagDotStyle(todo.tag)} aria-hidden="true"></span>${escapeHtml(todo.tag)}`);
+    }
+    if (todo.startTime) {
+      addRow('clock', '开始', escapeHtml(formatDateTime(todo.startTime)));
+    }
+    if (todo.endTime) {
+      addRow('calendar', '截止', escapeHtml(formatDateTime(todo.endTime)));
+    }
+    if (todo.reminder) {
+      const repeatLabel = { daily: '每天', weekly: '每周', monthly: '每月' }[todo.reminderRepeat] || '';
+      addRow('bell', '提醒', `${escapeHtml(formatDateTime(todo.reminder))}${repeatLabel ? `（${repeatLabel}）` : ''}`);
+    }
+    addRow('plus', '创建', escapeHtml(formatDateTime(todo.createdAt)));
+    return rows.join('');
+  }
+
+  function renderMiniDetail(todo) {
+    if (!todo) return;
+    currentMiniDetailId = todo.id;
+    miniDetailTitle.textContent = todo.title;
+    miniDetailTitle.title = todo.title;
+    miniDetailToggleLabel.textContent = todo.done ? '取消完成' : '标记完成';
+    let html = '';
+    if (todo.desc) {
+      html += `<div class="mini-detail-desc">${escapeHtml(todo.desc)}</div>`;
+    }
+    html += `<div class="mini-detail-meta">${buildMiniDetailRows(todo)}</div>`;
+    miniDetailBody.innerHTML = html;
+  }
+
+  function openMiniDetail(todoId) {
+    const todo = todoStore?.get(todoId) || data.todos.find(t => t.id === todoId);
+    if (!todo) return;
+    hideMiniTooltip();
+    clearTimeout(miniTooltipTimer);
+    renderMiniDetail(todo);
+    miniDetailCard.classList.remove('hidden');
+  }
+
+  function closeMiniDetail() {
+    miniDetailCard.classList.add('hidden');
+    currentMiniDetailId = null;
+  }
+
+  function handleMiniDetailToggle() {
+    const todo = currentMiniDetailId
+      ? (todoStore?.get(currentMiniDetailId) || data.todos.find(t => t.id === currentMiniDetailId))
+      : null;
+    if (!todo) { closeMiniDetail(); return; }
+    const mutate = target => {
+      target.done = !target.done;
+      target.doneAt = target.done ? new Date().toISOString() : null;
+      if (target.done && target.reminderRepeat === 'none') target.reminder = null;
+    };
+    if (todoStore) todoStore.update(todo, mutate);
+    else mutate(todo);
+    saveData();
+    renderMiniPanel();
+    closeMiniDetail();
   }
 
   /* Win11 DWM 平滑圆角：无边框窗口默认直角，通过 dwmapi 的 DWMWA_WINDOW_CORNER_PREFERENCE
@@ -121,6 +232,7 @@ if ($script:hwnd -ne [IntPtr]::Zero) { $v = 2; [DwmRounder]::DwmSetWindowAttribu
 
   async function enterMiniMode() {
     isMiniMode = true;
+    closeMiniDetail();
     reminders.pause();
     document.documentElement.classList.add('mini-mode-active');
     document.querySelector('.app').style.display = 'none';
@@ -160,6 +272,7 @@ if ($script:hwnd -ne [IntPtr]::Zero) { $v = 2; [DwmRounder]::DwmSetWindowAttribu
   async function exitMiniMode() {
     isMiniMode = false;
     clearTimeout(miniTooltipTimer);
+    closeMiniDetail();
     reminders.resume();
     miniPanel.classList.add('hidden');
     miniInputRow.classList.add('hidden');
@@ -232,6 +345,19 @@ if ($script:hwnd -ne [IntPtr]::Zero) { $v = 2; [DwmRounder]::DwmSetWindowAttribu
     }
   });
 
+  /* ---- 详情卡控件 ---- */
+  document.getElementById('btn-mini-detail-close').addEventListener('click', (e) => {
+    e.stopPropagation();
+    closeMiniDetail();
+  });
+  document.getElementById('btn-mini-detail-toggle').addEventListener('click', (e) => {
+    e.stopPropagation();
+    handleMiniDetailToggle();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && currentMiniDetailId) closeMiniDetail();
+  });
+
   /* ---- 迷你窗口缩放：无边框模式下 native 缩放条不可用，用右下角手柄 + setSize 实现 ---- */
   const miniResizeHandle = document.getElementById('mini-resize-handle');
   let resizeState = null;
@@ -246,26 +372,42 @@ if ($script:hwnd -ne [IntPtr]::Zero) { $v = 2; [DwmRounder]::DwmSetWindowAttribu
       .catch(e => console.warn('mini resize error:', e));
   }
 
+  /* setSize 使用物理像素；在 HiDPI 屏幕（dpr>1）上若直接用 CSS px 的起始宽高，
+     会先得到一个比真实窗口小的尺寸，表现为"猛然缩小后再随拖动"回升。
+     这里把读到的 CSS px 统一乘 devicePixelRatio 再交给 setSize。 */
+  function captureResizeStart(e) {
+    const dpr = window.devicePixelRatio || 1;
+    return {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      startWidth: Math.round(window.innerWidth * dpr),
+      startHeight: Math.round(window.innerHeight * dpr),
+      dpr
+    };
+  }
+
+  function resizeDelta(state, e) {
+    return {
+      width: state.startWidth + (e.clientX - state.startX) * state.dpr,
+      height: state.startHeight + (e.clientY - state.startY) * state.dpr
+    };
+  }
+
   if (miniResizeHandle) {
     if (!isNeutralinoEnv()) miniResizeHandle.classList.add('hidden');
     miniResizeHandle.addEventListener('pointerdown', (e) => {
       if (!isMiniMode) return;
       e.preventDefault();
       miniResizeHandle.setPointerCapture(e.pointerId);
-      resizeState = {
-        pointerId: e.pointerId,
-        startX: e.clientX,
-        startY: e.clientY,
-        startWidth: window.innerWidth,
-        startHeight: window.innerHeight
-      };
+      resizeState = captureResizeStart(e);
     });
     miniResizeHandle.addEventListener('pointermove', (e) => {
       if (!resizeState || e.pointerId !== resizeState.pointerId || resizeRafId != null) return;
       resizeRafId = requestAnimationFrame(() => {
         resizeRafId = null;
-        applyMiniResize(resizeState.startWidth + e.clientX - resizeState.startX,
-                        resizeState.startHeight + e.clientY - resizeState.startY);
+        const d = resizeDelta(resizeState, e);
+        applyMiniResize(d.width, d.height);
       });
     });
     const endMiniResize = (e) => {
@@ -275,8 +417,8 @@ if ($script:hwnd -ne [IntPtr]::Zero) { $v = 2; [DwmRounder]::DwmSetWindowAttribu
         resizeRafId = null;
       }
       if (e && e.pointerId === resizeState.pointerId) {
-        applyMiniResize(resizeState.startWidth + e.clientX - resizeState.startX,
-                        resizeState.startHeight + e.clientY - resizeState.startY);
+        const d = resizeDelta(resizeState, e);
+        applyMiniResize(d.width, d.height);
       }
       resizeState = null;
     };
@@ -300,7 +442,10 @@ if ($script:hwnd -ne [IntPtr]::Zero) { $v = 2; [DwmRounder]::DwmSetWindowAttribu
         saveData();
         renderMiniPanel();
       }
+      return;
     }
+    const item = e.target.closest('.mini-todo-item');
+    if (item) openMiniDetail(item.dataset.id);
   });
 
   miniList.addEventListener('mouseover', (e) => {
@@ -328,7 +473,7 @@ if ($script:hwnd -ne [IntPtr]::Zero) { $v = 2; [DwmRounder]::DwmSetWindowAttribu
       { icon: 'undo', label: '退出迷你模式', action: exitMiniMode },
       { separator: true },
       { icon: 'x', label: '关闭窗口', action: closeWindow }
-    ]);
+    ], { className: 'context-menu--mini' });
   });
 
   return { enterMiniMode, exitMiniMode, renderMiniPanel, isMiniMode: () => isMiniMode, applyRoundedCorners };

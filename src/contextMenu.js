@@ -68,9 +68,9 @@ export function closeContextMenu() {
   if (existing) existing.remove();
 }
 
-export function showContextMenu(x, y, items) {
+export function showContextMenu(x, y, items, options = {}) {
   const menu = document.createElement('div');
-  menu.className = 'context-menu context-menu-root';
+  menu.className = 'context-menu context-menu-root' + (options.className ? ` ${options.className}` : '');
   menu.setAttribute('role', 'menu');
   menu.style.visibility = 'hidden';
   items.forEach(item => {
