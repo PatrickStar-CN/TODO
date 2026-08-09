@@ -555,7 +555,13 @@ function scheduleDoneIncrementalLoad(scrollEl) {
 // --- Render ---
 const todoDoneTransitions = new Set();
 
+function reflowMotionEnabled() {
+  return !window.matchMedia('(prefers-reduced-motion: reduce)').matches &&
+         typeof Element.prototype.animate === 'function';
+}
+
 function captureTodoPositions() {
+  if (!reflowMotionEnabled()) return null;
   const positions = new Map();
   document.querySelectorAll('.todo-item[data-id]').forEach(el => {
     const listEl = el.closest('#todo-list, #done-list, #calendar-todo-list');
@@ -570,8 +576,7 @@ function captureTodoPositions() {
 }
 
 function animateTodoReflow(previousPositions, changedId) {
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches ||
-      typeof Element.prototype.animate !== 'function') return;
+  if (!previousPositions || previousPositions.size === 0 || !reflowMotionEnabled()) return;
 
   document.querySelectorAll('.todo-item[data-id]').forEach(el => {
     if (el.dataset.id === changedId) {
@@ -701,6 +706,47 @@ function renderSidebar() {
   });
 }
 
+let listViewCache = { key: '', filtered: null, taskSorted: null, done: null };
+
+/* 视图管线缓存：按 (saveVersion + 视图状态) 缓存过滤/分组/排序结果。
+   滚动增量加载、done 折叠切换等不改变数据的 re-render 直接复用，
+   避免每次对全量 data.todos 重扫 + 重排。saveVersion 只在提交变更时递增。 */
+function getListView() {
+  const timelineEnabled = data.timeline.enabled;
+  const key = [
+    saveVersion,
+    currentList,
+    currentTag,
+    searchKeyword,
+    timelineEnabled,
+    data.timeline.sortBy
+  ].join('|');
+  if (listViewCache.key === key && listViewCache.filtered) return listViewCache;
+
+  const filtered = getFilteredTodos();
+  let taskSorted;
+  let done = [];
+
+  if (timelineEnabled) {
+    taskSorted = sortTimelineTodos(filtered, data.timeline.sortBy);
+  } else if (currentList === 'archived') {
+    taskSorted = filtered.slice().sort((a, b) => {
+      const ta = a.archivedAt ? new Date(a.archivedAt).getTime() : 0;
+      const tb = b.archivedAt ? new Date(b.archivedAt).getTime() : 0;
+      return tb - ta;
+    });
+  } else if (searchKeyword) {
+    taskSorted = sortByPriority(filtered);
+  } else {
+    const { pending, done: doneArr } = splitPendingDone(filtered);
+    taskSorted = sortByPriority(pending);
+    done = doneArr;
+  }
+
+  listViewCache = { key, filtered, taskSorted, done };
+  return listViewCache;
+}
+
 function renderTodoList() {
   const todoListEl = document.getElementById('todo-list');
   const doneListEl = document.getElementById('done-list');
@@ -709,9 +755,13 @@ function renderTodoList() {
   const doneToggleEl = document.getElementById('done-toggle');
   const taskSummary = document.getElementById('task-summary');
 
-  const filtered = getFilteredTodos();
+  const view = getListView();
+  const filtered = view.filtered;
+  const sorted = view.taskSorted;
+  const done = view.done;
   const addTaskBar = document.querySelector('.add-task-bar');
   const timelineEnabled = data.timeline.enabled;
+  const mode = timelineEnabled ? 'timeline' : currentList === 'archived' ? 'archived' : searchKeyword ? 'search' : 'normal';
 
   const renderTaskItems = (items, emptyHtml) => {
     todoListEl.innerHTML = '';
@@ -731,9 +781,8 @@ function renderTodoList() {
     });
   };
 
-  if (timelineEnabled) {
+  if (mode === 'timeline') {
     addTaskBar.style.display = currentList === 'archived' || searchKeyword ? 'none' : '';
-    const sorted = sortTimelineTodos(filtered, data.timeline.sortBy);
     renderTaskItems(sorted, data.timeline.sortBy === 'completed'
       ? '<div class="empty-state">暂无已完成任务</div>'
       : '<div class="empty-state">暂无任务</div>');
@@ -745,22 +794,16 @@ function renderTodoList() {
     return;
   }
 
-  if (currentList === 'archived') {
+  if (mode === 'archived') {
     addTaskBar.style.display = 'none';
-    const sorted = filtered.slice().sort((a, b) => {
-      const ta = a.archivedAt ? new Date(a.archivedAt).getTime() : 0;
-      const tb = b.archivedAt ? new Date(b.archivedAt).getTime() : 0;
-      return tb - ta;
-    });
     renderTaskItems(sorted, '<div class="empty-state">暂无归档任务</div>');
     doneSection.style.display = 'none';
     taskSummary.textContent = `${sorted.length} 个归档`;
     return;
   }
 
-  if (searchKeyword) {
+  if (mode === 'search') {
     addTaskBar.style.display = 'none';
-    const sorted = sortByPriority(filtered);
     renderTaskItems(sorted, '<div class="empty-state">未找到匹配的任务</div>');
     doneSection.style.display = 'none';
     taskSummary.textContent = `搜索到 ${sorted.length} 个任务`;
@@ -768,9 +811,6 @@ function renderTodoList() {
   }
 
   addTaskBar.style.display = '';
-  const { pending, done } = splitPendingDone(filtered);
-  const sorted = sortByPriority(pending);
-
   renderTaskItems(sorted, '<div class="empty-state">暂无待办事项</div>');
 
   doneCountEl.textContent = done.length;
@@ -1153,7 +1193,7 @@ export async function initApp() {
       if (!todo) return;
       runtimeIndex.update(todo, { doneAt: newDoneAt });
       saveData();
-      render();
+      scheduleRender({ list: true, sidebar: true, status: true, calendar: true });
     }
   });
 
@@ -1257,8 +1297,19 @@ export async function initApp() {
     requestAnimationFrame(syncDonePanelLayout);
   };
 
+  /* ResizeObserver 高频触发时只在同一帧内合并且延迟到 rAF，避免渲染期间
+     同步读取布局（offsetHeight / getBoundingClientRect）造成强制回流。 */
+  let panelLayoutFrame = null;
+  const schedulePanelLayoutFromObserver = () => {
+    if (panelLayoutFrame) return;
+    panelLayoutFrame = requestAnimationFrame(() => {
+      panelLayoutFrame = null;
+      syncDonePanelLayout();
+    });
+  };
+
   if (typeof ResizeObserver !== 'undefined') {
-    const donePanelObserver = new ResizeObserver(syncDonePanelLayout);
+    const donePanelObserver = new ResizeObserver(schedulePanelLayoutFromObserver);
     donePanelObserver.observe(doneSection);
     donePanelObserver.observe(taskScrollArea);
     donePanelObserver.observe(addTaskBar);
@@ -1424,7 +1475,7 @@ export async function initApp() {
       if (todo) {
         runtimeIndex.update(todo, { important: !todo.important }, { calendar: false });
         saveData();
-        render();
+        scheduleRender();
       }
     } else if (action === 'delete') {
       deleteTodoById(id, target.closest('.todo-item'));
@@ -1481,7 +1532,7 @@ export async function initApp() {
     const now = new Date().toISOString();
     doneTodos.forEach(todo => runtimeIndex.update(todo, { archived: true, archivedAt: now }));
     saveData();
-    render();
+    scheduleRender();
     showToast(`已归档 ${doneTodos.length} 个任务`);
   });
 
@@ -1512,7 +1563,7 @@ export async function initApp() {
     runtimeIndex.update(todo, patch);
     saveData();
     closeDetail();
-    render();
+    scheduleRender();
   });
 
   document.getElementById('close-detail').addEventListener('click', closeDetail);
@@ -1695,12 +1746,12 @@ export async function initApp() {
     if (!todo) return;
     runtimeIndex.update(todo, patchOrMutator);
     saveData();
-    render();
+    scheduleRender();
   }
 
   function deleteTagFromMenu(tag) {
     deleteTag(tag, () => {
-      render();
+      scheduleRender();
     });
   }
 
@@ -1711,7 +1762,7 @@ export async function initApp() {
     showConfirmDialog(`确定要清空 ${doneTodos.length} 个已完成任务？`, () => {
       runtimeIndex.replaceTodos(data.todos.filter(t => !doneIds.has(t.id)));
       saveData();
-      render();
+      scheduleRender();
     });
   }
 

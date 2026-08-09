@@ -1251,8 +1251,6 @@ body::before {
   gap: 12px;
   padding: 14px 18px;
   background: var(--glass-bg);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
   border-radius: 16px;
   margin-bottom: 8px;
   cursor: pointer;
@@ -1292,8 +1290,6 @@ body::before {
   justify-content: center;
   cursor: pointer;
   background: var(--glass-bg-input);
-  backdrop-filter: var(--glass-blur-light);
-  -webkit-backdrop-filter: var(--glass-blur-light);
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -1342,8 +1338,6 @@ body::before {
   align-items: center;
   gap: 4px;
   background: var(--glass-bg-elevated);
-  backdrop-filter: var(--glass-blur-light);
-  -webkit-backdrop-filter: var(--glass-blur-light);
 }
 
 .badge-date {
