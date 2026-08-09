@@ -230,6 +230,37 @@ if ($script:hwnd -ne [IntPtr]::Zero) { $v = 2; [DwmRounder]::DwmSetWindowAttribu
     }).catch(e => console.warn('mini corner round error:', e));
   }
 
+  /* 迷你模式窗口隐藏任务栏：通过 WS_EX_TOOLWINDOW 让窗口不出现在任务栏，
+     仅保留系统托盘入口。进入迷你模式设置该样式，退出时恢复普通窗口样式。
+     与 DWM 圆角一致，用 EnumWindows 按窗口标题定位（标题来自 config 的 window.title），
+     隐藏窗口也能枚举到。 */
+  function buildTaskbarToggleCommand(hideFromTaskbar) {
+    const styleExpr = hideFromTaskbar
+      ? '($style -bor 0x80)'
+      : '($style -band (-bnot 0x80))';
+    return 'powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand ' +
+      encodeUtf16LeBase64(
+        `Add-Type -TypeDefinition 'using System;using System.Text;using System.Runtime.InteropServices;public class TbToggle{[DllImport("user32.dll")]public static extern bool EnumWindows(EnumWindowsProc cb,IntPtr lParam);[DllImport("user32.dll",CharSet=CharSet.Unicode)]public static extern int GetWindowText(IntPtr hwnd,StringBuilder sb,int max);[DllImport("user32.dll")]public static extern IntPtr GetWindowLongPtr(IntPtr hWnd,int nIndex);[DllImport("user32.dll")]public static extern IntPtr SetWindowLongPtr(IntPtr hWnd,int nIndex,IntPtr dwNewLong);public delegate bool EnumWindowsProc(IntPtr hwnd,IntPtr lParam);}'
+$script:hwnd = [IntPtr]::Zero
+$cb = [TbToggle+EnumWindowsProc]{ param($h,$l) $sb = New-Object System.Text.StringBuilder 256; [TbToggle]::GetWindowText($h,$sb,256) | Out-Null; if ($sb.ToString() -eq 'TODO') { $script:hwnd = $h; return $false }; return $true }
+[TbToggle]::EnumWindows($cb,[IntPtr]::Zero) | Out-Null
+if ($script:hwnd -ne [IntPtr]::Zero) { $GWL_EXSTYLE = -20; $style = ([TbToggle]::GetWindowLongPtr($script:hwnd,$GWL_EXSTYLE)).ToInt64(); $new = ${styleExpr}; [TbToggle]::SetWindowLongPtr($script:hwnd,$GWL_EXSTYLE,[IntPtr]$new) | Out-Null; 'OK' } else { 'NO_WINDOW' }`
+      );
+  }
+
+  let taskbarHidden = false;
+
+  function setMiniTaskbarHidden(hideFromTaskbar) {
+    if (!isNeutralinoEnv() || taskbarHidden === hideFromTaskbar) return;
+    Neutralino.os.execCommand(buildTaskbarToggleCommand(hideFromTaskbar)).then(r => {
+      if (r?.stdOut?.trim() === 'OK') {
+        taskbarHidden = hideFromTaskbar;
+      } else {
+        console.warn('mini taskbar toggle: window not found,', r?.stdOut?.trim() || r?.stdErr || r?.exitCode);
+      }
+}).catch(e => console.warn('mini taskbar toggle error:', e));
+  }
+
   async function enterMiniMode() {
     isMiniMode = true;
     closeMiniDetail();
@@ -265,6 +296,8 @@ if ($script:hwnd -ne [IntPtr]::Zero) { $v = 2; [DwmRounder]::DwmSetWindowAttribu
         /* DWM 圆角在应用启动时已设置（applyRoundedCorners），这里仅在启动设置
            失败时兜底重试一次；已成功则跳过，避免反复启动 PowerShell */
         if (!cornerRoundApplied) applyRoundedCorners();
+        /* 迷你模式窗口不占用任务栏，只保留系统托盘入口 */
+        setMiniTaskbarHidden(true);
       } catch (e) { console.warn('enterMiniMode error:', e); }
     }
   }
@@ -297,6 +330,8 @@ if ($script:hwnd -ne [IntPtr]::Zero) { $v = 2; [DwmRounder]::DwmSetWindowAttribu
         });
         await Neutralino.window.center();
       } catch (e) { console.warn('exitMiniMode resize error:', e); }
+      /* 恢复主窗口正常任务栏入口 */
+      setMiniTaskbarHidden(false);
     }
     render();
   }
