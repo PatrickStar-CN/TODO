@@ -9320,6 +9320,9 @@ html.mini-mode-active .mini-panel {
 }
 
 .mini-detail-header-actions .mini-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 22px;
   height: 22px;
   padding: 0;
