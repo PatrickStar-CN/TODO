@@ -42,6 +42,15 @@
   --tag-bg: #241a42;
   --tag-text: #a78bfa;
   --checkbox-border: #384358;
+
+  /* 优先级语义色（全界面统一）：只应引用此处，避免 --danger/--success 混用 */
+  --prio-high: var(--danger);
+  --prio-medium: var(--warning-text);
+  --prio-low: var(--low-text);
+  --prio-none: var(--text-muted);
+  --prio-high-bg: var(--danger-bg);
+  --prio-medium-bg: var(--warning-bg);
+  --prio-low-bg: var(--low-bg);
   --scrollbar: #1e2535;
   --scrollbar-hover: #2d3850;
   --scrollbar-size: 10px;
@@ -120,6 +129,15 @@
   --tag-bg: #f5f3ff;
   --tag-text: #7c3aed;
   --checkbox-border: #d0d5dd;
+
+  /* 优先级语义色（全界面统一）：只应引用此处，避免 --danger/--success 混用 */
+  --prio-high: var(--danger);
+  --prio-medium: var(--warning-text);
+  --prio-low: var(--low-text);
+  --prio-none: var(--text-muted);
+  --prio-high-bg: var(--danger-bg);
+  --prio-medium-bg: var(--warning-bg);
+  --prio-low-bg: var(--low-bg);
   --scrollbar: #dde0e8;
   --scrollbar-hover: #c8cdd8;
   --overlay: rgba(240, 242, 245, 0.6);
@@ -359,6 +377,23 @@ body {
   overflow: hidden;
   position: relative;
   line-height: 1.5;
+}
+
+/* 限制光标：非输入区域一律箭头，仅真正的可编辑控件显示文本光标 */
+body,
+html {
+  cursor: default;
+}
+
+input[type="text"],
+input[type="search"],
+input[type="password"],
+input[type="number"],
+input[type="email"],
+input[type="url"],
+textarea,
+[contenteditable="true"] {
+  cursor: text;
 }
 
 /* 暗色：低刺激的深石墨纯色 */
@@ -714,7 +749,7 @@ body::before {
 }
 
 .sidebar.mini .sidebar-nav {
-  padding: 0 var(--sidebar-edge-space);
+  padding: var(--sidebar-edge-space) var(--sidebar-edge-space) 0;
 }
 
 .sidebar.mini .nav-item {
@@ -1340,18 +1375,18 @@ body::before {
 }
 
 .badge-priority-high {
-  background: var(--danger-bg);
-  color: var(--danger-text);
+  background: var(--prio-high-bg);
+  color: var(--prio-high);
 }
 
 .badge-priority-medium {
-  background: var(--warning-bg);
-  color: var(--warning-text);
+  background: var(--prio-medium-bg);
+  color: var(--prio-medium);
 }
 
 .badge-priority-low {
-  background: var(--low-bg);
-  color: var(--low-text);
+  background: var(--prio-low-bg);
+  color: var(--prio-low);
 }
 
 .badge-todo {
@@ -3216,9 +3251,9 @@ body::before {
 
 /* Quick Add Popups */
 .quick-popup {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
+  position: fixed;
+  top: auto;
+  right: auto;
   background: var(--glass-bg-strong);
   backdrop-filter: var(--glass-blur-strong);
   -webkit-backdrop-filter: var(--glass-blur-strong);
@@ -3227,7 +3262,7 @@ body::before {
   padding: 8px 0;
   min-width: 180px;
   box-shadow: var(--glass-shadow-lg);
-  z-index: 100;
+  z-index: 1000;
   animation: popupFadeIn 0.15s ease;
 }
 
@@ -3542,10 +3577,10 @@ body::before {
   flex-shrink: 0;
 }
 
-.prio-dot.prio-high { background: var(--danger-text); }
-.prio-dot.prio-medium { background: var(--warning-text); }
-.prio-dot.prio-low { background: var(--low-text); }
-.prio-dot.prio-none { background: var(--checkbox-border); }
+.prio-dot.prio-high { background: var(--prio-high); }
+.prio-dot.prio-medium { background: var(--prio-medium); }
+.prio-dot.prio-low { background: var(--prio-low); }
+.prio-dot.prio-none { background: var(--prio-none); }
 
 .icon-btn.preset-active {
   color: var(--accent-text);
@@ -3839,15 +3874,16 @@ body::before {
   color: var(--text-muted);
 }
 
-.icon-priority-high { color: var(--danger); }
-.icon-priority-medium { color: var(--warning-text); }
-.icon-priority-low { color: var(--success); }
-.icon-priority-none { color: var(--text-muted); }
+.icon-priority-high { color: var(--prio-high); }
+.icon-priority-medium { color: var(--prio-medium); }
+.icon-priority-low { color: var(--prio-low); }
+.icon-priority-none { color: var(--prio-none); }
 
 .context-menu-submenu-panel {
-  position: absolute;
-  left: 100%;
-  top: -4px;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 2100;
   max-height: min(320px, calc(100vh - 16px));
   overflow-x: hidden;
   overflow-y: auto;
@@ -3858,9 +3894,7 @@ body::before {
   pointer-events: none;
 }
 
-.context-menu-submenu:focus > .context-menu-submenu-panel,
-.context-menu-submenu:focus-within > .context-menu-submenu-panel,
-.context-menu-submenu[aria-expanded="true"] > .context-menu-submenu-panel {
+.context-menu-submenu-panel.is-open {
   visibility: visible;
   pointer-events: auto;
 }
@@ -4046,9 +4080,9 @@ body::before {
   flex-shrink: 0;
 }
 
-.mini-priority-dot.p-high { background: var(--danger-text); }
-.mini-priority-dot.p-medium { background: var(--warning-text); }
-.mini-priority-dot.p-low { background: var(--low-text); }
+.mini-priority-dot.p-high { background: var(--prio-high); }
+.mini-priority-dot.p-medium { background: var(--prio-medium); }
+.mini-priority-dot.p-low { background: var(--prio-low); }
 
 .mini-input-row {
   padding: 8px;
@@ -7586,7 +7620,7 @@ body,
   border-color: color-mix(in srgb, var(--accent) 48%, var(--glass-control-border-hover));
 }
 
-.add-task-bar .quick-popup {
+body > .quick-popup {
   padding: 7px;
   color: var(--text-primary);
   background: color-mix(in srgb, var(--glass-surface-strong) var(--ui-glass-strong-opacity), transparent);
@@ -8147,9 +8181,9 @@ body {
   box-shadow: var(--ui-card-shadow), var(--ui-card-highlight);
 }
 
-.todo-item[data-priority="high"] { --task-accent: var(--danger); }
-.todo-item[data-priority="medium"] { --task-accent: var(--warning-text); }
-.todo-item[data-priority="low"] { --task-accent: var(--success); }
+.todo-item[data-priority="high"] { --task-accent: var(--prio-high); }
+.todo-item[data-priority="medium"] { --task-accent: var(--prio-medium); }
+.todo-item[data-priority="low"] { --task-accent: var(--prio-low); }
 .todo-item[data-important="true"][data-priority="none"] { --task-accent: var(--accent); }
 
 .todo-item::after {
@@ -8704,10 +8738,12 @@ body {
 .context-menu-submenu-panel {
   min-width: 160px;
   padding: 6px;
-  background: color-mix(in srgb, var(--glass-surface-strong) 98%, transparent);
-  border-color: color-mix(in srgb, var(--glass-stroke-strong) 42%, transparent);
+  background: color-mix(in srgb, var(--glass-surface-strong) var(--ui-glass-strong-opacity), transparent);
+  backdrop-filter: blur(var(--ui-glass-blur)) saturate(145%);
+  -webkit-backdrop-filter: blur(var(--ui-glass-blur)) saturate(145%);
+  border: 1px solid color-mix(in srgb, var(--glass-stroke-strong) var(--ui-border-strength), transparent);
   border-radius: var(--ui-radius);
-  box-shadow: var(--glass-panel-shadow), var(--ui-card-highlight);
+  box-shadow: var(--glass-panel-shadow), var(--glass-inset-highlight);
 }
 
 .context-menu-submenu-panel .context-menu-item {
@@ -9007,18 +9043,18 @@ html.mini-mode-active .mini-panel {
 }
 
 .mini-todo-item.p-high::before {
-  background: var(--danger-text);
-  box-shadow: 0 0 8px 1px color-mix(in srgb, var(--danger-text) 45%, transparent);
+  background: var(--prio-high);
+  box-shadow: 0 0 8px 1px color-mix(in srgb, var(--prio-high) 45%, transparent);
 }
 
 .mini-todo-item.p-medium::before {
-  background: var(--warning-text);
-  box-shadow: 0 0 8px 1px color-mix(in srgb, var(--warning-text) 45%, transparent);
+  background: var(--prio-medium);
+  box-shadow: 0 0 8px 1px color-mix(in srgb, var(--prio-medium) 45%, transparent);
 }
 
 .mini-todo-item.p-low::before {
-  background: var(--low-text);
-  box-shadow: 0 0 8px 1px color-mix(in srgb, var(--low-text) 45%, transparent);
+  background: var(--prio-low);
+  box-shadow: 0 0 8px 1px color-mix(in srgb, var(--prio-low) 45%, transparent);
 }
 
 .mini-todo-item:hover {
@@ -9220,15 +9256,15 @@ html.mini-mode-active .mini-panel {
 }
 
 .mini-detail-meta-value .mini-priority-dot.p-high {
-  background: var(--danger-text);
+  background: var(--prio-high);
 }
 
 .mini-detail-meta-value .mini-priority-dot.p-medium {
-  background: var(--warning-text);
+  background: var(--prio-medium);
 }
 
 .mini-detail-meta-value .mini-priority-dot.p-low {
-  background: var(--low-text);
+  background: var(--prio-low);
 }
 
 .mini-detail-meta-value .tag-dot {

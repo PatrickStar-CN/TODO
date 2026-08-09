@@ -43,16 +43,17 @@ function positionSubmenu(wrapper, submenu) {
   const maxHeight = Math.max(120, Math.min(320, availableHeight));
   submenu.style.maxHeight = `${maxHeight}px`;
   submenu.style.overflowY = submenu.scrollHeight > maxHeight ? 'auto' : 'visible';
-  submenu.style.left = 'calc(100% + 6px)';
-  submenu.style.right = 'auto';
-  submenu.style.top = '-4px';
-  wrapper.dataset.submenuSide = 'right';
 
   const width = submenu.offsetWidth;
   const height = submenu.offsetHeight;
-  if (wrapperRect.right + 6 + width > window.innerWidth - VIEWPORT_MARGIN) {
+  const rightSide = wrapperRect.right + 6;
+  if (rightSide + width <= window.innerWidth - VIEWPORT_MARGIN) {
+    submenu.style.left = `${rightSide}px`;
+    submenu.style.right = 'auto';
+    wrapper.dataset.submenuSide = 'right';
+  } else {
     submenu.style.left = 'auto';
-    submenu.style.right = 'calc(100% + 6px)';
+    submenu.style.right = `${window.innerWidth - wrapperRect.left + 6}px`;
     wrapper.dataset.submenuSide = 'left';
   }
 
@@ -60,12 +61,12 @@ function positionSubmenu(wrapper, submenu) {
     Math.max(VIEWPORT_MARGIN, wrapperRect.top - 4),
     Math.max(VIEWPORT_MARGIN, window.innerHeight - height - VIEWPORT_MARGIN)
   );
-  submenu.style.top = `${desiredViewportTop - wrapperRect.top}px`;
+  submenu.style.top = `${desiredViewportTop}px`;
+  submenu.style.bottom = 'auto';
 }
 
 export function closeContextMenu() {
-  const existing = document.querySelector('.context-menu');
-  if (existing) existing.remove();
+  document.querySelectorAll('.context-menu').forEach(existing => existing.remove());
 }
 
 export function showContextMenu(x, y, items, options = {}) {
@@ -90,9 +91,11 @@ export function showContextMenu(x, y, items, options = {}) {
       wrapper.appendChild(createMenuItemContent(item.icon, item.label, item.iconClass));
       const indicator = createIcon('chevron-right', 'submenu-indicator');
       if (indicator) wrapper.appendChild(indicator);
-      const sub = document.createElement('div');
+const sub = document.createElement('div');
       sub.className = 'context-menu context-menu-submenu-panel';
       sub.setAttribute('role', 'menu');
+      sub.style.visibility = 'hidden';
+      wrapper._submenu = sub;
       item.submenu.forEach(subItem => {
         const subEl = document.createElement('div');
         subEl.className = 'context-menu-item';
@@ -108,7 +111,7 @@ export function showContextMenu(x, y, items, options = {}) {
         subEl.addEventListener('click', () => { closeContextMenu(); subItem.action(); });
         sub.appendChild(subEl);
       });
-      wrapper.appendChild(sub);
+      document.body.appendChild(sub);
       let closeTimer = null;
       const cancelClose = () => {
         if (closeTimer) {
@@ -116,18 +119,26 @@ export function showContextMenu(x, y, items, options = {}) {
           closeTimer = null;
         }
       };
+      const setSubmenuVisible = (visible) => {
+        wrapper.setAttribute('aria-expanded', String(visible));
+        sub.classList.toggle('is-open', visible);
+        sub.style.visibility = visible ? 'visible' : 'hidden';
+      };
       const openSubmenu = () => {
         cancelClose();
         menu.querySelectorAll(':scope > .context-menu-submenu[aria-expanded="true"]').forEach(openItem => {
-          if (openItem !== wrapper) openItem.setAttribute('aria-expanded', 'false');
+          if (openItem !== wrapper) {
+            openItem.setAttribute('aria-expanded', 'false');
+            openItem.classList.remove('is-open');
+          }
         });
         positionSubmenu(wrapper, sub);
-        wrapper.setAttribute('aria-expanded', 'true');
+        setSubmenuVisible(true);
       };
       const scheduleClose = () => {
         cancelClose();
         closeTimer = window.setTimeout(() => {
-          wrapper.setAttribute('aria-expanded', 'false');
+          setSubmenuVisible(false);
           closeTimer = null;
         }, 140);
       };
@@ -166,18 +177,23 @@ export function showContextMenu(x, y, items, options = {}) {
     } else if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
       if (document.activeElement?.classList.contains('context-menu-submenu')) {
-        const submenu = document.activeElement.querySelector('.context-menu-submenu-panel');
-        positionSubmenu(document.activeElement, submenu);
-        document.activeElement.setAttribute('aria-expanded', 'true');
+        const wrapperEl = document.activeElement;
+        const submenu = wrapperEl._submenu;
+        positionSubmenu(wrapperEl, submenu);
+        wrapperEl.setAttribute('aria-expanded', 'true');
+        submenu.classList.add('is-open');
+        submenu.style.visibility = 'visible';
         submenu.querySelector('[role="menuitem"]')?.focus();
       } else {
         document.activeElement?.click();
       }
     } else if (e.key === 'ArrowRight' && document.activeElement?.classList.contains('context-menu-submenu')) {
       e.preventDefault();
-      const submenu = document.activeElement.querySelector('.context-menu-submenu-panel');
+      const submenu = document.activeElement._submenu;
       positionSubmenu(document.activeElement, submenu);
       document.activeElement.setAttribute('aria-expanded', 'true');
+      submenu.classList.add('is-open');
+      submenu.style.visibility = 'visible';
       submenu.querySelector('[role="menuitem"]')?.focus();
     } else if (e.key === 'ArrowLeft') {
       const wrapper = document.activeElement?.closest('.context-menu-submenu');

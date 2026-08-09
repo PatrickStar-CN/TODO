@@ -23,13 +23,17 @@ function adjustPopupPosition(popup, trigger, container) {
     const desiredLeft = triggerRect.right - containerRect.left - popupRect.width;
     const maxLeft = Math.max(8, containerRect.width - popupRect.width - 8);
 
-    popup.style.left = `${Math.min(Math.max(8, desiredLeft), maxLeft)}px`;
+    const left = Math.min(Math.max(8, desiredLeft), maxLeft);
+    popup.style.position = 'fixed';
+    popup.style.left = `${containerRect.left + left}px`;
+    popup.style.top = `${containerRect.bottom + 8}px`;
     popup.style.right = 'auto';
+    popup.style.bottom = 'auto';
 
     const positionedRect = popup.getBoundingClientRect();
     if (positionedRect.bottom > window.innerHeight - 8) {
       popup.style.top = 'auto';
-      popup.style.bottom = 'calc(100% + 8px)';
+      popup.style.bottom = `${window.innerHeight - containerRect.top + 8}px`;
     }
   });
 }
@@ -106,7 +110,7 @@ export function initQuickAddPopups({
       </div>
       ${quickAddPreset.endTime ? `<div class="popup-option popup-clear" data-date="">${iconSvg('x')}<span>清除日期</span></div>` : ''}
     `;
-    container.appendChild(popup);
+    document.body.appendChild(popup);
     adjustPopupPosition(popup, dateButton, container);
     initDatePicker(popup.querySelector('.popup-date-input'), { mode: 'date' });
 
@@ -138,7 +142,7 @@ export function initQuickAddPopups({
       <div class="popup-option ${quickAddPreset.priority === 'low' ? 'selected' : ''}" data-priority="low"><span class="prio-dot prio-low"></span>低</div>
       <div class="popup-option ${quickAddPreset.priority === 'none' ? 'selected' : ''}" data-priority="none"><span class="prio-dot prio-none"></span>无</div>
     `;
-    container.appendChild(popup);
+    document.body.appendChild(popup);
     adjustPopupPosition(popup, priorityButton, container);
 
     popup.querySelectorAll('[data-priority]').forEach(opt => {
@@ -171,9 +175,9 @@ export function initQuickAddPopups({
         <input class="quick-tag-create-input" type="text" maxlength="20" autocomplete="off" spellcheck="false" aria-label="新标签名称" placeholder="新建标签">
         <button class="quick-tag-create-btn" type="button" aria-label="创建并选择标签" title="创建并选择标签">${iconSvg('plus')}<span>创建</span></button>
       </div>
-      <div class="quick-tag-feedback" role="status" aria-live="polite"></div>
+<div class="quick-tag-feedback" role="status" aria-live="polite"></div>
     `;
-    container.appendChild(popup);
+    document.body.appendChild(popup);
     adjustPopupPosition(popup, tagButton, container);
 
     popup.querySelectorAll('[data-tag]').forEach(opt => {
