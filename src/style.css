@@ -4157,7 +4157,8 @@ body::before {
   height: 9px;
   border-right: 2px solid var(--text-secondary);
   border-bottom: 2px solid var(--text-secondary);
-  border-bottom-right-radius: 2px;
+  border-bottom-right-radius: 50%;
+  border-top-left-radius: 50%;
 }
 
 .mini-resize-handle:hover::after {

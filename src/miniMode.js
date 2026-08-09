@@ -326,7 +326,8 @@ if ($script:hwnd -ne [IntPtr]::Zero) { $GWL_EXSTYLE = -20; $style = ([TbToggle]:
           width: appConfig?.windowWidth || 1100,
           height: appConfig?.windowHeight || 700,
           minWidth: appConfig?.minWidth || 800,
-          minHeight: appConfig?.minHeight || 500
+          minHeight: appConfig?.minHeight || 500,
+          resizable: true
         });
         await Neutralino.window.center();
       } catch (e) { console.warn('exitMiniMode resize error:', e); }
