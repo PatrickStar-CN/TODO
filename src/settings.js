@@ -9,6 +9,8 @@ import { normalizeTimelineSettings } from './timeline.js';
 const TAG_COLORS = ['#4f46e5', '#06b6d4', '#f59e0b', '#ef4444', '#10b981', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#6366f1'];
 
 let data, saveData, showToast, render, testNotification, getNotificationStatus;
+let onTagRenamed = null;
+let onTagDeleted = null;
 let settingsOverlay = null;
 
 function getTagColor(tag) {
@@ -311,6 +313,7 @@ function openPanel() {
       if (idx !== -1) data.tags[idx] = newName;
       data.todos.forEach(todo => { if (todo.tag === oldTag) todo.tag = newName; });
       if (data._index) data._index = null; /* 强制下次 render 时重建（重命名不增删，但确保一致） */
+      onTagRenamed?.(oldTag, newName);
       saveData();
       render();
       renderTagList(overlay);
@@ -528,6 +531,7 @@ function deleteTag(tag, overlay) {
     data.tags = data.tags.filter(t => t !== tag);
     data.todos.forEach(todo => { if (todo.tag === tag) todo.tag = ''; });
     if (data._index) data._index = null; /* 强制下次 render 时重建 */
+    onTagDeleted?.(tag);
     saveData();
     render();
     renderTagList(overlay);
@@ -544,6 +548,8 @@ export function initSettings(deps) {
   render = deps.render;
   testNotification = deps.testNotification;
   getNotificationStatus = deps.getNotificationStatus;
+  onTagRenamed = deps.onTagRenamed || null;
+  onTagDeleted = deps.onTagDeleted || null;
 
   // 打开
   document.getElementById('btn-settings').addEventListener('click', openPanel);

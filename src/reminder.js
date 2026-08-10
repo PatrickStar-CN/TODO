@@ -1,6 +1,22 @@
 import { toLocalDatetime } from './utils/date.js';
 import { showWindowsToast } from './windowsToast.js';
 
+function lastDayOfMonth(date) {
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+}
+
+/* 计算下一个每月提醒：保留锚点日（不超过目标月天数），避免月末漂移 */
+export function computeNextMonthlyReminder(reminderTime, now) {
+  const next = new Date(reminderTime);
+  const anchorDay = next.getDate();
+  while (next <= now) {
+    next.setDate(1);
+    next.setMonth(next.getMonth() + 1);
+    next.setDate(Math.min(anchorDay, lastDayOfMonth(next)));
+  }
+  return next;
+}
+
 function getBrowserNotificationStatus() {
   if (typeof Notification === 'undefined') {
     return { state: 'unavailable', label: '当前环境不支持系统通知' };
@@ -96,9 +112,7 @@ export function initReminders({ data, saveData, render, showToast, isNeutralinoE
           while (next <= now) next.setDate(next.getDate() + 7);
           todo.reminder = toLocalDatetime(next);
         } else if (todo.reminderRepeat === 'monthly') {
-          const next = new Date(reminderTime);
-          while (next <= now) next.setMonth(next.getMonth() + 1);
-          todo.reminder = toLocalDatetime(next);
+          todo.reminder = toLocalDatetime(computeNextMonthlyReminder(reminderTime, now));
         } else {
           todo.reminder = null;
         }

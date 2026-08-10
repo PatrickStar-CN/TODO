@@ -3,9 +3,11 @@ import { webcrypto } from 'node:crypto';
 import { countByList, countTagUndone, getFilteredTodos, sortByPriority, splitPendingDone } from '../src/selectors.js';
 import { DEFAULT_UI_STYLE, normalizeUiStyle } from '../src/uiPreferences.js';
 import { buildMonthActivityIndex, buildYearCompletionIndex, buildYearTaskIndex, getCompletedTodosForDate, getTaskTodosForDate } from '../src/calendar.js';
-import { initReminders } from '../src/reminder.js';
+import { initReminders, computeNextMonthlyReminder } from '../src/reminder.js';
 import { createRuntimeIndex } from '../src/runtimeIndex.js';
 import { encrypt, initCrypto, tryDecrypt } from '../src/utils/crypto.js';
+import { escapeAttr, escapeHtml } from '../src/utils/html.js';
+import { parseLocalDateInput, toLocalDateInput, toLocalDatetime, isToday } from '../src/utils/date.js';
 import { resolveAiApiUrl } from '../src/utils/aiApi.js';
 import { DEFAULT_TIMELINE_SETTINGS, formatTimelineTime, getTimelineDateParts, normalizeTimelineSettings, sortTimelineTodos } from '../src/timeline.js';
 
@@ -15,6 +17,29 @@ assert.equal(resolveAiApiUrl('https://api.openai.com/v1/chat/completions'), 'htt
 assert.equal(resolveAiApiUrl('https://example.com/v1/chat/completions?key=test'), 'https://example.com/v1/chat/completions?key=test');
 assert.equal(resolveAiApiUrl('https://example.com/custom-endpoint'), 'https://example.com/custom-endpoint');
 assert.equal(resolveAiApiUrl(''), '');
+
+/* HTML 转义：引号必须被转义，防止属性注入 */
+assert.equal(escapeHtml('<b>"x"</b>'), '&lt;b&gt;&quot;x&quot;&lt;/b&gt;');
+assert.equal(escapeAttr('a"b\'c<d>e&f'), 'a&quot;b&#39;c&lt;d&gt;e&amp;f');
+assert.equal(escapeAttr(''), '');
+assert.equal(escapeHtml(null), '');
+
+/* 每月提醒：锚点日保留，月末自动收敛，不发生漂移 */
+assert.equal(toLocalDatetime(computeNextMonthlyReminder(new Date(2026, 0, 31, 9, 0), new Date(2026, 0, 31, 9, 0))), '2026-02-28T09:00');
+assert.equal(toLocalDatetime(computeNextMonthlyReminder(new Date(2026, 0, 31, 9, 0), new Date(2026, 1, 28, 23, 0))), '2026-03-31T09:00');
+assert.equal(toLocalDatetime(computeNextMonthlyReminder(new Date(2026, 0, 15, 8, 30), new Date(2026, 2, 10, 12, 0))), '2026-03-15T08:30');
+assert.equal(toLocalDatetime(computeNextMonthlyReminder(new Date(2024, 1, 29, 9, 0), new Date(2024, 1, 29, 9, 0))), '2024-03-29T09:00');
+
+/* 日历日期选择：'YYYY-MM-DD' 必须按本地日期解析，避免 UTC 错天 */
+const parsedLocal = parseLocalDateInput('2026-08-10');
+assert.equal(parsedLocal.getFullYear(), 2026);
+assert.equal(parsedLocal.getMonth(), 7);
+assert.equal(parsedLocal.getDate(), 10);
+assert.equal(toLocalDateInput(parsedLocal), '2026-08-10');
+assert.equal(parseLocalDateInput('bad-date'), null);
+/* 本地时区下，纯日期字符串 isToday 应正确判定（修复 UTC 陷阱） */
+const todayLocal = new Date();
+assert.equal(isToday(toLocalDateInput(todayLocal)), true);
 
 const todos = [
   { id: '1', title: 'High todo', priority: 'high', tag: 'work', todo: true, important: true, done: false, archived: false, createdAt: 1 },

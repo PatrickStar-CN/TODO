@@ -3886,11 +3886,14 @@ body::before {
   display: block;
   visibility: hidden;
   pointer-events: none;
+  transform-origin: top left;
+  transition: left var(--motion-normal), top var(--motion-normal);
 }
 
 .context-menu-submenu-panel.is-open {
   visibility: visible;
   pointer-events: auto;
+  animation: contextMenuSubmenuIn var(--motion-fast);
 }
 
 .context-menu-submenu:hover .context-menu {
@@ -8605,7 +8608,7 @@ body {
   border: 1px solid color-mix(in srgb, var(--glass-stroke-strong) 38%, transparent);
   border-radius: var(--ui-radius);
   box-shadow: var(--glass-panel-shadow), var(--ui-card-highlight);
-  animation: contextMenuProjectIn var(--motion-fast) var(--ease-standard);
+  animation: contextMenuProjectIn var(--motion-fast);
 }
 
 .context-menu-item {
@@ -8761,8 +8764,27 @@ body {
   }
 }
 
+@keyframes contextMenuSubmenuIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) translateX(3px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .context-menu {
+    animation: none;
+  }
+
+  .context-menu-submenu-panel {
+    transition: none;
+  }
+
+  .context-menu-submenu-panel.is-open {
     animation: none;
   }
 
@@ -9284,7 +9306,7 @@ html.mini-mode-active .mini-panel {
   border: 1px solid color-mix(in srgb, var(--glass-stroke-strong) 42%, transparent);
   border-radius: 8px;
   box-shadow: var(--glass-panel-shadow), var(--ui-card-highlight);
-  animation: miniDetailIn var(--motion-fast) cubic-bezier(0.2, 0, 0.2, 1);
+  animation: miniDetailIn var(--motion-fast);
 }
 
 .mini-detail-card.hidden {

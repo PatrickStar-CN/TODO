@@ -25,9 +25,9 @@ const TAG_COLORS = ['#4f46e5', '#06b6d4', '#f59e0b', '#ef4444', '#10b981', '#8b5
 const STORAGE_KEY = 'todo_app_data';
 const DATA_FILE = 'todo_data.json';
 let persistenceWriteBlocked = false;
+let persistenceBlockedNotified = false;
 let runtimeIndex = null;
 let desktopDataPath = null;
-let needsDesktopPlaintextMigration = false;
 const dataChangeListeners = new Set();
 
 function getTagColor(tag) {
@@ -105,8 +105,12 @@ function createPersistenceSnapshots() {
 }
 
 function persistLocalSnapshot() {
-  const snapshots = createPersistenceSnapshots();
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshots.local, null, 2));
+  try {
+    const snapshots = createPersistenceSnapshots();
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshots.local, null, 2));
+  } catch (err) {
+    console.warn('[loadData] failed to persist localStorage snapshot:', err);
+  }
 }
 
 async function parseStoredData(content) {
@@ -131,11 +135,34 @@ async function loadDevelopmentRecoveryData() {
 }
 
 async function backupCorruptDataFile(content) {
-  if (!isNeutralinoEnv() || typeof content !== 'string') return;
+  if (typeof content !== 'string') return;
   try {
     const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const dataPath = await getDesktopDataPath();
-    await Neutralino.filesystem.writeFile(`${dataPath}.corrupt-${stamp}.bak`, content);
+    if (isNeutralinoEnv()) {
+      const dataPath = await getDesktopDataPath();
+      await Neutralino.filesystem.writeFile(`${dataPath}.corrupt-${stamp}.bak`, content);
+      /* 只清理与数据文件同目录的损坏备份，保留最近 5 份 */
+      try {
+        const dir = dataPath.replace(/[\\/][^\\/]*$/, '');
+        const prefix = `${DATA_FILE}.corrupt-`;
+        const entries = await Neutralino.filesystem.readDirectory(dir);
+        const stale = entries
+          .map(e => e.entry || e.name || e)
+          .filter(f => typeof f === 'string' && f.startsWith(prefix) && f.endsWith('.bak'))
+          .sort()
+          .slice(0, -5);
+        for (const f of stale) {
+          await Neutralino.filesystem.removeFile(`${dir}/${f}`);
+        }
+      } catch {}
+    } else {
+      /* Web 端通过 /api/backup-data 备份，避免覆盖前丢失损坏原文件 */
+      await fetch('/api/backup-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content })
+      });
+    }
   } catch (err) {
     console.warn('[loadData] failed to back up corrupt data file:', err);
   }
@@ -149,13 +176,19 @@ function handleCorruptData(err, content, source) {
     return fallback;
   }
   if (tryDecryptSync(content)) {
-    console.warn(`[loadData] ${source} uses an incompatible encryption key; preserving a backup and starting with recoverable data.`, err);
+    console.warn(`[loadData] ${source} uses an incompatible encryption key; preserving a backup and blocking overwrites.`, err);
     backupCorruptDataFile(content);
+    persistenceWriteBlocked = true;
+    persistenceBlockedNotified = true;
+    setTimeout(() => {
+      showToast('数据文件加密密钥不匹配，已暂停覆盖保存');
+    }, 0);
     return createEmptyData();
   }
   persistenceWriteBlocked = true;
   console.error(`[loadData] ${source} data is invalid; file writes are blocked to avoid overwriting it.`, err);
   backupCorruptDataFile(content);
+  persistenceBlockedNotified = true;
   setTimeout(() => {
     showToast('数据文件异常，已暂停覆盖保存');
   }, 0);
@@ -172,7 +205,6 @@ async function loadData() {
     }
     try {
       const storedData = await parseStoredData(content);
-      needsDesktopPlaintextMigration = tryDecryptSync(content);
       return storedData;
     } catch (err) {
       return handleCorruptData(err, content, DATA_FILE);
@@ -212,17 +244,14 @@ function persistVersion(version) {
 
     const snapshots = createPersistenceSnapshots();
     const json = JSON.stringify(snapshots.file, null, 2);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshots.local, null, 2));
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshots.local, null, 2));
+    } catch (err) {
+      console.warn('[saveData] localStorage snapshot failed:', err);
+    }
     persistedVersion = version;
 
     if (persistenceWriteBlocked) return;
-
-    if (isNeutralinoEnv()) {
-      await Neutralino.filesystem.writeFile(await getDesktopDataPath(), json).catch(() => {
-        showToast('保存失败，数据已暂存本地');
-      });
-      return;
-    }
 
     let payload = json;
     if (isCryptoReady()) {
@@ -232,6 +261,14 @@ function persistVersion(version) {
         console.warn('[saveData] encryption failed, using plain JSON:', err);
       }
     }
+
+    if (isNeutralinoEnv()) {
+      await Neutralino.filesystem.writeFile(await getDesktopDataPath(), payload).catch(() => {
+        showToast('保存失败，数据已暂存本地');
+      });
+      return;
+    }
+
     await fetch('/api/data', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -239,6 +276,9 @@ function persistVersion(version) {
     }).catch(() => {
       showToast('保存失败，数据已暂存本地');
     });
+  }).catch((err) => {
+    /* 单次保存失败不应冻结后续保存链 */
+    console.warn('[saveData] persistence chain failed:', err);
   });
   return writeChain;
 }
@@ -246,7 +286,8 @@ function persistVersion(version) {
 function saveData() {
   const version = ++saveVersion;
   dataChangeListeners.forEach(listener => listener());
-  if (persistenceWriteBlocked) {
+  if (persistenceWriteBlocked && !persistenceBlockedNotified) {
+    persistenceBlockedNotified = true;
     showToast('数据文件异常，已暂停覆盖保存');
   }
   if (saveTimer) clearTimeout(saveTimer);
@@ -1178,7 +1219,6 @@ export async function initApp() {
   data = await loadData();
   normalizeData();
   runtimeIndex = createRuntimeIndex(data);
-  if (needsDesktopPlaintextMigration) saveData();
 
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') flushAppData();
@@ -1629,7 +1669,9 @@ export async function initApp() {
     if (!dayEl) return;
     const dateStr = dayEl.dataset.date;
     if (!dateStr) return;
-    selectedDate = new Date(dateStr);
+    const parsedDate = parseLocalDateInput(dateStr);
+    if (!parsedDate) return;
+    selectedDate = parsedDate;
     if (dayEl.classList.contains('year-day')) {
       currentMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
     }
@@ -1797,7 +1839,17 @@ export async function initApp() {
     showToast,
     render,
     testNotification: reminders.testNotification,
-    getNotificationStatus: reminders.getNotificationStatus
+    getNotificationStatus: reminders.getNotificationStatus,
+    onTagRenamed: (oldTag, newTag) => {
+      if (currentTag === oldTag) currentTag = newTag;
+    },
+    onTagDeleted: (tag) => {
+      if (currentTag === tag) {
+        currentTag = null;
+        currentList = 'all';
+        resetListIncrementalLoad();
+      }
+    }
   });
 
   // Init render

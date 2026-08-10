@@ -32,7 +32,11 @@ export function isSameDay(d1, d2) {
 
 export function isToday(dateStr) {
   if (!dateStr) return false;
-  return isSameDay(new Date(dateStr), new Date());
+  /* 纯日期字符串（如 2026-08-10）按本地日期解析，避免 UTC 解析错天 */
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(String(dateStr))
+    ? parseLocalDateInput(dateStr)
+    : new Date(dateStr);
+  return date ? isSameDay(date, new Date()) : false;
 }
 
 export function getWeekday(date) {

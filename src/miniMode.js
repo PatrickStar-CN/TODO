@@ -400,6 +400,7 @@ if ($script:hwnd -ne [IntPtr]::Zero) { $GWL_EXSTYLE = -20; $style = ([TbToggle]:
   let resizeRafId = null;
 
   function applyMiniResize(width, height) {
+    if (!isNeutralinoEnv()) return;
     const w = Math.max(miniMinWidth, Math.round(width));
     const h = Math.max(miniMinHeight, Math.round(height));
     miniWidth = w;

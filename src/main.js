@@ -150,25 +150,33 @@ async function claimSingleInstance() {
 }
 
 async function exitApp() {
-  await flushAppData().catch(() => {});
+  try {
+    await flushAppData();
+  } catch (err) {
+    console.warn('[exit] failed to flush data:', err);
+  }
   await releaseInstanceLock().catch(() => {});
-  await Neutralino.app.exit();
+  await Neutralino.app.exit().catch(() => {});
 }
 
 function setupTray() {
-  Neutralino.os.setTray({
-    icon: '/dist/icon.png',
-    menuItems: [
-      { id: 'show', text: '显示窗口' },
-      { id: 'quit', text: '退出' }
-    ]
-  });
+  try {
+    Neutralino.os.setTray({
+      icon: '/dist/icon.png',
+      menuItems: [
+        { id: 'show', text: '显示窗口' },
+        { id: 'quit', text: '退出' }
+      ]
+    });
+  } catch (err) {
+    console.warn('[tray] failed to create system tray:', err);
+  }
 
   Neutralino.events.on('trayMenuItemClicked', (event) => {
     switch (event.detail.id) {
       case 'show':
-        Neutralino.window.show();
-        Neutralino.window.focus();
+        Neutralino.window.show().catch(() => {});
+        Neutralino.window.focus().catch(() => {});
         break;
       case 'quit':
         exitApp();
@@ -177,7 +185,9 @@ function setupTray() {
   });
 
   Neutralino.events.on('windowClose', () => {
-    flushAppData().finally(() => Neutralino.window.hide());
+    flushAppData().catch(() => {}).finally(() => {
+      Neutralino.window.hide().catch(() => {});
+    });
   });
 }
 
@@ -189,10 +199,23 @@ document.addEventListener('DOMContentLoaded', () => {
   if (typeof Neutralino !== 'undefined') {
     Neutralino.init();
     Neutralino.events.on('ready', async () => {
-      if (!await claimSingleInstance()) return;
-      setupTray();
-      await initApp();
-      Neutralino.window.center();
+      try {
+        if (!await claimSingleInstance()) return;
+      } catch (error) {
+        console.warn('[single-instance] lock check failed, continuing as sole instance:', error);
+      }
+      try {
+        setupTray();
+      } catch (error) {
+        console.warn('[tray] failed to initialize tray:', error);
+      }
+      try {
+        await initApp();
+      } catch (error) {
+        console.error('[initApp] failed to initialize app:', error);
+        return;
+      }
+      Neutralino.window.center().catch(() => {});
       await Neutralino.window.show().catch(() => {});
       await Neutralino.window.focus().catch(() => {});
       registerWindowsToastApp().catch((error) => {

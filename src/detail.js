@@ -1,6 +1,6 @@
 import { formatDateTime, toLocalDatetime } from './utils/date.js';
 import { initDatePicker, closeDatePicker } from './datePicker.js';
-import { escapeHtml } from './utils/html.js';
+import { escapeAttr, escapeHtml } from './utils/html.js';
 import { getUiMotionDuration } from './uiPreferences.js';
 
 let onDoneTimeChange = null;
@@ -49,7 +49,7 @@ function createDetailDropdown(selectEl, options, getOptionHtml) {
 
   const itemsHtml = options.map(opt => {
     const isSelected = selectEl.dataset.value === opt.value;
-    return `<div class="detail-dropdown-item${isSelected ? ' selected' : ''}" data-value="${opt.value}" role="option" tabindex="-1" aria-selected="${isSelected}">${getOptionHtml(opt)}</div>`;
+    return `<div class="detail-dropdown-item${isSelected ? ' selected' : ''}" data-value="${escapeAttr(opt.value)}" role="option" tabindex="-1" aria-selected="${isSelected}">${getOptionHtml(opt)}</div>`;
   }).join('');
 
   popup.innerHTML = itemsHtml;
@@ -149,8 +149,10 @@ export function initDetailEditor(callbacks) {
   document.getElementById('detail-tag').addEventListener('click', function (e) {
     e.stopPropagation();
     const tagOptions = (data.tags || []).map(tag => ({ value: tag, label: tag }));
-    createDetailDropdown(this, tagOptions.length > 0 ? tagOptions : [{ value: '', label: '暂无标签' }], (opt) =>
-      opt.value ? `<span class="tag-dot" style="background:${getDetailTagColor(opt.value)}"></span>${escapeHtml(opt.label)}` : opt.label
+    const clearOption = { value: '', label: '未设置标签' };
+    const allOptions = tagOptions.length > 0 ? [clearOption, ...tagOptions] : [{ value: '', label: '暂无标签' }];
+    createDetailDropdown(this, allOptions, (opt) =>
+      opt.value ? `<span class="tag-dot" style="background:${getDetailTagColor(opt.value)}"></span>${escapeHtml(opt.label)}` : escapeHtml(opt.label)
     );
   });
 
@@ -265,7 +267,10 @@ export function openDetail(todo, triggerEl) {
     doneTimeEl.title = '';
     doneTimeEl.onclick = null;
   }
-  document.getElementById('detail-created-time').textContent = formatDateTime(new Date(todo.createdAt).toISOString());
+  document.getElementById('detail-created-time').textContent =
+    (todo.createdAt && !Number.isNaN(new Date(todo.createdAt).getTime()))
+      ? formatDateTime(new Date(todo.createdAt).toISOString())
+      : '—';
 }
 
 export function closeDetail() {
