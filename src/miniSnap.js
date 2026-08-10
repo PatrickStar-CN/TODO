@@ -20,7 +20,7 @@ export function easeOutCubic(t) {
 
 /** 窗口顶边是否已进入吸附阈值（物理像素判定，thresholdCss 按 dpr 换算） */
 export function isNearScreenTop(y, thresholdCss, dpr) {
-  return y <= Math.round((thresholdCss || 40) * (dpr || 1));
+  return y <= Math.round((thresholdCss || 20) * (dpr || 1));
 }
 
 /** 收起后窗口目标 Y：整体上移，仅保留底部触发条在屏幕内（物理像素） */
@@ -29,18 +29,42 @@ export function computeCollapsedY(heightPhysical, stripCss, dpr) {
   return -(Math.max(strip, heightPhysical) - strip);
 }
 
-const DRAG_POLL_MS = 100;
-const DRAG_STABLE_POLLS = 2;
-const SLIDE_DURATION = 260;
+const DRAG_POLL_MS = 100;// 拖拽轮询间隔（ms）
+const DRAG_STABLE_POLLS = 2;// 拖拽结束轮询次数，判断是否稳定
+const SLIDE_DURATION = 260;// 收起/展开动画时长（ms）
+/* 动画采样间隔：每次 window.move 都是一次 IPC，260ms 内以 60fps 逐帧调用
+   约 16 次；节流到 ~30fps 只发约 8 次，快速滑动的视觉差异几乎不可感知。 */
+const SLIDE_STEP_MS = 33;
 
 export function initMiniSnap({
   isNeutralinoEnv,
   isMiniMode,
   getDragRegion = () => document.getElementById('mini-drag-region'),
-  thresholdCss = 40,
-  stripCss = 8,
-  collapseDelay = 900
+  thresholdCss,
+  stripCss,
+  collapseDelay
 }) {
+  /* ---- 配置来源：显式传入参数优先，否则从 app.config.json 的 miniMode.snap
+     （桌面端为 dist/ 下副本）独立读取，避免调用方拿不到配置时退回默认值。
+     读取发生在初始化时，实际使用均在拖拽/移出等后续事件中，异步结果总能生效。 */
+  const cfg = {
+    thresholdCss: thresholdCss ?? 20,
+    stripCss: stripCss ?? 8,
+    collapseDelay: collapseDelay ?? 900
+  };
+  const loadSnapConfig = async () => {
+    try {
+      const res = await fetch('./app.config.json');
+      if (!res.ok) return;
+      const appCfg = await res.json();
+      const snap = appCfg?.miniMode?.snap;
+      if (thresholdCss == null && snap?.threshold != null) cfg.thresholdCss = snap.threshold;
+      if (stripCss == null && snap?.strip != null) cfg.stripCss = snap.strip;
+      if (collapseDelay == null && snap?.delay != null) cfg.collapseDelay = snap.delay;
+    } catch { /* 保持现有配置（默认值或调用方传入值） */ }
+  };
+  loadSnapConfig();
+
   let attached = false;
   let collapsed = false;
   let snapped = false;
@@ -79,8 +103,9 @@ export function initMiniSnap({
     slideToken += 1;
   };
 
-  /* 平滑滑动到 targetY：rAF + easeOutCubic，逐帧 window.move（IPC 轻量），
-     内容不重排；reduce-motion 时直接瞬移。token 保证取消后的旧动画不再生效。 */
+  /* 平滑滑动到 targetY：rAF 驱动 + easeOutCubic，按 SLIDE_STEP_MS 采样调用
+     window.move（IPC 减半，内容不重排）；reduce-motion 时直接瞬移。
+     token 保证取消后的旧动画不再生效。 */
   function slideWindowTo(targetY) {
     cancelSlide();
     const token = ++slideToken;
@@ -94,11 +119,16 @@ export function initMiniSnap({
       }
       const startY = y;
       const startTime = performance.now();
+      let lastStep = 0;
       const step = (now) => {
         if (token !== slideToken) return;
-        const p = Math.min(1, (now - startTime) / SLIDE_DURATION);
-        const nextY = Math.round(startY + (targetY - startY) * easeOutCubic(p));
-        Neutralino.window.move(x, nextY).catch(() => {});
+        const elapsed = now - startTime;
+        const p = Math.min(1, elapsed / SLIDE_DURATION);
+        if (p >= 1 || elapsed - lastStep >= SLIDE_STEP_MS) {
+          lastStep = elapsed;
+          const nextY = Math.round(startY + (targetY - startY) * easeOutCubic(p));
+          Neutralino.window.move(x, nextY).catch(() => {});
+        }
         if (p < 1) {
           slideRafId = requestAnimationFrame(step);
         } else {
@@ -151,14 +181,14 @@ export function initMiniSnap({
     collapseTimer = setTimeout(() => {
       collapseTimer = null;
       collapseNow();
-    }, collapseDelay);
+    }, cfg.collapseDelay);
   };
 
   const collapseNow = async () => {
     if (!attached || collapsed || !snapped || dragActive || slideTarget === 'collapse') return;
     try {
       const size = await Neutralino.window.getSize();
-      slideWindowTo(computeCollapsedY(size.height, stripCss, dpr()));
+      slideWindowTo(computeCollapsedY(size.height, cfg.stripCss, dpr()));
     } catch {}
   };
 
@@ -186,9 +216,11 @@ export function initMiniSnap({
   const finishDrag = () => {
     if (!dragActive) return;
     const moved = dragMoved;
+    /* 轮询已持有最新位置，直接复用，避免 evaluateSnap 再发一次 getPosition */
+    const lastPos = dragLastPos;
     dragActive = false;
     stopDragWatch();
-    if (moved) evaluateSnap();
+    if (moved) evaluateSnap(lastPos);
   };
 
   const dragTick = () => {
@@ -239,11 +271,11 @@ export function initMiniSnap({
   /* 拖拽结束判定：距离顶部 <= 阈值则吸附贴顶并进入可收起状态。
      吸附完成后若鼠标已不在窗口内（松手后立即移开的场景，mouseleave
      可能先于吸附完成触发而丢失），补一次调度，避免永不收起。 */
-  const evaluateSnap = async () => {
+  const evaluateSnap = async (lastPos) => {
     if (!attached || !isMiniMode()) return;
-    const pos = await Neutralino.window.getPosition().catch(() => null);
+    const pos = lastPos || await Neutralino.window.getPosition().catch(() => null);
     if (!pos || dragActive) return;
-    if (isNearScreenTop(pos.y, thresholdCss, dpr())) {
+    if (isNearScreenTop(pos.y, cfg.thresholdCss, dpr())) {
       snapped = true;
       await Neutralino.window.move(pos.x, 0).catch(() => {});
       if (attached && !dragActive && (await isMouseOutsideWindow())) {

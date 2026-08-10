@@ -15,7 +15,7 @@
     "minWidth": 220,
     "minHeight": 220,
     "snap": {
-      "threshold": 40,
+      "threshold": 20,
       "strip": 8,
       "delay": 900
     }
