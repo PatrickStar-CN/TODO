@@ -3,6 +3,7 @@ import { formatDateTime } from './utils/date.js';
 import { genId } from './utils/id.js';
 import { sortByPriority, splitPendingDone } from './selectors.js';
 import { iconSvg } from './icons.js';
+import { initMiniSnap } from './miniSnap.js';
 
 export function initMiniMode({ data, saveData, render, showToast, isNeutralinoEnv, getTagDotStyle, getTagBadgeStyle, showContextMenu, closeWindow, reminders, appConfig, todoStore }) {
   let isMiniMode = false;
@@ -24,6 +25,16 @@ export function initMiniMode({ data, saveData, render, showToast, isNeutralinoEn
   /* 当前会话内记住手动缩放后的尺寸，再次进入迷你模式时沿用 */
   let miniWidth = miniCfg.width || 240;
   let miniHeight = miniCfg.height || 288;
+
+  /* 顶部贴边吸附 + 自动收起（仅桌面端生效），参数来自 app.config.json 的 miniMode.snap */
+  const snapCfg = miniCfg.snap || {};
+  const miniSnap = initMiniSnap({
+    isNeutralinoEnv,
+    isMiniMode: () => isMiniMode,
+    thresholdCss: snapCfg.threshold,
+    stripCss: snapCfg.strip,
+    collapseDelay: snapCfg.delay
+  });
 
   function renderMiniPanel() {
     const { pending, done } = splitPendingDone(data.todos);
@@ -293,6 +304,8 @@ if ($script:hwnd -ne [IntPtr]::Zero) { $GWL_EXSTYLE = -20; $style = ([TbToggle]:
         const y = 20;
         await Neutralino.window.move(x, y);
         await Neutralino.window.setDraggableRegion('mini-drag-region');
+        /* 贴边吸附 + 收起交互：拖拽结束判定吸附，移出窗口后自动收起 */
+        miniSnap.attach();
         /* DWM 圆角在应用启动时已设置（applyRoundedCorners），这里仅在启动设置
            失败时兜底重试一次；已成功则跳过，避免反复启动 PowerShell */
         if (!cornerRoundApplied) applyRoundedCorners();
@@ -313,6 +326,8 @@ if ($script:hwnd -ne [IntPtr]::Zero) { $GWL_EXSTYLE = -20; $style = ([TbToggle]:
     document.body.style.background = '';
     document.querySelector('.app').style.display = '';
     if (isNeutralinoEnv()) {
+      /* 退出前停用贴边吸附：清理计时器与监听，防止残留状态影响主窗口 */
+      miniSnap.detach();
       try {
         await Neutralino.window.unsetDraggableRegion('mini-drag-region');
       } catch (e) {}

@@ -8,6 +8,7 @@ import { createRuntimeIndex } from '../src/runtimeIndex.js';
 import { encrypt, initCrypto, tryDecrypt } from '../src/utils/crypto.js';
 import { escapeAttr, escapeHtml } from '../src/utils/html.js';
 import { parseLocalDateInput, toLocalDateInput, toLocalDatetime, isToday } from '../src/utils/date.js';
+import { computeCollapsedY, easeOutCubic, isNearScreenTop } from '../src/miniSnap.js';
 import { resolveAiApiUrl } from '../src/utils/aiApi.js';
 import { DEFAULT_TIMELINE_SETTINGS, formatTimelineTime, getTimelineDateParts, normalizeTimelineSettings, sortTimelineTodos } from '../src/timeline.js';
 
@@ -40,6 +41,20 @@ assert.equal(parseLocalDateInput('bad-date'), null);
 /* 本地时区下，纯日期字符串 isToday 应正确判定（修复 UTC 陷阱） */
 const todayLocal = new Date();
 assert.equal(isToday(toLocalDateInput(todayLocal)), true);
+
+/* 迷你模式贴边吸附：阈值判定按 dpr 换算物理像素 */
+assert.equal(isNearScreenTop(20, 40, 1), true);
+assert.equal(isNearScreenTop(41, 40, 1), false);
+assert.equal(isNearScreenTop(80, 40, 2), true);
+assert.equal(isNearScreenTop(81, 40, 2), false);
+/* 收起目标 Y：上移至仅保留触发条；触发条不低于 6 物理像素 */
+assert.equal(computeCollapsedY(288, 8, 1), -280);
+assert.equal(computeCollapsedY(288, 8, 1.25), -278);
+assert.equal(computeCollapsedY(288, 8, 2), -272);
+/* 缓动函数端点与单调性 */
+assert.equal(easeOutCubic(0), 0);
+assert.equal(easeOutCubic(1), 1);
+assert.ok(easeOutCubic(0.5) > 0.5 && easeOutCubic(0.5) < 1);
 
 const todos = [
   { id: '1', title: 'High todo', priority: 'high', tag: 'work', todo: true, important: true, done: false, archived: false, createdAt: 1 },

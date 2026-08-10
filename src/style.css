@@ -4162,6 +4162,36 @@ body::before {
   border-color: var(--accent);
 }
 
+/* Mini mode — 顶部贴边吸附：收起时窗口上移，仅底部触发条可见。
+   条带随窗口移动，圆角与 .mini-panel（16px）保持一致；默认透明不干扰布局 */
+.mini-snap-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 8px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--motion-normal);
+  background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--glass-stroke-strong) 42%, transparent));
+  border-radius: 0 0 16px 16px;
+}
+
+html.mini-snap-collapsed .mini-snap-bar {
+  opacity: 1;
+}
+
+/* 收起后底部只剩触发条，缩放手柄会露出在条带上，一并隐藏 */
+html.mini-snap-collapsed .mini-resize-handle {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mini-snap-bar {
+    transition: none;
+  }
+}
+
 .mini-tooltip-title {
   font-size: 13px;
   font-weight: 600;
