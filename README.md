@@ -2,7 +2,7 @@
 
 TODO Tools 是一个使用原生 JavaScript、CSS 和 HTML 构建的轻量待办事项工具。项目通过 Vite 提供 Web 开发环境，并使用 Neutralinojs 打包 Windows 桌面应用，不依赖前端框架。
 
-当前版本：`1.1.1`
+当前版本：`1.2.0`
 
 ## 功能概览
 
@@ -48,14 +48,16 @@ TODO Tools 是一个使用原生 JavaScript、CSS 和 HTML 构建的轻量待办
 
 - 克制的磨砂玻璃办公风界面，页面背景不使用渐变
 - 支持跟随系统、亮色和暗色主题
-- 设置面板包含外观、AI 配置、提醒和标签管理
+- 设置面板包含外观、AI 配置、提醒、标签管理和系统
 - 外观设置支持实时调整圆角、玻璃透明度、字体大小、模糊强度和全局动画速度
 - 边框强度由项目视觉系统固定为 `0%`，不提供用户调节入口
 - 外观参数会同步应用到日期格、任务卡片、按钮、输入框、菜单、弹层、标签和次级卡片
+- 任务时间线设置位于外观面板：可开启在任务列表右侧显示创建与完成时间，并按创建或完成时间排序
 - 设置页签、主题选择、主要操作、次要操作和标签管理按钮使用统一的项目按钮体系
 - 标签支持创建、重命名、删除以及关联任务数量显示
 - 支持配置 AI API URL、API Key、模型和自定义提示词
 - 支持生成流式日报或周报
+- 桌面版系统页支持自动更新：从 GitHub Releases 检查新版本，下载 zip 并校验 SHA-256 后替换应用文件，失败时自动回滚
 - 页面和动态组件图标统一由 SVG 图标库渲染，不使用 Emoji 作为界面图标
 - 自定义滚动条按滚动容器独立创建，属于对应列表或弹窗内部，不挂载全局 `body` 浮层
 
@@ -96,6 +98,7 @@ Vite 会在终端中输出本地访问地址。开发模式通过 `/api/data` �
 | `npm test` | 运行任务状态、日历热力图与日期事项匹配、AI URL、外观配置、提醒和加密兼容回归检查 |
 | `npm run neu:run` | 同步配置、构建并启动 Neutralino 桌面窗口 |
 | `npm run neu:build` | 构建桌面应用并写入 Windows 可执行文件元数据 |
+| `npm run release -- <版本号>` | 将桌面构建产物打包为 zip 并生成 SHA-256 校验文件，输出 `gh release create` 发布命令 |
 
 Windows PowerShell 或命令提示符中也可以使用 `npm.cmd`，例如：
 
@@ -119,7 +122,8 @@ TODO/
 │   ├── check-build-output.js   # 桌面构建前检查输出目录，避免覆盖异常目标
 │   ├── ensure-neutralino.js    # 检查并准备 Neutralino 运行时
 │   ├── sync-config.js          # 同步应用配置和版本号
-│   └── patch-exe.js            # 写入 Windows exe 元数据
+│   ├── patch-exe.js            # 写入 Windows exe 元数据
+│   └── release.js              # 打包发布 zip、生成 SHA-256 并输出发布命令
 ├── public/
 │   ├── neutralino.js
 │   ├── icon.svg                # Web 图标的 SVG 源
@@ -143,6 +147,9 @@ TODO/
     ├── reminder.js             # 提醒检查与通知
     ├── windowsToast.js         # Windows 原生通知注册与发送
     ├── miniMode.js             # 桌面迷你模式
+    ├── miniSnap.js             # 迷你模式顶部贴边吸附与自动收起
+    ├── timeline.js             # 时间线设置归一化与任务排序
+    ├── updater.js              # 桌面端自动更新（检查、下载、校验、替换与回滚）
     ├── overlay.js              # 通用遮罩与弹窗
     ├── overlayScrollbars.js    # 按滚动元素创建的内部覆盖滚动条
     ├── glassTooltip.js         # 通用玻璃 Tooltip
@@ -240,6 +247,20 @@ npm run neu:build
 
 桌面产物位于 `dist/todo-tools/`。分发时应保留可执行文件和 `resources.neu` 在同一目录。
 
+### 发布与自动更新
+
+```bash
+npm run neu:build
+npm run release -- 1.2.0
+```
+
+`npm run release -- <版本号>`（版本号不带 `v` 前缀，且必须与 `package.json` 一致）会生成：
+
+- `release/todo-tools-win_x64.zip`：包含 exe 与 `resources.neu` 的发布包
+- `release/todo-tools-win_x64.zip.sha256`：发布包的 SHA-256 校验文件
+
+随后执行脚本输出的 `gh release create v1.2.0 ...` 命令创建 GitHub Release，tag 为 `v<版本号>`。桌面端「系统 → 软件更新」通过 `releases/latest` 检查新版本，下载 zip 后按 `.sha256` 校验，通过后只替换 exe 与 `resources.neu` 两个白名单文件，失败时用 `.bak` 备份自动回滚。仓库无已发布版本（404）、接口限流（403/429）和网络异常会分别给出明确提示。
+
 ### 窗口配置
 
 桌面窗口尺寸集中维护在 `app.config.json`，构建时由脚本同步到 Neutralino 配置：
@@ -327,7 +348,7 @@ https://api.example.com/v1
 
 ## 已知限制
 
-- 桌面提醒和系统托盘能力依赖 Windows 与 Neutralino 环境。
+- 桌面提醒、系统托盘和自动更新能力依赖 Windows、Neutralino 环境及 GitHub Releases 网络可达性。
 - 迷你模式的窗口置顶、移动和无边框能力只在桌面环境生效。
 - Web 构建不是离线 PWA。
 - 生产静态预览没有开发服务器的 `/api/data` 写入接口，会使用 `localStorage` 降级存储。
