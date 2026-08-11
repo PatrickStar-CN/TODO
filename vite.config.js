@@ -1,5 +1,5 @@
 import { defineConfig } from 'vite';
-import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync } from 'fs';
+import { existsSync, mkdirSync, readdirSync, rmSync, readFileSync, writeFileSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import dataServerPlugin from './server-plugin.js';
@@ -33,7 +33,11 @@ function copyExtraFilesPlugin() {
       if (!existsSync(outDir)) mkdirSync(outDir, { recursive: true });
       const srcConfig = resolve(__dirname, 'app.config.json');
       if (existsSync(srcConfig)) {
-        copyFileSync(srcConfig, resolve(outDir, 'app.config.json'));
+        /* 复制 app.config.json 时注入版本号（运行时检查更新需要本地版本） */
+        const pkg = JSON.parse(readFileSync(resolve(__dirname, 'package.json'), 'utf-8'));
+        const config = JSON.parse(readFileSync(srcConfig, 'utf-8'));
+        config.version = pkg.version;
+        writeFileSync(resolve(outDir, 'app.config.json'), JSON.stringify(config, null, 2) + '\n');
       }
     }
   };

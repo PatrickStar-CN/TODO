@@ -74,6 +74,11 @@ const ICONS = {
     <circle cx="12" cy="12" r="9"></circle>
     <path d="M12 7v5l3 2"></path>`,
   circle: `<circle cx="12" cy="12" r="7" fill="currentColor" stroke="none"></circle>`,
+  download: `
+    <path d="M12 4v11M7 10l5 5 5-5M5 20h14"></path>`,
+  refresh: `
+    <path d="M20 12a8 8 0 1 1-2.34-5.66"></path>
+    <path d="M20 3v5h-5"></path>`,
 };
 
 export function iconSvg(name, className = '') {

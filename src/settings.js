@@ -12,6 +12,8 @@ let data, saveData, showToast, render, testNotification, getNotificationStatus;
 let onTagRenamed = null;
 let onTagDeleted = null;
 let settingsOverlay = null;
+let updater = null;
+let updateStatusUnsub = null;
 
 function getTagColor(tag) {
   if (!tag) return TAG_COLORS[0];
@@ -30,6 +32,8 @@ function getTagTaskCount(tag) {
 // --- 弹窗开关 ---
 
 function closePanel() {
+  updateStatusUnsub?.();
+  updateStatusUnsub = null;
   if (!settingsOverlay) return;
   const modal = settingsOverlay.querySelector('.settings-modal');
   if (modal) modal.style.animation = 'modalShrinkOut var(--motion-normal) forwards';
@@ -73,11 +77,11 @@ function openPanel() {
         <button class="icon-btn settings-close-btn" id="close-settings" type="button" aria-label="关闭设置">${iconSvg('x')}</button>
       </div>
       <div class="settings-tabs" role="tablist" aria-label="设置分类">
-        <button class="settings-tab active" type="button" role="tab" aria-selected="true" data-tab="appearance">${iconSvg('settings')}<span>外观</span></button>
+<button class="settings-tab active" type="button" role="tab" aria-selected="true" data-tab="appearance">${iconSvg('settings')}<span>外观</span></button>
         <button class="settings-tab" type="button" role="tab" aria-selected="false" data-tab="ai">${iconSvg('document')}<span>AI 配置</span></button>
         <button class="settings-tab" type="button" role="tab" aria-selected="false" data-tab="notifications">${iconSvg('bell')}<span>提醒</span></button>
-        <button class="settings-tab" type="button" role="tab" aria-selected="false" data-tab="timeline">${iconSvg('clock')}<span>时间线</span></button>
         <button class="settings-tab" type="button" role="tab" aria-selected="false" data-tab="tags">${iconSvg('tag')}<span>标签管理</span></button>
+        <button class="settings-tab" type="button" role="tab" aria-selected="false" data-tab="system">${iconSvg('settings')}<span>系统</span></button>
       </div>
       <div class="settings-body">
         <div class="settings-pane active" data-pane="appearance">
@@ -108,6 +112,27 @@ function openPanel() {
               ${createStyleSlider('fontScale', '字体大小', 90, 115, '%')}
               ${createStyleSlider('blur', '模糊强度', 8, 28, 'px')}
               ${createStyleSlider('motionSpeed', '动画速度', 0, 200, '%', 50)}
+            </div>
+          </section>
+          <section class="settings-content-card settings-timeline-card" aria-labelledby="settings-timeline-title">
+            <div class="timeline-setting-row">
+              <div class="settings-content-card-heading">
+                <div>
+                  <strong id="settings-timeline-title">任务时间线</strong>
+                  <span>在主任务列表右侧显示创建与完成时间</span>
+                </div>
+              </div>
+              <button class="settings-switch" id="set-timeline-enabled" type="button" role="switch" aria-checked="false" aria-label="开启任务时间线">
+                <span aria-hidden="true"></span>
+              </button>
+            </div>
+            <div class="timeline-sort-settings" id="timeline-sort-settings">
+              <span class="timeline-sort-label">排序依据</span>
+              <div class="timeline-sort-options" role="group" aria-label="时间线排序依据">
+                <button type="button" data-timeline-sort="created" aria-pressed="false">创建时间</button>
+                <button type="button" data-timeline-sort="completed" aria-pressed="false">完成时间</button>
+              </div>
+              <p>开启时间线后生效；按完成时间排序时隐藏未完成任务，所有模式均为最新在上。</p>
             </div>
           </section>
         </div>
@@ -155,30 +180,7 @@ function openPanel() {
               <span>带提醒时间的任务会在应用运行时触发通知。</span>
             </div>
           </section>
-        </div>
-        <div class="settings-pane" data-pane="timeline">
-          <section class="settings-content-card settings-timeline-card" aria-labelledby="settings-timeline-title">
-            <div class="timeline-setting-row">
-              <div class="settings-content-card-heading">
-                <div>
-                  <strong id="settings-timeline-title">任务时间线</strong>
-                  <span>在主任务列表右侧显示创建与完成时间</span>
-                </div>
-              </div>
-              <button class="settings-switch" id="set-timeline-enabled" type="button" role="switch" aria-checked="false" aria-label="开启任务时间线">
-                <span aria-hidden="true"></span>
-              </button>
-            </div>
-            <div class="timeline-sort-settings" id="timeline-sort-settings">
-              <span class="timeline-sort-label">排序依据</span>
-              <div class="timeline-sort-options" role="group" aria-label="时间线排序依据">
-                <button type="button" data-timeline-sort="created" aria-pressed="false">创建时间</button>
-                <button type="button" data-timeline-sort="completed" aria-pressed="false">完成时间</button>
-              </div>
-              <p>开启时间线后生效；按完成时间排序时隐藏未完成任务，所有模式均为最新在上。</p>
-            </div>
-          </section>
-        </div>
+</div>
         <div class="settings-pane" data-pane="tags">
           <section class="settings-content-card settings-tags-card" aria-label="标签列表与新建标签">
             <div class="settings-tag-add-bar">
@@ -187,6 +189,26 @@ function openPanel() {
               <button class="icon-btn settings-tag-add-btn" id="set-add-tag-btn" type="button" title="添加标签" aria-label="添加标签">${iconSvg('plus')}</button>
             </div>
             <div id="settings-tag-list" class="settings-tag-list"></div>
+          </section>
+        </div>
+        <div class="settings-pane" data-pane="system">
+          <section class="settings-content-card settings-update-card" aria-labelledby="settings-update-title">
+            <div class="settings-content-card-heading">
+              <div>
+                <strong id="settings-update-title">软件更新</strong>
+                <span>从 GitHub Releases 获取最新版本，替换后自动重启</span>
+              </div>
+            </div>
+            <div class="update-version-row">
+              <span>当前版本</span>
+              <strong id="update-current-version"></strong>
+            </div>
+            <div id="update-status-area" class="update-status-area" aria-live="polite"></div>
+            <div class="update-actions">
+              <button class="btn-primary btn-sm settings-primary-action" id="btn-check-update" type="button">${iconSvg('refresh')}<span>检查更新</span></button>
+              <button class="btn-primary btn-sm settings-primary-action hidden" id="btn-download-update" type="button">${iconSvg('download')}<span>下载更新</span></button>
+              <button class="btn-primary btn-sm settings-primary-action hidden" id="btn-restart-update" type="button">${iconSvg('refresh')}<span>立即重启</span></button>
+            </div>
           </section>
         </div>
       </div>
@@ -256,6 +278,7 @@ function openPanel() {
 
   bindUiStyleControls(overlay);
   bindTimelineControls(overlay);
+  bindUpdateControls(overlay);
 
   overlay.querySelector('#test-notification').addEventListener('click', async (event) => {
     const button = event.currentTarget;
@@ -424,6 +447,91 @@ function updateTimelineControls(overlay) {
   });
 }
 
+/* --- 软件更新（系统 Tab） --- */
+
+const UPDATE_PHASE_TEXT = {
+  idle: '',
+  checking: '正在检查更新…',
+  latest: '已是最新版本',
+  available: '',
+  downloading: '正在下载更新…',
+  verifying: '正在校验更新包…',
+  ready: '更新包已就绪，重启后完成更新',
+  failed: ''
+};
+
+function renderUpdateStatus(overlay, s) {
+  if (!overlay.isConnected) return;
+  const statusArea = overlay.querySelector('#update-status-area');
+  const btnCheck = overlay.querySelector('#btn-check-update');
+  const btnDownload = overlay.querySelector('#btn-download-update');
+  const btnRestart = overlay.querySelector('#btn-restart-update');
+  if (!statusArea || !btnCheck || !btnDownload || !btnRestart) return;
+
+  btnCheck.classList.toggle('hidden', s.phase === 'checking' || s.phase === 'downloading' || s.phase === 'verifying');
+  btnDownload.classList.toggle('hidden', s.phase !== 'available');
+  btnRestart.classList.toggle('hidden', s.phase !== 'ready');
+  btnCheck.disabled = s.phase === 'checking';
+  btnDownload.disabled = s.phase === 'downloading' || s.phase === 'verifying';
+
+  if (s.error) {
+    statusArea.innerHTML = `<span class="update-status-error">${escapeHtml(s.error)}</span>`;
+    return;
+  }
+
+  let html = '';
+  if (s.notice) {
+    html += `<span class="update-status-text">${escapeHtml(s.notice)}</span>`;
+  }
+  if (s.phase === 'available' && s.version) {
+    html += `<div class="update-status-version">发现新版本 <strong>v${escapeHtml(s.version)}</strong></div>`;
+    if (s.body) {
+      const brief = s.body.replace(/\r?\n/g, ' ').slice(0, 240);
+      html += `<div class="update-status-body">${escapeHtml(brief)}${s.body.length > 240 ? '…' : ''}</div>`;
+    }
+  } else if (s.phase === 'downloading' || s.phase === 'verifying') {
+    const pct = Math.round((s.progress || 0) * 100);
+    html += `<div class="update-progress" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><span style="width:${pct}%"></span></div>`;
+    html += `<span class="update-status-text">${UPDATE_PHASE_TEXT[s.phase]}${s.phase === 'downloading' ? ` ${pct}%` : ''}</span>`;
+  } else if (UPDATE_PHASE_TEXT[s.phase]) {
+    html += `<span class="update-status-text">${UPDATE_PHASE_TEXT[s.phase]}${s.phase === 'latest' && s.version ? `（v${escapeHtml(s.version)}）` : ''}</span>`;
+  }
+  statusArea.innerHTML = html;
+}
+
+function bindUpdateControls(overlay) {
+  const versionEl = overlay.querySelector('#update-current-version');
+  if (versionEl) {
+    versionEl.textContent = updater && updater.isAvailable() ? `v${updater.getCurrentVersion() || '?'}` : '—';
+  }
+  const btnCheck = overlay.querySelector('#btn-check-update');
+  const btnDownload = overlay.querySelector('#btn-download-update');
+  const btnRestart = overlay.querySelector('#btn-restart-update');
+  const statusArea = overlay.querySelector('#update-status-area');
+
+  if (!updater || !updater.isAvailable()) {
+    if (statusArea) statusArea.textContent = '浏览器端不支持自动更新，请使用桌面版。';
+    if (btnCheck) btnCheck.disabled = true;
+    if (btnDownload) btnDownload.disabled = true;
+    if (btnRestart) btnRestart.disabled = true;
+    return;
+  }
+
+  const applyStatus = (s) => renderUpdateStatus(overlay, s);
+  updateStatusUnsub?.();
+  updateStatusUnsub = updater.onStatus(applyStatus);
+  applyStatus(updater.getState());
+
+  btnCheck?.addEventListener('click', () => updater.checkForUpdates());
+  btnDownload?.addEventListener('click', () => {
+    btnDownload.disabled = true;
+    updater.downloadAndPrepare();
+  });
+  btnRestart?.addEventListener('click', () => {
+    showConfirmDialog('更新包已就绪，立即重启以完成更新？', () => updater.applyUpdate());
+  });
+}
+
 // --- 标签管理 ---
 
 function renderTagList(overlay) {
@@ -550,6 +658,7 @@ export function initSettings(deps) {
   getNotificationStatus = deps.getNotificationStatus;
   onTagRenamed = deps.onTagRenamed || null;
   onTagDeleted = deps.onTagDeleted || null;
+  updater = deps.updater || null;
 
   // 打开
   document.getElementById('btn-settings').addEventListener('click', openPanel);

@@ -6954,6 +6954,78 @@ html.mini-snap-collapsed .mini-resize-handle {
   height: 15px;
 }
 
+/* 系统 Tab：软件更新 */
+.settings-pane[data-pane="system"] .update-version-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0 2px;
+  font-size: calc(12px * var(--ui-font-scale));
+  color: var(--text-secondary);
+}
+
+.settings-pane[data-pane="system"] .update-version-row strong {
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.update-status-area {
+  min-height: 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 0 4px;
+  font-size: calc(12px * var(--ui-font-scale));
+}
+
+.update-status-error {
+  color: var(--danger-text);
+  line-height: 1.6;
+}
+
+.update-status-version {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.update-status-version strong {
+  color: var(--accent-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.update-status-body {
+  color: var(--text-secondary);
+  line-height: 1.6;
+  word-break: break-word;
+}
+
+.update-status-text {
+  color: var(--text-secondary);
+}
+
+.update-progress {
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-secondary) 16%, transparent);
+  overflow: hidden;
+}
+
+.update-progress span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  transition: width var(--motion-fast);
+}
+
+.update-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 8px;
+}
+
 .settings-pane[data-pane="tags"] .settings-tag-add-btn {
   color: var(--accent-text);
   background: color-mix(in srgb, var(--accent) 13%, var(--glass-control-bg));
@@ -9918,7 +9990,7 @@ html.mini-mode-active .mini-panel {
 }
 
 /* Timeline settings */
-.settings-pane[data-pane="timeline"].active {
+.settings-timeline-card {
   display: grid;
   gap: 12px;
 }

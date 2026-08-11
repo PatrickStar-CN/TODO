@@ -18,6 +18,7 @@ import { initMiniMode } from './miniMode.js';
 import { initQuickAddPopups } from './quickAddPopup.js';
 import { initDatePicker } from './datePicker.js';
 import { initSettings } from './settings.js';
+import { createUpdater } from './updater.js';
 import { createRuntimeIndex } from './runtimeIndex.js';
 import { iconSvg, setIcon } from './icons.js';
 
@@ -1243,6 +1244,10 @@ export async function initApp() {
     if (res.ok) appConfig = await res.json();
   } catch (e) { /* ignore */ }
 
+  /* 软件更新：启动时自检上次更新残留（回滚/清理），设置页提供检查更新入口 */
+  const updater = createUpdater({ isNeutralinoEnv, showToast, appConfig });
+  updater.checkPendingStartup().catch(e => console.warn('[updater] startup check failed:', e));
+
   applyTheme(data.theme);
   applyUiStyle(data.uiStyle);
 
@@ -1838,6 +1843,7 @@ export async function initApp() {
     saveData,
     showToast,
     render,
+    updater,
     testNotification: reminders.testNotification,
     getNotificationStatus: reminders.getNotificationStatus,
     onTagRenamed: (oldTag, newTag) => {

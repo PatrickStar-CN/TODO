@@ -9,6 +9,7 @@ import { encrypt, initCrypto, tryDecrypt } from '../src/utils/crypto.js';
 import { escapeAttr, escapeHtml } from '../src/utils/html.js';
 import { parseLocalDateInput, toLocalDateInput, toLocalDatetime, isToday } from '../src/utils/date.js';
 import { computeCollapsedY, easeOutCubic, isNearScreenTop } from '../src/miniSnap.js';
+import { compareVersions } from '../src/updater.js';
 import { resolveAiApiUrl } from '../src/utils/aiApi.js';
 import { DEFAULT_TIMELINE_SETTINGS, formatTimelineTime, getTimelineDateParts, normalizeTimelineSettings, sortTimelineTodos } from '../src/timeline.js';
 
@@ -45,6 +46,18 @@ assert.equal(isToday(toLocalDateInput(todayLocal)), true);
 /* 迷你模式贴边吸附：阈值判定按 dpr 换算物理像素 */
 assert.equal(isNearScreenTop(20, 40, 1), true);
 assert.equal(isNearScreenTop(41, 40, 1), false);
+assert.equal(isNearScreenTop(80, 40, 2), true);
+assert.equal(isNearScreenTop(81, 40, 2), false);
+
+/* 版本比对：semver 逐段比较，忽略 v 前缀，文本段（如 beta）小于数字段 */
+assert.equal(compareVersions('1.1.1', '1.1.0'), 1);
+assert.equal(compareVersions('1.1.1', '1.1.1'), 0);
+assert.equal(compareVersions('1.1.1', '1.2.0'), -1);
+assert.equal(compareVersions('v1.1.1', '1.1.1'), 0);
+assert.equal(compareVersions('1.1.1-beta', '1.1.1'), -1);
+assert.equal(compareVersions('1.1.1', '1.1.1-beta'), 1);
+assert.equal(compareVersions('1.0.0', '1.0.0.1'), -1);
+assert.equal(compareVersions('', '1.0.0'), -1);
 assert.equal(isNearScreenTop(80, 40, 2), true);
 assert.equal(isNearScreenTop(81, 40, 2), false);
 /* 收起目标 Y：上移至仅保留触发条；触发条不低于 6 物理像素 */
