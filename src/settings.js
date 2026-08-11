@@ -525,10 +525,13 @@ function bindUpdateControls(overlay) {
   btnCheck?.addEventListener('click', () => updater.checkForUpdates());
   btnDownload?.addEventListener('click', () => {
     btnDownload.disabled = true;
-    updater.downloadAndPrepare();
+    updater.downloadAndPrepare().catch(e => {
+      console.warn('[updater] download failed:', e);
+      if (statusArea) statusArea.textContent = `下载更新失败：${e?.message || e}`;
+    });
   });
   btnRestart?.addEventListener('click', () => {
-    showConfirmDialog('更新包已就绪，立即重启以完成更新？', () => updater.applyUpdate());
+    showConfirmDialog('更新包已就绪，应用将退出并自动完成替换和重启？', () => updater.applyUpdate());
   });
 }
 

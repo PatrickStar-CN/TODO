@@ -153,7 +153,7 @@ async function backupCorruptDataFile(content) {
           .sort()
           .slice(0, -5);
         for (const f of stale) {
-          await Neutralino.filesystem.removeFile(`${dir}/${f}`);
+          await Neutralino.filesystem.remove(`${dir}/${f}`);
         }
       } catch {}
     } else {
