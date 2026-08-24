@@ -1,5 +1,6 @@
 import { toLocalDatetime } from './utils/date.js';
 import { showWindowsToast } from './windowsToast.js';
+import { isNeutralinoEnv } from './shared.js';
 
 function lastDayOfMonth(date) {
   return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
@@ -30,7 +31,7 @@ function getBrowserNotificationStatus() {
   return { state: 'pending', label: '浏览器系统通知等待授权' };
 }
 
-export function initReminders({ data, saveData, render, showToast, isNeutralinoEnv, subscribeDataChanges }) {
+export function initReminders({ data, saveData, render, showToast, subscribeDataChanges }) {
   let reminderLock = false;
   let timerId = null;
   let paused = false;

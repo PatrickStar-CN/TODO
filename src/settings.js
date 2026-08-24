@@ -5,8 +5,7 @@ import { showConfirmDialog } from './overlay.js';
 import { DEFAULT_UI_STYLE, applyUiStyle, getUiMotionDuration, normalizeUiStyle } from './uiPreferences.js';
 import { iconSvg } from './icons.js';
 import { normalizeTimelineSettings } from './timeline.js';
-
-const TAG_COLORS = ['#4f46e5', '#06b6d4', '#f59e0b', '#ef4444', '#10b981', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#6366f1'];
+import { getTagDotStyle, getTagTaskCount, TAG_COLORS } from './shared.js';
 
 let data, saveData, showToast, render, testNotification, getNotificationStatus;
 let onTagRenamed = null;
@@ -14,20 +13,6 @@ let onTagDeleted = null;
 let settingsOverlay = null;
 let updater = null;
 let updateStatusUnsub = null;
-
-function getTagColor(tag) {
-  if (!tag) return TAG_COLORS[0];
-  const index = data.tags.indexOf(tag);
-  return TAG_COLORS[(index >= 0 ? index : 0) % TAG_COLORS.length];
-}
-
-function getTagTaskCount(tag) {
-  /* 优先使用 _index 索引（O(1)） */
-  if (data._index && data._index.tagTotal) {
-    return data._index.tagTotal[tag] || 0;
-  }
-  return data.todos.filter(t => t.tag === tag).length;
-}
 
 // --- 弹窗开关 ---
 
@@ -546,9 +531,9 @@ function renderTagList(overlay) {
   }
   container.innerHTML = data.tags.map(tag => `
     <div class="tag-manage-item" data-tag="${escapeHtml(tag)}">
-      <span class="tag-dot" style="background:${getTagColor(tag)}"></span>
+      <span class="tag-dot" ${getTagDotStyle(tag, data.tags)}></span>
       <span class="tag-manage-name" data-role="rename-tag">${escapeHtml(tag)}</span>
-      <span class="tag-manage-count">${getTagTaskCount(tag)}</span>
+      <span class="tag-manage-count">${getTagTaskCount(data, tag)}</span>
       <button class="tag-delete-btn" data-role="delete-tag" data-tag="${escapeHtml(tag)}" title="删除标签" aria-label="删除标签">${iconSvg('x')}</button>
     </div>
   `).join('');
@@ -633,7 +618,7 @@ function createTag(overlay) {
 }
 
 function deleteTag(tag, overlay) {
-  const count = getTagTaskCount(tag);
+  const count = getTagTaskCount(data, tag);
   const message = count > 0
     ? `标签"${tag}"下还有 ${count} 个任务，删除后这些任务会变成无标签，确定继续吗？`
     : `确定要删除标签"${tag}"吗？`;

@@ -21,8 +21,8 @@ import { initSettings } from './settings.js';
 import { createUpdater } from './updater.js';
 import { createRuntimeIndex } from './runtimeIndex.js';
 import { iconSvg, setIcon } from './icons.js';
+import { getTagBadgeStyle, getTagDotStyle, getNextTagDotStyle, getTagTaskCount, isNeutralinoEnv } from './shared.js';
 
-const TAG_COLORS = ['#4f46e5', '#06b6d4', '#f59e0b', '#ef4444', '#10b981', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#6366f1'];
 const STORAGE_KEY = 'todo_app_data';
 const DATA_FILE = 'todo_data.json';
 let persistenceWriteBlocked = false;
@@ -30,41 +30,6 @@ let persistenceBlockedNotified = false;
 let runtimeIndex = null;
 let desktopDataPath = null;
 const dataChangeListeners = new Set();
-
-function getTagColor(tag) {
-  if (!tag) return TAG_COLORS[0];
-  const index = data.tags.indexOf(tag);
-  return TAG_COLORS[(index >= 0 ? index : 0) % TAG_COLORS.length];
-}
-
-/* hex → "r, g, b"，供 CSS rgba() 使用，兼容性优于 color-mix */
-function hexToRgb(hex) {
-  const h = hex.replace('#', '');
-  const r = parseInt(h.slice(0, 2), 16);
-  const g = parseInt(h.slice(2, 4), 16);
-  const b = parseInt(h.slice(4, 6), 16);
-  return `${r}, ${g}, ${b}`;
-}
-
-function getTagBadgeStyle(tag) {
-  const color = getTagColor(tag);
-  const rgb = hexToRgb(color);
-  /* 颜色写入 --tag-color-rgb 变量；背景由 CSS .badge-tag 规则用 rgba() 控制，
-     避免内联 background 与 hover 态冲突，无需 !important。 */
-  return `style="--tag-color:${color};--tag-color-rgb:${rgb}"`;
-}
-
-function getTagDotStyle(tag) {
-  return `style="background:${getTagColor(tag)}"`;
-}
-
-function getNextTagDotStyle() {
-  return `style="background:${TAG_COLORS[data.tags.length % TAG_COLORS.length]}"`;
-}
-
-function isNeutralinoEnv() {
-  return typeof Neutralino !== 'undefined' && typeof NL_PORT !== 'undefined';
-}
 
 async function getDesktopDataPath() {
   if (!isNeutralinoEnv()) return DATA_FILE;
@@ -439,16 +404,8 @@ function getTodoById(id) {
   return runtimeIndex ? runtimeIndex.get(id) : data.todos.find(todo => todo.id === id);
 }
 
-function getTagTaskCount(tag) {
-  /* 优先使用 _index 索引 */
-  if (data._index && data._index.tagTotal) {
-    return data._index.tagTotal[tag] || 0;
-  }
-  return data.todos.filter(t => t.tag === tag).length;
-}
-
 function deleteTag(tag, onDeleted) {
-  const count = getTagTaskCount(tag);
+  const count = getTagTaskCount(data, tag);
   const message = count > 0
     ? `标签“${tag}”下还有 ${count} 个任务，删除后这些任务会变成无标签，确定继续吗？`
     : `确定要删除标签“${tag}”吗？`;
@@ -737,7 +694,7 @@ function renderSidebar() {
   });
   tagListEl.innerHTML = visibleTags.map(tag => `
     <a href="#" class="tag-item ${currentTag === tag ? 'active' : ''}" data-tag="${escapeHtml(tag)}" draggable="false">
-      <span class="tag-dot" ${getTagDotStyle(tag)}></span>
+      <span class="tag-dot" ${getTagDotStyle(tag, data.tags)}></span>
       <span class="tag-label">${escapeHtml(tag)}</span>
       <span class="nav-count">${countTagUndone(data, tag)}</span>
     </a>
@@ -910,7 +867,7 @@ function appendTodoItems(container, todos) {
 }
 
 function renderTodoItem(t) {
-  return createTodoItemEl(t, { getTagBadgeStyle, currentList });
+  return createTodoItemEl(t, { currentList, tags: data.tags });
 }
 
 function createTimelineGroupRow(level, label) {
@@ -1228,7 +1185,6 @@ export async function initApp() {
 
   initDetailEditor({
     data,
-    getTagColor,
     onDoneTimeChange: (id, newDoneAt) => {
       const todo = getTodoById(id);
       if (!todo) return;
@@ -1245,7 +1201,7 @@ export async function initApp() {
   } catch (e) { /* ignore */ }
 
   /* 软件更新：启动时自检上次更新残留（回滚/清理），设置页提供检查更新入口 */
-  const updater = createUpdater({ isNeutralinoEnv, showToast, appConfig });
+  const updater = createUpdater({ showToast, appConfig });
   updater.checkPendingStartup().catch(e => console.warn('[updater] startup check failed:', e));
 
   applyTheme(data.theme);
@@ -1431,10 +1387,6 @@ export async function initApp() {
     tagBtn.classList.toggle('preset-active', !!quickAddPreset.tag);
   }
 
-  function closeAllPopups() {
-    document.querySelectorAll('.quick-popup').forEach(el => el.remove());
-  }
-
   function createQuickAddTag(rawName) {
     const name = rawName.trim();
     if (!name) return { tag: '', message: '请输入标签名称' };
@@ -1456,8 +1408,6 @@ export async function initApp() {
     quickAddPreset,
     updateQuickAddIndicators,
     data,
-    getTagDotStyle,
-    getNextTagDotStyle,
     createTag: createQuickAddTag
   });
 
@@ -1728,7 +1678,7 @@ export async function initApp() {
       const id = todoItem.dataset.id;
       const todo = getTodoById(id);
       if (!todo) return;
-      const items = buildTodoContextMenu(todo, { data, getTagColor, updateTodo, openDetail, deleteTodoById, toggleDone });
+      const items = buildTodoContextMenu(todo, { data, updateTodo, openDetail, deleteTodoById, toggleDone });
       showContextMenu(e.clientX, e.clientY, items);
     } else if (tagItem) {
       const tag = tagItem.dataset.tag;
@@ -1819,12 +1769,11 @@ export async function initApp() {
     saveData,
     render: () => scheduleRender({ list: true, status: true, calendar: true }),
     showToast,
-    isNeutralinoEnv,
     subscribeDataChanges
   });
 
   // --- Mini Mode ---
-  const mini = initMiniMode({ data, saveData, render, showToast, isNeutralinoEnv, getTagDotStyle, getTagBadgeStyle, showContextMenu, closeWindow, reminders, appConfig, todoStore: runtimeIndex });
+  const mini = initMiniMode({ data, saveData, render, showToast, showContextMenu, closeWindow, reminders, appConfig, todoStore: runtimeIndex });
   /* 窗口仍是隐藏状态时预先设置 DWM 圆角（EnumWindows 可枚举隐藏窗口），
      避免进入迷你模式时先闪现直角外框再变圆角 */
   mini.applyRoundedCorners();

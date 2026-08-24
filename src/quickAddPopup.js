@@ -2,6 +2,7 @@ import { toLocalDateInput } from './utils/date.js';
 import { escapeHtml } from './utils/html.js';
 import { initDatePicker } from './datePicker.js';
 import { iconSvg } from './icons.js';
+import { getTagDotStyle, getNextTagDotStyle } from './shared.js';
 
 function closeAllPopups() {
   document.querySelectorAll('.quick-popup').forEach(el => el.remove());
@@ -72,8 +73,6 @@ export function initQuickAddPopups({
   quickAddPreset,
   updateQuickAddIndicators,
   data,
-  getTagDotStyle,
-  getNextTagDotStyle,
   createTag
 }) {
   const container = document.querySelector('.add-task-bar');
@@ -162,7 +161,7 @@ export function initQuickAddPopups({
     popup.className = 'quick-popup quick-popup-tag';
     tagButton.setAttribute('aria-expanded', 'true');
     const tagOptions = data.tags.map(tag =>
-      `<div class="popup-option ${quickAddPreset.tag === tag ? 'selected' : ''}" data-tag="${escapeHtml(tag)}"><span class="tag-dot" ${getTagDotStyle(tag)}></span>${escapeHtml(tag)}</div>`
+      `<div class="popup-option ${quickAddPreset.tag === tag ? 'selected' : ''}" data-tag="${escapeHtml(tag)}"><span class="tag-dot" ${getTagDotStyle(tag, data.tags)}></span>${escapeHtml(tag)}</div>`
     ).join('');
     popup.innerHTML = `
       <div class="popup-title">标签</div>
@@ -171,7 +170,7 @@ export function initQuickAddPopups({
       </div>
       ${quickAddPreset.tag ? `<button class="popup-option popup-clear quick-tag-clear" type="button" data-tag="">${iconSvg('x')}<span>清除标签</span></button>` : ''}
       <div class="quick-tag-create">
-        <span class="tag-dot quick-tag-create-swatch" ${getNextTagDotStyle()} aria-hidden="true"></span>
+        <span class="tag-dot quick-tag-create-swatch" ${getNextTagDotStyle(data.tags)} aria-hidden="true"></span>
         <input class="quick-tag-create-input" type="text" maxlength="20" autocomplete="off" spellcheck="false" aria-label="新标签名称" placeholder="新建标签">
         <button class="quick-tag-create-btn" type="button" aria-label="创建并选择标签" title="创建并选择标签">${iconSvg('plus')}<span>创建</span></button>
       </div>

@@ -49,7 +49,8 @@ assert.equal(isNearScreenTop(41, 40, 1), false);
 assert.equal(isNearScreenTop(80, 40, 2), true);
 assert.equal(isNearScreenTop(81, 40, 2), false);
 
-/* 版本比对：semver 逐段比较，忽略 v 前缀，文本段（如 beta）小于数字段 */
+/* 版本比对：semver 逐段比较，忽略 v 前缀，文本段（如 beta）小于数字段；
+   空版本视为最旧；非版本号形态（如 release-1.0.0）无法解析时保守返回 0，不误报更新 */
 assert.equal(compareVersions('1.1.1', '1.1.0'), 1);
 assert.equal(compareVersions('1.1.1', '1.1.1'), 0);
 assert.equal(compareVersions('1.1.1', '1.2.0'), -1);
@@ -58,6 +59,12 @@ assert.equal(compareVersions('1.1.1-beta', '1.1.1'), -1);
 assert.equal(compareVersions('1.1.1', '1.1.1-beta'), 1);
 assert.equal(compareVersions('1.0.0', '1.0.0.1'), -1);
 assert.equal(compareVersions('', '1.0.0'), -1);
+assert.equal(compareVersions('', ''), 0);
+assert.equal(compareVersions('release-1.0.0', '1.0.0'), 0);
+assert.equal(compareVersions('1.0.0', 'release-1'), 0);
+assert.equal(compareVersions('alpha', '1.0.0'), 0);
+assert.equal(compareVersions('1.0.0-beta.1', '1.0.0-beta.2'), -1);
+assert.equal(compareVersions('1.0.0-beta.2', '1.0.0-beta.10'), -1);
 assert.equal(isNearScreenTop(80, 40, 2), true);
 assert.equal(isNearScreenTop(81, 40, 2), false);
 /* 收起目标 Y：上移至仅保留触发条；触发条不低于 6 物理像素 */
@@ -292,6 +299,7 @@ delete globalThis.window;
 
 const notificationCommands = [];
 globalThis.NL_OS = 'Windows';
+globalThis.NL_PORT = 45678;
 globalThis.window = { location: { href: 'http://localhost/' } };
 globalThis.fetch = async () => ({
   ok: true,

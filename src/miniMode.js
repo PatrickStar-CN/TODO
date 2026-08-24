@@ -4,8 +4,9 @@ import { genId } from './utils/id.js';
 import { sortByPriority, splitPendingDone } from './selectors.js';
 import { iconSvg } from './icons.js';
 import { initMiniSnap } from './miniSnap.js';
+import { getTagDotStyle, getTagBadgeStyle, isNeutralinoEnv } from './shared.js';
 
-export function initMiniMode({ data, saveData, render, showToast, isNeutralinoEnv, getTagDotStyle, getTagBadgeStyle, showContextMenu, closeWindow, reminders, appConfig, todoStore }) {
+export function initMiniMode({ data, saveData, render, showToast, showContextMenu, closeWindow, reminders, appConfig, todoStore }) {
   let isMiniMode = false;
   let miniTooltipTimer = null;
   let currentMiniDetailId = null;
@@ -29,7 +30,6 @@ export function initMiniMode({ data, saveData, render, showToast, isNeutralinoEn
   /* 顶部贴边吸附 + 自动收起（仅桌面端生效），参数来自 app.config.json 的 miniMode.snap */
   const snapCfg = miniCfg.snap || {};
   const miniSnap = initMiniSnap({
-    isNeutralinoEnv,
     isMiniMode: () => isMiniMode,
     thresholdCss: snapCfg.threshold,
     stripCss: snapCfg.strip,
@@ -49,7 +49,7 @@ export function initMiniMode({ data, saveData, render, showToast, isNeutralinoEn
       : items.map(t => {
         const prioCls = t.priority && t.priority !== 'none' ? t.priority : '';
         const tagChip = t.tag
-          ? `<span class="mini-item-tag" ${getTagBadgeStyle(t.tag)}><span class="tag-dot" aria-hidden="true"></span><span class="mini-item-tag-label">${escapeHtml(t.tag)}</span></span>`
+          ? `<span class="mini-item-tag" ${getTagBadgeStyle(t.tag, data.tags)}><span class="tag-dot" aria-hidden="true"></span><span class="mini-item-tag-label">${escapeHtml(t.tag)}</span></span>`
           : '';
         return `<div class="mini-todo-item${prioCls ? ` p-${prioCls}` : ''}" data-id="${t.id}">
           <button class="mini-checkbox" type="button" data-mini-toggle="${t.id}" aria-label="完成任务：${escapeHtml(t.title)}"></button>
@@ -79,7 +79,7 @@ export function initMiniMode({ data, saveData, render, showToast, isNeutralinoEn
       html += `<div class="mini-tooltip-row">${iconSvg('circle', `icon-priority-${todo.priority}`)}<span>${label}</span></div>`;
     }
     if (todo.tag) {
-      html += `<div class="mini-tooltip-row"><span class="tag-dot" ${getTagDotStyle(todo.tag)}></span>${escapeHtml(todo.tag)}</div>`;
+      html += `<div class="mini-tooltip-row"><span class="tag-dot" ${getTagDotStyle(todo.tag, data.tags)}></span>${escapeHtml(todo.tag)}</div>`;
     }
     if (todo.endTime) {
       html += `<div class="mini-tooltip-row">${iconSvg('calendar')}<span>${formatDateTime(todo.endTime)}</span></div>`;
@@ -139,7 +139,7 @@ export function initMiniMode({ data, saveData, render, showToast, isNeutralinoEn
     const dotClass = getMiniPriorityDotClass(todo);
     addRow('flag', '优先级', `<span class="mini-priority-dot ${dotClass}" aria-hidden="true"></span>${getMiniPriorityLabel(todo)}`);
     if (todo.tag) {
-      addRow('tag', '标签', `<span class="tag-dot" ${getTagDotStyle(todo.tag)} aria-hidden="true"></span>${escapeHtml(todo.tag)}`);
+      addRow('tag', '标签', `<span class="tag-dot" ${getTagDotStyle(todo.tag, data.tags)} aria-hidden="true"></span>${escapeHtml(todo.tag)}`);
     }
     if (todo.startTime) {
       addRow('clock', '开始', escapeHtml(formatDateTime(todo.startTime)));

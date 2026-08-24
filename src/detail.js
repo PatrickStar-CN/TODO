@@ -2,9 +2,10 @@ import { formatDateTime, toLocalDatetime } from './utils/date.js';
 import { initDatePicker, closeDatePicker } from './datePicker.js';
 import { escapeAttr, escapeHtml } from './utils/html.js';
 import { getUiMotionDuration } from './uiPreferences.js';
+import { getTagDotStyle } from './shared.js';
 
 let onDoneTimeChange = null;
-let getDetailTagColor = () => '#6366f1';
+let detailData = null;
 
 /* 优先级选项配置 */
 const PRIORITY_OPTIONS = [
@@ -123,9 +124,7 @@ function createDetailDropdown(selectEl, options, getOptionHtml) {
 
 export function initDetailEditor(callbacks) {
   onDoneTimeChange = callbacks.onDoneTimeChange || null;
-  const { data, getTagColor: getColor } = callbacks;
-  /* 与列表/侧边栏共用同一套标签取色规则（由 app.js 注入） */
-  getDetailTagColor = getColor || (() => '#6366f1');
+  detailData = callbacks.data;
 
   document.querySelectorAll('.detail-select').forEach(select => {
     select.addEventListener('keydown', (event) => {
@@ -152,7 +151,7 @@ export function initDetailEditor(callbacks) {
     const clearOption = { value: '', label: '未设置标签' };
     const allOptions = tagOptions.length > 0 ? [clearOption, ...tagOptions] : [{ value: '', label: '暂无标签' }];
     createDetailDropdown(this, allOptions, (opt) =>
-      opt.value ? `<span class="tag-dot" style="background:${getDetailTagColor(opt.value)}"></span>${escapeHtml(opt.label)}` : escapeHtml(opt.label)
+      opt.value ? `<span class="tag-dot" ${getTagDotStyle(opt.value, detailData?.tags || [])}></span>${escapeHtml(opt.label)}` : escapeHtml(opt.label)
     );
   });
 
@@ -242,7 +241,7 @@ export function openDetail(todo, triggerEl) {
   const tagEl = document.getElementById('detail-tag');
   tagEl.dataset.value = tagVal;
   tagEl.querySelector('.detail-select-trigger').innerHTML = tagVal
-    ? `<span class="tag-dot" style="background:${getDetailTagColor(tagVal)}"></span>${escapeHtml(tagVal)}`
+    ? `<span class="tag-dot" ${getTagDotStyle(tagVal, detailData?.tags || [])}></span>${escapeHtml(tagVal)}`
     : '未设置';
 
   /* 设置自定义下拉值 —— 重复提醒 */

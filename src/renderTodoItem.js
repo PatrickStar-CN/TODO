@@ -1,5 +1,6 @@
 import { formatDate } from './utils/date.js';
 import { createIcon, setIcon } from './icons.js';
+import { getTagBadgeStyle } from './shared.js';
 
 function setIconLabel(element, iconName, label) {
   const icon = createIcon(iconName);
@@ -7,7 +8,7 @@ function setIconLabel(element, iconName, label) {
   if (label) element.appendChild(document.createTextNode(label));
 }
 
-export function createTodoItemEl(t, { getTagBadgeStyle, currentList }) {
+export function createTodoItemEl(t, { currentList, tags }) {
   const item = document.createElement('div');
   item.className = 'todo-item' + (t.done ? ' done' : '') + (t.archived ? ' archived' : '');
   item.dataset.id = t.id;
@@ -34,7 +35,7 @@ export function createTodoItemEl(t, { getTagBadgeStyle, currentList }) {
   title.textContent = t.title;
   body.appendChild(title);
 
-  const badges = buildBadges(t, getTagBadgeStyle, currentList);
+  const badges = buildBadges(t, tags, currentList);
   if (badges) body.appendChild(badges);
 
   item.appendChild(body);
@@ -62,7 +63,7 @@ export function createTodoItemEl(t, { getTagBadgeStyle, currentList }) {
   return item;
 }
 
-function buildBadges(t, getTagBadgeStyle, currentList) {
+function buildBadges(t, tags, currentList) {
   const meta = document.createElement('div');
   meta.className = 'todo-meta';
   let count = 0;
@@ -87,7 +88,7 @@ function buildBadges(t, getTagBadgeStyle, currentList) {
   if (t.tag) {
     const badge = document.createElement('span');
     badge.className = 'badge badge-tag';
-    const styleAttr = getTagBadgeStyle(t.tag);
+    const styleAttr = getTagBadgeStyle(t.tag, tags);
     if (styleAttr) {
       const match = styleAttr.match(/style="([^"]*)"/);
       if (match) badge.setAttribute('style', match[1]);

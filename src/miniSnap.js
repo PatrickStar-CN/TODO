@@ -29,6 +29,8 @@ export function computeCollapsedY(heightPhysical, stripCss, dpr) {
   return -(Math.max(strip, heightPhysical) - strip);
 }
 
+import { isNeutralinoEnv } from './shared.js';
+
 const DRAG_POLL_MS = 100;// 拖拽轮询间隔（ms）
 const DRAG_STABLE_POLLS = 2;// 拖拽结束轮询次数，判断是否稳定
 const SLIDE_DURATION = 260;// 收起/展开动画时长（ms）
@@ -37,7 +39,6 @@ const SLIDE_DURATION = 260;// 收起/展开动画时长（ms）
 const SLIDE_STEP_MS = 33;
 
 export function initMiniSnap({
-  isNeutralinoEnv,
   isMiniMode,
   getDragRegion = () => document.getElementById('mini-drag-region'),
   thresholdCss,
