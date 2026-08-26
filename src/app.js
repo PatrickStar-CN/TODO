@@ -1648,15 +1648,40 @@ export async function initApp() {
   // Keyboard
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeDetail();
-    if (e.key === 'F5' || (e.ctrlKey && e.key === 'r') || (e.ctrlKey && e.shiftKey && e.key === 'R')) {
-      e.preventDefault();
-    }
     if ((e.ctrlKey || e.metaKey) && e.key === 's') {
       const detailPanel = document.getElementById('detail-panel');
       if (detailPanel && !detailPanel.classList.contains('hidden')) {
         e.preventDefault();
         detailForm.requestSubmit();
       }
+      return;
+    }
+    const ctrl = e.ctrlKey || e.metaKey;
+    switch (e.key) {
+      case 'F5':
+        e.preventDefault();
+        break;
+      case 'F12':
+        e.preventDefault();
+        break;
+      case 'f':
+        if (ctrl) { e.preventDefault(); searchBar.classList.remove('hidden'); searchInput.focus(); }
+        break;
+      case 'p': case 'u': case 'j': case 'h':
+        if (ctrl) e.preventDefault();
+        break;
+      case 'r':
+        if (ctrl) e.preventDefault();
+        break;
+      case 'R':
+        if (ctrl && e.shiftKey) e.preventDefault();
+        break;
+      case 'I':
+        if (ctrl && e.shiftKey) e.preventDefault();
+        break;
+      case 'J':
+        if (ctrl && e.shiftKey) e.preventDefault();
+        break;
     }
   });
 
