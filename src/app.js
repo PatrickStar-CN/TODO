@@ -21,7 +21,7 @@ import { initSettings } from './settings.js';
 import { createUpdater } from './updater.js';
 import { createRuntimeIndex } from './runtimeIndex.js';
 import { iconSvg, setIcon } from './icons.js';
-import { getTagBadgeStyle, getTagDotStyle, getNextTagDotStyle, getTagTaskCount, isNeutralinoEnv } from './shared.js';
+import { getTagDotStyle, getTagTaskCount, isNeutralinoEnv } from './shared.js';
 
 const STORAGE_KEY = 'todo_app_data';
 const DATA_FILE = 'todo_data.json';

@@ -10,6 +10,7 @@ import { escapeAttr, escapeHtml } from '../src/utils/html.js';
 import { parseLocalDateInput, toLocalDateInput, toLocalDatetime, isToday } from '../src/utils/date.js';
 import { computeCollapsedY, easeOutCubic, isNearScreenTop } from '../src/miniSnap.js';
 import { compareVersions } from '../src/updater.js';
+import { getNextTagDotStyle, getTagTaskCount } from '../src/shared.js';
 import { resolveAiApiUrl } from '../src/utils/aiApi.js';
 import { DEFAULT_TIMELINE_SETTINGS, formatTimelineTime, getTimelineDateParts, normalizeTimelineSettings, sortTimelineTodos } from '../src/timeline.js';
 
@@ -65,6 +66,13 @@ assert.equal(compareVersions('1.0.0', 'release-1'), 0);
 assert.equal(compareVersions('alpha', '1.0.0'), 0);
 assert.equal(compareVersions('1.0.0-beta.1', '1.0.0-beta.2'), -1);
 assert.equal(compareVersions('1.0.0-beta.2', '1.0.0-beta.10'), -1);
+
+/* 标签工具（shared.js）：新标签色板按 tags.length 循环取色；计数优先走 _index 索引 */
+assert.equal(getNextTagDotStyle([]), 'style="background:#4f46e5"');
+assert.equal(getNextTagDotStyle(['a']), 'style="background:#06b6d4"');
+assert.equal(getTagTaskCount({ _index: { tagTotal: { work: 3 } }, todos: [] }, 'work'), 3);
+assert.equal(getTagTaskCount({ todos: [{ tag: 'x' }, { tag: 'x' }, { tag: 'y' }] }, 'x'), 2);
+assert.equal(getTagTaskCount({ todos: [] }, 'gone'), 0);
 assert.equal(isNearScreenTop(80, 40, 2), true);
 assert.equal(isNearScreenTop(81, 40, 2), false);
 /* 收起目标 Y：上移至仅保留触发条；触发条不低于 6 物理像素 */
