@@ -1191,6 +1191,12 @@ export async function initApp() {
       runtimeIndex.update(todo, { doneAt: newDoneAt });
       saveData();
       scheduleRender({ list: true, sidebar: true, status: true, calendar: true });
+    },
+    onBeforeDetailClose: () => {
+      const detailPanel = document.getElementById('detail-panel');
+      if (!detailPanel || detailPanel.classList.contains('hidden')) return;
+      saveDetailForm();
+      scheduleRender();
     }
   });
 
@@ -1532,8 +1538,7 @@ export async function initApp() {
   });
 
   // Detail form
-  detailForm.addEventListener('submit', (e) => {
-    e.preventDefault();
+  function saveDetailForm() {
     const id = document.getElementById('detail-id').value;
     const todo = getTodoById(id);
     if (!todo) return;
@@ -1557,8 +1562,11 @@ export async function initApp() {
 
     runtimeIndex.update(todo, patch);
     saveData();
+  }
+
+  detailForm.addEventListener('submit', (e) => {
+    e.preventDefault();
     closeDetail();
-    scheduleRender();
   });
 
   document.getElementById('close-detail').addEventListener('click', closeDetail);

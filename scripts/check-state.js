@@ -348,4 +348,20 @@ delete globalThis.NL_OS;
 delete globalThis.window;
 delete globalThis.fetch;
 
+/* 回归：cdfc1c2 把 initDetailEditor 的 data 局部变量改成模块级 detailData 后，
+   详情标签下拉处理器不得再引用裸 data 变量，否则打开任务标签编辑器会抛
+   ReferenceError(data is not defined)，导致标签编辑界面卡死且改动无法保存 */
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const detailSource = readFileSync(path.join(__dirname, '../src/detail.js'), 'utf8');
+assert.ok(!/\bdata\.tags\b/.test(detailSource), 'detail.js 不得再引用裸 data.tags（应使用 detailData?.tags）');
+assert.ok(/\bdetailData\?\.tags\b/.test(detailSource), 'detail.js 应通过 detailData?.tags 取标签列表');
+/* 保存时机：关闭详情面板（X/遮罩/Escape/提交）必须先持久化未保存改动，避免编辑后直接关闭丢失数据 */
+assert.ok(/\bonBeforeDetailClose\b/.test(detailSource), 'detail.js 应在关闭详情面板前调用 onBeforeDetailClose 保存');
+const appSource = readFileSync(path.join(__dirname, '../src/app.js'), 'utf8');
+assert.ok(/function saveDetailForm\s*\(\)\s*\{[\s\S]*?runtimeIndex\.update\(todo,\s*patch\)[\s\S]*?saveData\(\)/.test(appSource), 'app.js 应提供 saveDetailForm 统一保存详情改动');
+assert.ok(/onBeforeDetailClose:\s*\(\)\s*=>\s*\{[\s\S]*?saveDetailForm\(\)/.test(appSource), 'app.js 应在 onBeforeDetailClose 中调用 saveDetailForm');
+
 console.log('State checks passed');

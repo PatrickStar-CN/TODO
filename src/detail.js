@@ -5,6 +5,7 @@ import { getUiMotionDuration } from './uiPreferences.js';
 import { getTagDotStyle } from './shared.js';
 
 let onDoneTimeChange = null;
+let onBeforeDetailClose = null;
 let detailData = null;
 
 /* 优先级选项配置 */
@@ -124,6 +125,7 @@ function createDetailDropdown(selectEl, options, getOptionHtml) {
 
 export function initDetailEditor(callbacks) {
   onDoneTimeChange = callbacks.onDoneTimeChange || null;
+  onBeforeDetailClose = callbacks.onBeforeDetailClose || null;
   detailData = callbacks.data;
 
   document.querySelectorAll('.detail-select').forEach(select => {
@@ -147,7 +149,7 @@ export function initDetailEditor(callbacks) {
   /* 标签下拉 */
   document.getElementById('detail-tag').addEventListener('click', function (e) {
     e.stopPropagation();
-    const tagOptions = (data.tags || []).map(tag => ({ value: tag, label: tag }));
+    const tagOptions = (detailData?.tags || []).map(tag => ({ value: tag, label: tag }));
     const clearOption = { value: '', label: '未设置标签' };
     const allOptions = tagOptions.length > 0 ? [clearOption, ...tagOptions] : [{ value: '', label: '暂无标签' }];
     createDetailDropdown(this, allOptions, (opt) =>
@@ -273,6 +275,9 @@ export function openDetail(todo, triggerEl) {
 }
 
 export function closeDetail() {
+  if (typeof onBeforeDetailClose === 'function') {
+    onBeforeDetailClose();
+  }
   closeDetailDropdowns();
   const panel = document.getElementById('detail-panel');
   if (panel.classList.contains('hidden')) return;
