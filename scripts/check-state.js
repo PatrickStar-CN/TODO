@@ -360,6 +360,12 @@ assert.ok(!/\bdata\.tags\b/.test(detailSource), 'detail.js 不得再引用裸 da
 assert.ok(/\bdetailData\?\.tags\b/.test(detailSource), 'detail.js 应通过 detailData?.tags 取标签列表');
 /* 保存时机：关闭详情面板（X/遮罩/Escape/提交）必须先持久化未保存改动，避免编辑后直接关闭丢失数据 */
 assert.ok(/\bonBeforeDetailClose\b/.test(detailSource), 'detail.js 应在关闭详情面板前调用 onBeforeDetailClose 保存');
+/* 回归：openDetail 打开详情时必须以 setDatePickerValue 同步日期选择触发器，
+   否则设置过某任务的开始/截止/提醒时间后，其他无时间任务的触发器文本仍残留上次设置的时间 */
+assert.ok(/setDatePickerValue/.test(detailSource), 'detail.js 应在 openDetail 中通过 setDatePickerValue 同步日期选择器触发器');
+const datePickerSource = readFileSync(path.join(__dirname, '../src/datePicker.js'), 'utf8');
+assert.ok(/syncValue\(value\)/.test(datePickerSource), 'datePicker.js 应提供 syncValue 同步触发器、输入值与清除按钮');
+assert.ok(/export function setDatePickerValue/.test(datePickerSource), 'datePicker.js 应导出 setDatePickerValue');
 const appSource = readFileSync(path.join(__dirname, '../src/app.js'), 'utf8');
 assert.ok(/function saveDetailForm\s*\(\)\s*\{[\s\S]*?runtimeIndex\.update\(todo,\s*patch\)[\s\S]*?saveData\(\)/.test(appSource), 'app.js 应提供 saveDetailForm 统一保存详情改动');
 assert.ok(/onBeforeDetailClose:\s*\(\)\s*=>\s*\{[\s\S]*?saveDetailForm\(\)/.test(appSource), 'app.js 应在 onBeforeDetailClose 中调用 saveDetailForm');

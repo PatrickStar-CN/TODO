@@ -134,6 +134,15 @@ class DatePicker {
     if (this.onChange) this.onChange(val);
   }
 
+  syncValue(value) {
+    const val = value || '';
+    this.input.value = val;
+    this.trigger.textContent = displayText(val, this.mode);
+    const clearBtn = this.trigger.parentElement.querySelector('.dp-clear-btn');
+    if (clearBtn) clearBtn.style.display = val ? '' : 'none';
+    this.selectedDate = parseValue(val, this.mode);
+  }
+
   toggle() {
     if (activePicker && activePicker !== this) closeActivePicker();
     if (this.panel && this.panel.isConnected) {
@@ -344,6 +353,15 @@ export function initDatePicker(inputEl, options) {
   if (!inputEl || inputEl._datePicker) return;
   inputEl._datePicker = new DatePicker(inputEl, options);
   return inputEl._datePicker;
+}
+
+export function setDatePickerValue(inputEl, value) {
+  const normalized = value || '';
+  if (inputEl?._datePicker) {
+    inputEl._datePicker.syncValue(normalized);
+  } else if (inputEl) {
+    inputEl.value = normalized;
+  }
 }
 
 export function openDatePicker(inputEl) {

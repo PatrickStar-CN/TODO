@@ -1,5 +1,5 @@
 import { formatDateTime, toLocalDatetime } from './utils/date.js';
-import { initDatePicker, closeDatePicker } from './datePicker.js';
+import { initDatePicker, closeDatePicker, setDatePickerValue } from './datePicker.js';
 import { escapeAttr, escapeHtml } from './utils/html.js';
 import { getUiMotionDuration } from './uiPreferences.js';
 import { getTagDotStyle } from './shared.js';
@@ -223,9 +223,9 @@ export function openDetail(todo, triggerEl) {
   document.getElementById('detail-id').value = todo.id;
   document.getElementById('detail-title').value = todo.title;
   document.getElementById('detail-desc').value = todo.desc || '';
-  document.getElementById('detail-start').value = todo.startTime ? todo.startTime.slice(0, 16) : '';
-  document.getElementById('detail-end').value = todo.endTime ? todo.endTime.slice(0, 16) : '';
-  document.getElementById('detail-reminder').value = todo.reminder ? todo.reminder.slice(0, 16) : '';
+  setDatePickerValue(document.getElementById('detail-start'), todo.startTime ? todo.startTime.slice(0, 16) : '');
+  setDatePickerValue(document.getElementById('detail-end'), todo.endTime ? todo.endTime.slice(0, 16) : '');
+  setDatePickerValue(document.getElementById('detail-reminder'), todo.reminder ? todo.reminder.slice(0, 16) : '');
   document.getElementById('detail-todo').checked = !!todo.todo;
   document.getElementById('detail-important').checked = !!todo.important;
 

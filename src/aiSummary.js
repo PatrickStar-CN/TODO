@@ -1,4 +1,5 @@
 import { toLocalDateInput, parseLocalDateInput, formatMonthDay } from './utils/date.js';
+import { setDatePickerValue } from './datePicker.js';
 import { escapeHtml } from './utils/html.js';
 import { closeDetail } from './detail.js';
 import { resolveAiApiUrl } from './utils/aiApi.js';
@@ -14,7 +15,7 @@ export function initAiSummary({ data, saveData, showToast }) {
   const generateReportLabel = generateReportBtn.querySelector('.summary-generate-label');
   let isGeneratingReport = false;
 
-  summaryDateInput.value = toLocalDateInput(new Date());
+  setDatePickerValue(summaryDateInput, toLocalDateInput(new Date()));
 
   let summaryOverlay = null;
   const summaryDateRangeEl = document.getElementById('summary-date-range');
