@@ -192,6 +192,7 @@ function openPanel() {
             <div class="update-actions">
               <button class="btn-primary btn-sm settings-primary-action" id="btn-check-update" type="button">${iconSvg('refresh')}<span>检查更新</span></button>
               <button class="btn-primary btn-sm settings-primary-action hidden" id="btn-download-update" type="button">${iconSvg('download')}<span>下载更新</span></button>
+              <button class="btn-secondary btn-sm settings-secondary-action hidden" id="btn-cancel-update" type="button">${iconSvg('x')}<span>取消下载</span></button>
               <button class="btn-primary btn-sm settings-primary-action hidden" id="btn-restart-update" type="button">${iconSvg('refresh')}<span>立即重启</span></button>
             </div>
           </section>
@@ -450,11 +451,13 @@ function renderUpdateStatus(overlay, s) {
   const statusArea = overlay.querySelector('#update-status-area');
   const btnCheck = overlay.querySelector('#btn-check-update');
   const btnDownload = overlay.querySelector('#btn-download-update');
+  const btnCancel = overlay.querySelector('#btn-cancel-update');
   const btnRestart = overlay.querySelector('#btn-restart-update');
   if (!statusArea || !btnCheck || !btnDownload || !btnRestart) return;
 
   btnCheck.classList.toggle('hidden', s.phase === 'checking' || s.phase === 'downloading' || s.phase === 'verifying');
   btnDownload.classList.toggle('hidden', s.phase !== 'available');
+  btnCancel?.classList.toggle('hidden', s.phase !== 'downloading' && s.phase !== 'verifying');
   btnRestart.classList.toggle('hidden', s.phase !== 'ready');
   const busy = s.phase === 'checking' || s.phase === 'downloading' || s.phase === 'verifying';
   btnCheck.disabled = busy;
@@ -500,6 +503,7 @@ function bindUpdateControls(overlay) {
   }
   const btnCheck = overlay.querySelector('#btn-check-update');
   const btnDownload = overlay.querySelector('#btn-download-update');
+  const btnCancel = overlay.querySelector('#btn-cancel-update');
   const btnRestart = overlay.querySelector('#btn-restart-update');
   const statusArea = overlay.querySelector('#update-status-area');
 
@@ -507,6 +511,7 @@ function bindUpdateControls(overlay) {
     if (statusArea) statusArea.textContent = '浏览器端不支持自动更新，请使用桌面版。';
     if (btnCheck) btnCheck.disabled = true;
     if (btnDownload) btnDownload.disabled = true;
+    if (btnCancel) btnCancel.disabled = true;
     if (btnRestart) btnRestart.disabled = true;
     return;
   }
@@ -526,6 +531,7 @@ function bindUpdateControls(overlay) {
   btnRestart?.addEventListener('click', () => {
     showConfirmDialog('更新包已就绪，应用将退出并自动完成替换和重启？', () => updater.applyUpdate());
   });
+  btnCancel?.addEventListener('click', () => updater.cancelDownload());
 }
 
 // --- 标签管理 ---

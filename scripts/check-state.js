@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { webcrypto } from 'node:crypto';
+import { webcrypto, createHash } from 'node:crypto';
 import { countByList, countTagUndone, getFilteredTodos, sortByPriority, splitPendingDone } from '../src/selectors.js';
 import { DEFAULT_UI_STYLE, normalizeUiStyle } from '../src/uiPreferences.js';
 import { buildMonthActivityIndex, buildYearCompletionIndex, buildYearTaskIndex, getCompletedTodosForDate, getTaskTodosForDate } from '../src/calendar.js';
@@ -9,7 +9,7 @@ import { encrypt, initCrypto, tryDecrypt } from '../src/utils/crypto.js';
 import { escapeAttr, escapeHtml } from '../src/utils/html.js';
 import { parseLocalDateInput, toLocalDateInput, toLocalDatetime, isToday } from '../src/utils/date.js';
 import { computeCollapsedY, easeOutCubic, isNearScreenTop } from '../src/miniSnap.js';
-import { compareVersions, createUpdater } from '../src/updater.js';
+import { buildUpdateTaskRun, compareVersions, createUpdater, toEncodedCommand } from '../src/updater.js';
 import { getNextTagDotStyle, getTagTaskCount } from '../src/shared.js';
 import { resolveAiApiUrl } from '../src/utils/aiApi.js';
 import { DEFAULT_TIMELINE_SETTINGS, formatTimelineTime, getTimelineDateParts, normalizeTimelineSettings, sortTimelineTodos } from '../src/timeline.js';
@@ -66,6 +66,10 @@ assert.equal(compareVersions('1.0.0', 'release-1'), 0);
 assert.equal(compareVersions('alpha', '1.0.0'), 0);
 assert.equal(compareVersions('1.0.0-beta.1', '1.0.0-beta.2'), -1);
 assert.equal(compareVersions('1.0.0-beta.2', '1.0.0-beta.10'), -1);
+/* semver 构建元数据（+ 后缀）不参与优先级比较 */
+assert.equal(compareVersions('1.2.2+build', '1.2.2'), 0);
+assert.equal(compareVersions('1.2.2', 'v1.2.2+b1'), 0);
+assert.equal(compareVersions('1.2.3+exp', '1.2.2'), 1);
 
 /* 标签工具（shared.js）：新标签色板按 tags.length 循环取色；计数优先走 _index 索引 */
 assert.equal(getNextTagDotStyle([]), 'style="background:#4f46e5"');
@@ -386,5 +390,171 @@ assert.ok(/resolveCurrentVersion/.test(settingsSource), 'settings.js 打开系�
 assert.ok(/aria-busy/.test(settingsSource), 'settings.js 更新按钮应提供 aria-busy 忙碌状态');
 const appConfig = JSON.parse(readFileSync(path.join(__dirname, '../app.config.json'), 'utf-8'));
 assert.equal(appConfig.update?.repo, 'PatrickStar-CN/TODO');
+
+/* -EncodedCommand 必须按 UTF-16LE 编码：ASCII、CJK 与代理对（emoji）往返一致 */
+assert.equal(Buffer.from(toEncodedCommand('schtasks /Run'), 'base64').toString('utf16le'), 'schtasks /Run');
+assert.equal(Buffer.from(toEncodedCommand('C:\\Users\\中文\\Temp\\apply-update.ps1'), 'base64').toString('utf16le'), 'C:\\Users\\中文\\Temp\\apply-update.ps1');
+assert.equal(Buffer.from(toEncodedCommand('done 🚀 ok'), 'base64').toString('utf16le'), 'done 🚀 ok');
+
+/* /TR 构造：含空格路径加引号、单引号双写转义、中文原样透传 */
+assert.equal(
+  buildUpdateTaskRun('C:\\Users\\John Doe\\Temp\\todo-tools-update\\apply-update.ps1'),
+  'powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "C:\\Users\\John Doe\\Temp\\todo-tools-update\\apply-update.ps1"'
+);
+assert.equal(
+  buildUpdateTaskRun("C:\\Users\\O'Brien\\x.ps1"),
+  'powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "C:\\Users\\O\'\'Brien\\x.ps1"'
+);
+
+assert.ok(/--max-time/.test(updaterSource), 'curl 兜底应带 --max-time 总超时');
+assert.ok(/cancelDownload/.test(updaterSource), 'updater 应支持取消下载');
+assert.ok(/if \(!expected\) throw/.test(updaterSource), 'SHA-256 取不到期望哈希时必须直接失败');
+assert.ok(/r\.stdErr/.test(updaterSource) && !/r\.stderr/.test(updaterSource), '应使用 stdErr 字段取进程错误输出');
+assert.ok(/\/TR '\$\{buildUpdateTaskRun\(scriptPath\)\}'/.test(updaterSource), '计划任务 /TR 应整体加引号');
+assert.ok(/runResult\.exitCode/.test(updaterSource), 'schtasks /Run 结果必须检查');
+assert.ok(/File\]::Open\(\$exePath/.test(updaterSource), '替换脚本应等待主进程退出');
+assert.ok(/pending\.version/.test(updaterSource), '启动自检应用版本比对判定成败');
+assert.ok(/btn-cancel-update/.test(settingsSource), '设置页应提供取消下载按钮');
+
+/* 下载取消流程：check → available → downloading → cancel → available（版本与资产保留） */
+{
+  const fsMem = new Map();
+  const dirSet = new Set();
+  const JSON_KEY = 'C:\\Temp\\todo-tools-update\\latest-release.json';
+  globalThis.NL_PORT = 45678;
+  globalThis.Neutralino = {
+    app: { getConfig: async () => ({ version: '1.2.2' }) },
+    os: {
+      getPath: async () => 'C:\\Temp',
+      execCommand: async (cmd) => {
+        if (cmd.includes('TODO-Tools-Updater')) {
+          fsMem.set(JSON_KEY, JSON.stringify({
+            tag_name: 'v9.9.9',
+            body: 'notes',
+            assets: [
+              { name: 'todo-tools-win_x64.zip', size: 10, browser_download_url: 'https://example.com/pkg.zip' },
+              { name: 'todo-tools-win_x64.zip.sha256', size: 65, browser_download_url: 'https://example.com/pkg.sha256' }
+            ]
+          }));
+          return { exitCode: 0, stdOut: '', stdErr: '' };
+        }
+        if (cmd.includes('https://example.com')) {
+          await new Promise(() => {});
+        }
+        return { exitCode: 0, stdOut: '', stdErr: '' };
+      }
+    },
+    filesystem: {
+      createDirectory: async (p) => {
+        if (dirSet.has(p)) throw new Error('exists');
+        dirSet.add(p);
+      },
+      getStats: async (p) => {
+        if (fsMem.has(p)) return { size: String(fsMem.get(p)).length };
+        if (dirSet.has(p)) return { size: 0 };
+        throw new Error('missing');
+      },
+      readFile: async (p) => {
+        if (fsMem.has(p)) return fsMem.get(p);
+        throw new Error('missing');
+      },
+      writeFile: async (p, content) => { fsMem.set(p, content); },
+      remove: async (p) => { fsMem.delete(p); }
+    }
+  };
+  const cancelUpdater = createUpdater({ showToast: () => {} });
+  await cancelUpdater.checkForUpdates();
+  assert.equal(cancelUpdater.getState().phase, 'available');
+  assert.equal(cancelUpdater.getState().version, '9.9.9');
+  const downloading = cancelUpdater.downloadAndPrepare();
+  downloading.then(() => {}, () => {});
+  await new Promise(r => setTimeout(r, 900));
+  assert.equal(cancelUpdater.getState().phase, 'downloading');
+  assert.equal(cancelUpdater.cancelDownload(), true);
+  assert.equal(cancelUpdater.getState().phase, 'available');
+  assert.equal(cancelUpdater.getState().version, '9.9.9');
+  assert.equal((cancelUpdater.getState().assets || []).length, 2);
+  assert.equal(cancelUpdater.cancelDownload(), false);
+  delete globalThis.Neutralino;
+  delete globalThis.NL_PORT;
+}
+
+/* verifying 段取消竞态：sha 下载在取消后才完成 → 不得覆盖为 ready/failed，应保持 available */
+{
+  const fsMem = new Map();
+  const dirSet = new Set();
+  const base = 'C:\\Temp\\todo-tools-update';
+  const JSON_KEY = `${base}\\latest-release.json`;
+  const ZIP_KEY = `${base}\\todo-tools-win_x64.zip`;
+  const SHA_KEY = `${base}\\todo-tools-win_x64.zip.sha256`;
+  globalThis.NL_PORT = 45678;
+  globalThis.Neutralino = {
+    app: { getConfig: async () => ({ version: '1.2.2' }) },
+    os: {
+      getPath: async () => 'C:\\Temp',
+      execCommand: async (cmd) => {
+        if (cmd.includes('TODO-Tools-Updater')) {
+          fsMem.set(JSON_KEY, JSON.stringify({
+            tag_name: 'v9.9.9',
+            body: 'notes',
+            assets: [
+              { name: 'todo-tools-win_x64.zip', size: 8, browser_download_url: 'https://example.com/pkg.zip' },
+              { name: 'todo-tools-win_x64.zip.sha256', size: 65, browser_download_url: 'https://example.com/pkg.sha256' }
+            ]
+          }));
+          return { exitCode: 0, stdOut: '', stdErr: '' };
+        }
+        if (cmd.includes('pkg.zip')) {
+          await new Promise(r => setTimeout(r, 100));
+          fsMem.set(ZIP_KEY, 'ZIPBYTES');
+          return { exitCode: 0, stdOut: '', stdErr: '' };
+        }
+        if (cmd.includes('pkg.sha256')) {
+          await new Promise(r => setTimeout(r, 1500));
+          /* 真实哈希：若取消守卫缺失，流程会一路走到 ready（竞态复现） */
+          fsMem.set(SHA_KEY, createHash('sha256').update('ZIPBYTES').digest('hex'));
+          return { exitCode: 0, stdOut: '', stdErr: '' };
+        }
+        if (cmd.includes('Expand-Archive')) {
+          fsMem.set(`${base}\\extracted\\todo-tools-win_x64.exe`, 'EXE');
+          fsMem.set(`${base}\\extracted\\resources.neu`, 'RES');
+        }
+        return { exitCode: 0, stdOut: '', stdErr: '' };
+      }
+    },
+    filesystem: {
+      createDirectory: async (p) => {
+        if (dirSet.has(p)) throw new Error('exists');
+        dirSet.add(p);
+      },
+      getStats: async (p) => {
+        if (fsMem.has(p)) return { size: String(fsMem.get(p)).length };
+        if (dirSet.has(p)) return { size: 0 };
+        throw new Error('missing');
+      },
+      readFile: async (p) => {
+        if (fsMem.has(p)) return fsMem.get(p);
+        throw new Error('missing');
+      },
+      readBinaryFile: async (p) => new TextEncoder().encode(fsMem.get(p) ?? ''),
+      writeFile: async (p, content) => { fsMem.set(p, content); },
+      remove: async (p) => { fsMem.delete(p); }
+    }
+  };
+  const verifyUpdater = createUpdater({ showToast: () => {} });
+  await verifyUpdater.checkForUpdates();
+  assert.equal(verifyUpdater.getState().phase, 'available');
+  const preparing = verifyUpdater.downloadAndPrepare();
+  preparing.then(() => {}, () => {});
+  await new Promise(r => setTimeout(r, 600));
+  assert.equal(verifyUpdater.cancelDownload(), true);
+  assert.equal(verifyUpdater.getState().phase, 'available');
+  /* 等待后台 sha 下载完成 + 校验流程走完：取消不得被覆盖 */
+  await new Promise(r => setTimeout(r, 2400));
+  assert.equal(verifyUpdater.getState().phase, 'available');
+  assert.equal(verifyUpdater.getState().version, '9.9.9');
+  delete globalThis.Neutralino;
+  delete globalThis.NL_PORT;
+}
 
 console.log('State checks passed');

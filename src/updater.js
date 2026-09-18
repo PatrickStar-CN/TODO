@@ -3,11 +3,14 @@
  * 流程：
  *  1. 设置页「检查更新」→ GET GitHub releases/latest，tag 与本地版本做 semver 比对
  *     （30s 超时；非版本号形态 tag 无法解析时保守判定为无更新）；
- *  2. 有新版 → 原生进程下载 zip（HttpWebRequest 优先、curl 兜底；GitHub 资产无 CORS 头，fetch 不可用）；
- *  3. SHA-256 校验（发布附带的 .sha256 asset）→ Expand-Archive 解压 → 核对文件大小；
- *  4. 写 pending.json、替换脚本（.ps1）与调度命令（.cmd），注册一次性计划任务后退出应用；
+ *  2. 有新版 → 原生进程下载 zip（HttpWebRequest 优先、curl 兜底且带总超时；
+ *     GitHub 资产无 CORS 头，fetch 不可用；下载支持逻辑取消，取消后回到可重试态）；
+ *  3. SHA-256 校验（发布附带的 .sha256 asset；取不到期望哈希则直接失败，绝不跳过）
+ *     → Expand-Archive 解压 → 核对文件大小；
+ *  4. 写 pending.json 与替换脚本（.ps1），注册一次性计划任务后退出应用;
  *  5. 计划任务（独立进程树，不随主进程回收）等主进程退出 → 备份 exe/resources.neu → 替换 → 拉起新版本；
- *  6. 下次启动自检：主 exe 缺失则用 .bak 恢复（自动回滚），就位则清理备份与标记。
+ *  6. 下次启动自检：按 pending.version 与运行版本比对判定成败——成功清理备份，
+ *     失败成对回滚（避免 exe 新 + res 旧混搭）并清理标记。
  *
  * 注：Neutralino 的 execCommand 子进程会随主进程退出被回收，替换不能依赖
  * 「退出后仍在运行的子进程」，故改用 Task Scheduler 托管的一次性任务。
@@ -26,7 +29,8 @@ import { isNeutralinoEnv } from './shared.js';
  *  返回 1（a 新）、0（相等或无法判定）、-1（b 新）。 */
 export function compareVersions(a, b) {
   const parse = (v) => {
-    const s = String(v ?? '').trim().replace(/^v/i, '');
+    /* semver 构建元数据（+ 后缀）不参与优先级比较 */
+    const s = String(v ?? '').trim().replace(/^v/i, '').split('+')[0];
     if (!s) return [];
     if (!/^\d/.test(s)) return null;
     return s.split(/[.-]/).map(p => (/^\d+$/.test(p) ? Number(p) : p));
@@ -58,6 +62,33 @@ const PENDING_NAME = 'pending.json';
 const SCRIPT_NAME = 'apply-update.ps1';
 const RES_NAME = 'resources.neu';
 
+/* PowerShell -EncodedCommand 编码：必须按 UTF-16LE 编码后 base64。
+ * 旧实现按 UTF-8 字节逐个补零，仅 ASCII 正确；TEMP 路径含 CJK（中文用户名）时会变成乱码，
+ * 导致计划任务注册出乱码 /TR。此处按码点遍历并正确处理代理对（emoji 等）。 */
+export function toEncodedCommand(ps) {
+  const units = [];
+  for (const ch of String(ps)) {
+    const cp = ch.codePointAt(0);
+    if (cp > 0xFFFF) {
+        const v = cp - 0x10000;
+        units.push((v >> 10) + 0xD800, (v & 0x3FF) + 0xDC00);
+    } else {
+      units.push(cp);
+    }
+  }
+  let bin = '';
+  for (const u of units) bin += String.fromCharCode(u & 0xFF, u >> 8);
+  return btoa(bin);
+}
+
+/* 计划任务 /TR 值：整体用单引号包裹以兼容含空格路径；路径内单引号按 PowerShell 规则双写转义。
+ * schtasks.exe 收到时外层单引号已由 PowerShell 去掉，内层双引号原样保留，
+ * 任务计划程序启动时 -File 参数可正确解析含空格/中文路径。 */
+export function buildUpdateTaskRun(scriptPath) {
+  const safe = String(scriptPath).replace(/'/g, "''");
+  return `powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "${safe}"`;
+}
+
 export function createUpdater({ showToast, appConfig = {} }) {
   const repo = appConfig.update?.repo || 'PatrickStar-CN/TODO';
   const binaryName = appConfig.binaryName || 'todo-tools';
@@ -78,6 +109,13 @@ export function createUpdater({ showToast, appConfig = {} }) {
 
   let state = { phase: 'idle' };
   let listeners = [];
+  /* 下载取消标记：execCommand 无中止接口，取消为逻辑取消——后台下载完成后丢弃结果并回到 available */
+  let cancelRequested = false;
+  const cancelledError = () => {
+    const err = new Error('已取消下载');
+    err.cancelled = true;
+    return err;
+  };
 
   const setState = (next) => {
     state = { ...state, ...next };
@@ -102,6 +140,22 @@ export function createUpdater({ showToast, appConfig = {} }) {
 
   const exists = async (p) => {
     try { await Neutralino.filesystem.getStats(p); return true; } catch { return false; }
+  };
+
+  /* 用备份恢复目标：move 优先（目标不存在时一次成功）；目标已存在导致 move 失败时，
+     先移除目标再恢复；两步都失败则保留现场并记日志，不让程序处于不可启动状态 */
+  const restoreBak = async (bak, target) => {
+    if (!(await exists(bak))) return;
+    try {
+      await Neutralino.filesystem.move(bak, target);
+      return;
+    } catch {}
+    try {
+      await removeFile(target);
+      await Neutralino.filesystem.move(bak, target);
+    } catch (e) {
+      console.warn('[updater] rollback failed:', e?.message || e);
+    }
   };
 
   /* Neutralino 新版 client 的文件删除 API：filesystem.remove(path)（无 recursive 参数） */
@@ -131,12 +185,12 @@ export function createUpdater({ showToast, appConfig = {} }) {
       `powershell -NoProfile -NonInteractive -Command "try { [System.Net.ServicePointManager]::SecurityProtocol=[System.Net.SecurityProtocolType]::Tls12; $req=[System.Net.WebRequest]::Create('${url}'); $req.Method='GET'; $req.Timeout=30000; $req.ReadWriteTimeout=30000; $req.Proxy=[System.Net.WebRequest]::GetSystemWebProxy(); $resp=$req.GetResponse(); $in=$resp.GetResponseStream(); $out=[System.IO.File]::Create('${dest}'); $in.CopyTo($out); $out.Close(); $in.Close(); $resp.Close() } catch { exit 1 }"`
     );
     if (r.exitCode === 0) return r;
-    console.warn('[updater] WebClient failed, fallback to curl:', r.stderr || r.exitCode);
+    console.warn('[updater] WebClient failed, fallback to curl:', r.stdErr || r.exitCode);
     await removeFile(dest);
     const curlLog = `${dest}.curl.log`;
     await removeFile(curlLog);
     r = await Neutralino.os.execCommand(
-      `curl.exe -sS -L --fail --retry 3 --connect-timeout 15 -o "${dest}" "${url}" > "${curlLog}" 2>&1`
+      `curl.exe -sS -L --fail --retry 3 --connect-timeout 15 --max-time 300 -o "${dest}" "${url}" > "${curlLog}" 2>&1`
     );
     if (r.exitCode !== 0) {
       const log = await Neutralino.filesystem.readFile(curlLog).catch(() => '');
@@ -146,14 +200,15 @@ export function createUpdater({ showToast, appConfig = {} }) {
   }
 
   /* 下载 zip 并轮询临时文件大小回传进度（exec 通道无进度事件，用文件大小近似）；
-     失败清理半文件并自动重试一次 */
+     失败清理半文件并自动重试一次；取消后丢弃结果回到 available */
   async function downloadWithProgress(url, dest, totalSize) {
     let lastErr = null;
     for (let attempt = 0; attempt <= 1; attempt++) {
+      if (cancelRequested) throw cancelledError();
       const task = downloadFileExec(url, dest);
       let stopped = false;
       const poll = (async () => {
-        while (!stopped) {
+        while (!stopped && !cancelRequested) {
           await new Promise(r => setTimeout(r, 400));
           try {
             const s = await Neutralino.filesystem.getStats(dest);
@@ -167,6 +222,7 @@ export function createUpdater({ showToast, appConfig = {} }) {
         await task;
         stopped = true;
         await poll;
+        if (cancelRequested) throw cancelledError();
         lastErr = null;
         break;
       } catch (e) {
@@ -174,9 +230,11 @@ export function createUpdater({ showToast, appConfig = {} }) {
         await poll;
         lastErr = e;
         await removeFile(dest);
+        if (e?.cancelled) break;
         if (attempt === 0) await new Promise(r => setTimeout(r, 800));
       }
     }
+    if (lastErr?.cancelled) throw lastErr;
     if (lastErr) throw new Error(`下载失败，请检查网络后重试（${lastErr?.message || lastErr}）`);
     const size = await fileSize(dest);
     if (totalSize > 0 && size !== totalSize) throw new Error('下载文件大小与发布记录不符');
@@ -227,7 +285,9 @@ export function createUpdater({ showToast, appConfig = {} }) {
         return data;
       } catch (e) {
         lastErr = e;
-        if (attempt === 0) await new Promise(r => setTimeout(r, 600));
+        /* HTTP 状态明确（404 无发布/403·429 限流/5xx）时重试无意义，仅网络异常与解析失败重试一次 */
+        if (e?.status || attempt > 0) break;
+        await new Promise(r => setTimeout(r, 600));
       }
     }
     throw lastErr;
@@ -269,6 +329,9 @@ export function createUpdater({ showToast, appConfig = {} }) {
   /** 下载 → 校验 → 解压 → 进入「可重启」就绪态 */
   async function downloadAndPrepare() {
     if (!isNeutralinoEnv() || state.phase !== 'available') return;
+    cancelRequested = false;
+    /* 取消/失败时恢复到可重试的 available 态，需保留版本与资产信息 */
+    const { version, body, assets } = state;
     try {
       const zipAsset = findAsset(ZIP_NAME);
       const shaAsset = findAsset(SHA256_NAME);
@@ -282,20 +345,23 @@ export function createUpdater({ showToast, appConfig = {} }) {
       await removeFile(shaPath);
       await removeTree(unzipDir);
 
-      setState({ phase: 'downloading', version: state.version, progress: 0 });
+      setState({ phase: 'downloading', version, progress: 0 });
       await downloadWithProgress(zipAsset.browser_download_url, zipPath, zipAsset.size || 0);
 
-      setState({ phase: 'downloading', version: state.version, progress: 0.99 });
+      setState({ phase: 'downloading', version, progress: 0.99 });
       try {
         await downloadFileExec(shaAsset.browser_download_url, shaPath);
       } catch (e) {
+        if (e?.cancelled) throw e;
         throw new Error(`下载校验文件失败（${e?.message || e}）`);
       }
 
-      setState({ phase: 'verifying', version: state.version });
+      setState({ phase: 'verifying', version });
       const expected = await readSha256Text(shaPath);
+      /* fail-closed：取不到期望哈希绝不跳过校验 */
+      if (!expected) throw new Error('校验文件格式异常（未找到 SHA-256 哈希），已停止替换');
       const actual = await sha256Of(zipPath);
-      if (expected && actual !== expected) throw new Error('更新包校验失败（SHA-256 不匹配），已停止替换');
+      if (actual !== expected) throw new Error('更新包校验失败（SHA-256 不匹配），已停止替换');
 
       const expand = await Neutralino.os.execCommand(
         `powershell -NoProfile -NonInteractive -Command "Expand-Archive -LiteralPath '${zipPath}' -DestinationPath '${unzipDir}' -Force"`
@@ -305,16 +371,32 @@ export function createUpdater({ showToast, appConfig = {} }) {
       const resSize = await fileSize(joinPath(unzipDir, RES_NAME));
       if (!exeSize || !resSize) throw new Error('更新包内容不完整');
 
-      setState({ phase: 'ready', version: state.version, progress: 1, dirs: { dir, unzipDir } });
+      /* 下载/校验段均可被取消：在进入 ready 前统一检查，避免取消后仍被覆盖为就绪态 */
+      if (cancelRequested) throw cancelledError();
+      setState({ phase: 'ready', version, progress: 1, dirs: { dir, unzipDir } });
     } catch (e) {
+      if (e?.cancelled) {
+        setState({ phase: 'available', version, body, assets: assets || [], error: null, notice: null, progress: 0 });
+        return;
+      }
       setState({ phase: 'failed', error: e?.message || '下载更新失败' });
     }
+  }
+
+  /** 取消下载：回到 available 可重试态；后台若仍在下载，完成时丢弃结果 */
+  function cancelDownload() {
+    if (state.phase !== 'downloading' && state.phase !== 'verifying') return false;
+    cancelRequested = true;
+    const { version, body, assets } = state;
+    setState({ phase: 'available', version, body, assets: assets || [], error: null, notice: null, progress: 0 });
+    return true;
   }
 
   /* 替换脚本：由计划任务以 -File 启动，$PSScriptRoot 即更新目录。
      参数从同目录 pending.json 读取（UTF-8，用 .NET ReadAllText 避免 PowerShell 5.1 按 ANSI 解码中文乱码），
      从而 schtasks /TR 只需一条短命令（/TR 值不能超过 261 字符）。
-     流程：等主进程退出 → 备份 → 复制（被锁重试）→ 拉起新版本；失败自动恢复备份；最后自删任务。 */
+     流程：等待主进程退出（独占打开探测，最长 20s；超时则继续，靠后续复制重试与回滚兜底）
+     → 备份 → 复制（被锁重试）→ 拉起新版本；失败自动恢复备份；最后自删任务。 */
   function buildApplyScript() {
     return [
       `$ErrorActionPreference = 'Stop'`,
@@ -333,6 +415,13 @@ export function createUpdater({ showToast, appConfig = {} }) {
       `  $bakRes = $resPath + '.bak'`,
       `  $newExe = Join-Path $newDir $exeName`,
       `  $newRes = Join-Path $newDir 'resources.neu'`,
+      `  for ($i = 0; $i -lt 20; $i++) {`,
+      `    try {`,
+      `      if (Test-Path -LiteralPath $exePath) { $t = [System.IO.File]::Open($exePath, 'Open', 'Read', 'None'); $t.Close() }`,
+      `      if (Test-Path -LiteralPath $resPath) { $t = [System.IO.File]::Open($resPath, 'Open', 'Read', 'None'); $t.Close() }`,
+      `      break`,
+      `    } catch { Start-Sleep -Seconds 1 }`,
+      `  }`,
       `  if (Test-Path -LiteralPath $exePath) { Move-Item -LiteralPath $exePath -Destination $bakExe -Force }`,
       `  if (Test-Path -LiteralPath $resPath) { Move-Item -LiteralPath $resPath -Destination $bakRes -Force }`,
       `  $copied = $false`,
@@ -362,15 +451,7 @@ export function createUpdater({ showToast, appConfig = {} }) {
     ].join('\r\n');
   }
 
-  /* PowerShell -EncodedCommand 编码（UTF-16LE base64），避免多层引号转义问题 */
-  const toEncodedCommand = (ps) => {
-    const bytes = new TextEncoder().encode(ps);
-    const u16 = new Uint8Array(bytes.length * 2);
-    for (let i = 0; i < bytes.length; i++) u16[i * 2] = bytes[i];
-    let bin = '';
-    for (let i = 0; i < u16.length; i++) bin += String.fromCharCode(u16[i]);
-    return btoa(bin);
-  };
+  /* PowerShell -EncodedCommand 编码与计划任务 /TR 构造见模块顶层 toEncodedCommand / buildUpdateTaskRun */
 
   /** 应用更新并退出重启：写标记与脚本 → 注册一次性计划任务 → 退出主进程。
       Neutralino 的 execCommand 子进程会随主进程退出被回收，替换必须由
@@ -400,23 +481,24 @@ export function createUpdater({ showToast, appConfig = {} }) {
          pending.json 自读，避免 .cmd 中转的中文编码与长命令超限问题。 */
       const startAt = new Date(Date.now() + 60000);
       const hhmm = `${String(startAt.getHours()).padStart(2, '0')}:${String(startAt.getMinutes()).padStart(2, '0')}`;
-      const tr = `powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ${scriptPath}`;
-      const innerCreate = `schtasks /Create /F /TN 'TODO-Tools-Update' /SC ONCE /ST ${hhmm} /TR ${tr}`;
+      const innerCreate = `schtasks /Create /F /TN 'TODO-Tools-Update' /SC ONCE /ST ${hhmm} /TR '${buildUpdateTaskRun(scriptPath)}'`;
       const r = await Neutralino.os.execCommand(
         `powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand ${toEncodedCommand(innerCreate)}`
       );
-      if (r.exitCode !== 0) throw new Error(`注册更新任务失败（${r.stderr || r.exitCode}）`);
+      if (r.exitCode !== 0) throw new Error(`注册更新任务失败（${r.stdErr || r.exitCode}）`);
       const innerRun = `schtasks /Run /TN 'TODO-Tools-Update'`;
-      await Neutralino.os.execCommand(
+      const runResult = await Neutralino.os.execCommand(
         `powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand ${toEncodedCommand(innerRun)}`
       );
+      /* /Run 失败必须抛错：否则应用退出后更新静默丢失 */
+      if (runResult.exitCode !== 0) throw new Error(`触发更新任务失败（${runResult.stdErr || runResult.exitCode}）`);
       await Neutralino.app.exit();
     } catch (e) {
       setState({ phase: 'failed', error: `启动更新失败：${e?.message || e}` });
     }
   }
 
-  /** 启动自检：处理上次更新残留（回滚或清理） */
+  /** 启动自检：按运行版本判定上次更新成败——成功清理备份，失败用备份成对回滚（避免 exe 新 + res 旧混搭） */
   async function checkPendingStartup() {
     if (!isNeutralinoEnv()) return;
     try {
@@ -424,24 +506,43 @@ export function createUpdater({ showToast, appConfig = {} }) {
       const pendingPath = joinPath(joinPath(temp, UPDATE_DIR_NAME), PENDING_NAME);
       const text = await Neutralino.filesystem.readFile(pendingPath).catch(() => '');
       if (!text) return;
-      const pending = JSON.parse(text);
-      if (!pending?.targetDir) return;
+      let pending = null;
+      try {
+        pending = JSON.parse(text);
+      } catch {
+        await removeFile(pendingPath);
+        return;
+      }
+      if (!pending?.targetDir) {
+        await removeFile(pendingPath);
+        return;
+      }
       const exePath = joinPath(pending.targetDir, pending.exeName || exeName);
       const bakExe = `${exePath}.bak`;
       const resPath = joinPath(pending.targetDir, RES_NAME);
       const bakRes = `${resPath}.bak`;
-      const exeExists = await exists(exePath);
       const bakExists = await exists(bakExe);
-      if (!exeExists && bakExists) {
-        /* 替换中断 → 恢复备份（自动回滚），资源文件同样恢复 */
-        await Neutralino.filesystem.move(bakExe, exePath);
-        if (await exists(bakRes)) {
-          await Neutralino.filesystem.move(bakRes, resPath);
+      let updated;
+      if (pending.version) {
+        /* pending.version 为替换后的目标版本：当前运行版本一致即成功 */
+        const running = await resolveCurrentVersion();
+        updated = running
+          ? running === String(pending.version).replace(/^v/i, '')
+          : await exists(exePath);
+      } else {
+        /* 旧格式标记：沿用以往规则（exe 缺失即失败） */
+        updated = await exists(exePath);
+      }
+      if (updated) {
+        /* 新版本已在运行 → 清理备份 */
+        if (bakExists) {
+          await removeFile(bakExe);
+          await removeFile(bakRes);
         }
-      } else if (exeExists && bakExists) {
-        /* 新版本已就位 → 清理备份 */
-        await removeFile(bakExe);
-        await removeFile(bakRes);
+      } else if (bakExists) {
+        /* 更新未生效 → 成对恢复备份 */
+        await restoreBak(bakExe, exePath);
+        await restoreBak(bakRes, resPath);
       }
       await removeFile(pendingPath);
     } catch { /* 自检失败不阻塞启动 */ }
@@ -461,6 +562,7 @@ export function createUpdater({ showToast, appConfig = {} }) {
     },
     checkForUpdates,
     downloadAndPrepare,
+    cancelDownload,
     applyUpdate,
     checkPendingStartup
   };
