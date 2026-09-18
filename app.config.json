@@ -4,6 +4,9 @@
   "author": "Patrick",
   "copyright": "Copyright © 2026 Patrick",
   "binaryName": "todo-tools",
+  "update": {
+    "repo": "PatrickStar-CN/TODO"
+  },
   "windowTitle": "TODO",
   "windowWidth": 1100,
   "windowHeight": 700,

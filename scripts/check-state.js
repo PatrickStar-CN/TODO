@@ -9,7 +9,7 @@ import { encrypt, initCrypto, tryDecrypt } from '../src/utils/crypto.js';
 import { escapeAttr, escapeHtml } from '../src/utils/html.js';
 import { parseLocalDateInput, toLocalDateInput, toLocalDatetime, isToday } from '../src/utils/date.js';
 import { computeCollapsedY, easeOutCubic, isNearScreenTop } from '../src/miniSnap.js';
-import { compareVersions } from '../src/updater.js';
+import { compareVersions, createUpdater } from '../src/updater.js';
 import { getNextTagDotStyle, getTagTaskCount } from '../src/shared.js';
 import { resolveAiApiUrl } from '../src/utils/aiApi.js';
 import { DEFAULT_TIMELINE_SETTINGS, formatTimelineTime, getTimelineDateParts, normalizeTimelineSettings, sortTimelineTodos } from '../src/timeline.js';
@@ -369,5 +369,22 @@ assert.ok(/export function setDatePickerValue/.test(datePickerSource), 'datePick
 const appSource = readFileSync(path.join(__dirname, '../src/app.js'), 'utf8');
 assert.ok(/function saveDetailForm\s*\(\)\s*\{[\s\S]*?runtimeIndex\.update\(todo,\s*patch\)[\s\S]*?saveData\(\)/.test(appSource), 'app.js 应提供 saveDetailForm 统一保存详情改动');
 assert.ok(/onBeforeDetailClose:\s*\(\)\s*=>\s*\{[\s\S]*?saveDetailForm\(\)/.test(appSource), 'app.js 应在 onBeforeDetailClose 中调用 saveDetailForm');
+
+/* 设置-系统-检测更新：仓库可配置、版本号解析与已是最新时的版本展示 */
+assert.equal(createUpdater({}).getRepo(), 'PatrickStar-CN/TODO');
+assert.equal(createUpdater({ appConfig: { update: { repo: 'owner/repo' } } }).getRepo(), 'owner/repo');
+assert.equal(createUpdater({ appConfig: { version: 'v1.2.3' } }).getCurrentVersion(), '1.2.3');
+globalThis.Neutralino = { app: { getConfig: async () => ({ version: '1.2.1' }) } };
+const versionUpdater = createUpdater({});
+assert.equal(await versionUpdater.resolveCurrentVersion(), '1.2.1');
+assert.equal(versionUpdater.getCurrentVersion(), '1.2.1');
+delete globalThis.Neutralino;
+const updaterSource = readFileSync(path.join(__dirname, '../src/updater.js'), 'utf8');
+assert.ok(/version:\s*cur\s*\|\|\s*latest/.test(updaterSource), 'updater.js 已是最新时应展示本地版本（cur || latest）');
+const settingsSource = readFileSync(path.join(__dirname, '../src/settings.js'), 'utf8');
+assert.ok(/resolveCurrentVersion/.test(settingsSource), 'settings.js 打开系统面板时应主动解析本地版本');
+assert.ok(/aria-busy/.test(settingsSource), 'settings.js 更新按钮应提供 aria-busy 忙碌状态');
+const appConfig = JSON.parse(readFileSync(path.join(__dirname, '../app.config.json'), 'utf-8'));
+assert.equal(appConfig.update?.repo, 'PatrickStar-CN/TODO');
 
 console.log('State checks passed');

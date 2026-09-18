@@ -241,19 +241,21 @@ export function createUpdater({ showToast, appConfig = {} }) {
     }
     if (state.phase === 'checking' || state.phase === 'downloading' || state.phase === 'verifying') return;
     setState({ phase: 'checking', error: null, notice: null, version: null, body: '', progress: 0, assets: null });
+    /* 先解析本地版本：404 等失败分支也要能展示当前版本，而不是空 */
+    const cur = await resolveCurrentVersion();
     try {
       const release = await fetchJson(`https://api.github.com/repos/${repo}/releases/latest`);
-      const cur = await resolveCurrentVersion();
       const latest = String(release.tag_name || '').replace(/^v/i, '');
       if (!latest || compareVersions(latest, cur) <= 0) {
-        setState({ phase: 'latest', version: latest || cur });
+        /* 本地已是最新（或本地更新）时展示本地版本，避免误显示远端旧版本号 */
+        setState({ phase: 'latest', version: cur || latest });
         return;
       }
       setState({ phase: 'available', version: latest, body: release.body || '', assets: release.assets || [] });
     } catch (e) {
       if (e?.status === 404) {
         /* 仓库从未创建 Release（仅有 git tag）→ 无发布版本，而非网络故障 */
-        setState({ phase: 'latest', version: currentVersion, notice: 'GitHub 上暂无已发布版本，发布后再检查更新' });
+        setState({ phase: 'latest', version: cur || currentVersion, notice: 'GitHub 上暂无已发布版本，发布后再检查更新' });
       } else if (e?.status === 403 || e?.status === 429) {
         setState({ phase: 'failed', error: `检查更新失败：GitHub 接口限流（HTTP ${e.status}），请稍后再试` });
       } else if (e?.status) {
@@ -448,6 +450,8 @@ export function createUpdater({ showToast, appConfig = {} }) {
   return {
     getState: () => state,
     getCurrentVersion: () => currentVersion,
+    resolveCurrentVersion,
+    getRepo: () => repo,
     isAvailable: () => isNeutralinoEnv(),
     onStatus: (cb) => {
       listeners.push(cb);

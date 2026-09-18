@@ -2,7 +2,7 @@
 
 TODO Tools 是一个使用原生 JavaScript、CSS 和 HTML 构建的轻量待办事项工具。项目通过 Vite 提供 Web 开发环境，并使用 Neutralinojs 打包 Windows 桌面应用，不依赖前端框架。
 
-当前版本：`1.2.0`
+当前版本：`1.2.1`
 
 ## 功能概览
 
@@ -259,7 +259,7 @@ npm run release -- 1.2.0
 - `release/todo-tools-win_x64.zip`：包含 exe 与 `resources.neu` 的发布包
 - `release/todo-tools-win_x64.zip.sha256`：发布包的 SHA-256 校验文件
 
-随后执行脚本输出的 `gh release create v1.2.0 ...` 命令创建 GitHub Release，tag 为 `v<版本号>`。桌面端「系统 → 软件更新」通过 `releases/latest` 检查新版本，下载 zip 后按 `.sha256` 校验，通过后只替换 exe 与 `resources.neu` 两个白名单文件，失败时用 `.bak` 备份自动回滚。仓库无已发布版本（404）、接口限流（403/429）和网络异常会分别给出明确提示。
+随后执行脚本输出的 `gh release create v1.2.0 ...` 命令创建 GitHub Release，tag 为 `v<版本号>`。桌面端「系统 → 软件更新」通过 `releases/latest` 检查新版本，下载 zip 后按 `.sha256` 校验，通过后只替换 exe 与 `resources.neu` 两个白名单文件，失败时用 `.bak` 备份自动回滚。仓库无已发布版本（404）、接口限流（403/429）和网络异常会分别给出明确提示。检查的仓库默认为 `PatrickStar-CN/TODO`，可在 `app.config.json` 的 `update.repo` 中覆盖。
 
 ### 窗口配置
 

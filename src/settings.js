@@ -456,8 +456,11 @@ function renderUpdateStatus(overlay, s) {
   btnCheck.classList.toggle('hidden', s.phase === 'checking' || s.phase === 'downloading' || s.phase === 'verifying');
   btnDownload.classList.toggle('hidden', s.phase !== 'available');
   btnRestart.classList.toggle('hidden', s.phase !== 'ready');
-  btnCheck.disabled = s.phase === 'checking';
-  btnDownload.disabled = s.phase === 'downloading' || s.phase === 'verifying';
+  const busy = s.phase === 'checking' || s.phase === 'downloading' || s.phase === 'verifying';
+  btnCheck.disabled = busy;
+  btnDownload.disabled = busy;
+  btnCheck.setAttribute('aria-busy', String(s.phase === 'checking'));
+  btnDownload.setAttribute('aria-busy', String(s.phase === 'downloading' || s.phase === 'verifying'));
 
   if (s.error) {
     statusArea.innerHTML = `<span class="update-status-error">${escapeHtml(s.error)}</span>`;
@@ -486,8 +489,14 @@ function renderUpdateStatus(overlay, s) {
 
 function bindUpdateControls(overlay) {
   const versionEl = overlay.querySelector('#update-current-version');
-  if (versionEl) {
+  const refreshVersion = () => {
+    if (!versionEl || !overlay.isConnected) return;
     versionEl.textContent = updater && updater.isAvailable() ? `v${updater.getCurrentVersion() || '?'}` : '—';
+  };
+  refreshVersion();
+  /* 打开面板时即解析本地版本（Neutralino.app.getConfig 异步），避免一直显示 v? 直到首次检查 */
+  if (updater?.resolveCurrentVersion) {
+    updater.resolveCurrentVersion().then(refreshVersion).catch(() => {});
   }
   const btnCheck = overlay.querySelector('#btn-check-update');
   const btnDownload = overlay.querySelector('#btn-download-update');
@@ -509,10 +518,9 @@ function bindUpdateControls(overlay) {
 
   btnCheck?.addEventListener('click', () => updater.checkForUpdates());
   btnDownload?.addEventListener('click', () => {
-    btnDownload.disabled = true;
+    /* 禁用态由 updater 状态机驱动（renderUpdateStatus），此处不手动置灰，避免失败后无法恢复 */
     updater.downloadAndPrepare().catch(e => {
       console.warn('[updater] download failed:', e);
-      if (statusArea) statusArea.textContent = `下载更新失败：${e?.message || e}`;
     });
   });
   btnRestart?.addEventListener('click', () => {
