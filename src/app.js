@@ -7,7 +7,7 @@ import { showContextMenu, closeContextMenu } from './contextMenu.js';
 import { buildTodoContextMenu, buildTagContextMenu, buildNavContextMenu, buildListAreaMenu } from './contextMenuConfig.js';
 import { createTodoItemEl } from './renderTodoItem.js';
 import { formatTimelineTime, getTimelineDateParts, normalizeTimelineSettings, sortTimelineTodos } from './timeline.js';
-import { renderCalendar as _renderCalendar, getTodosForDate as _getTodosForDate, renderCalendarDetail as _renderCalendarDetail, buildMonthIndex } from './calendar.js';
+import { renderCalendar as _renderCalendar, getTodosForDate as _getTodosForDate, renderCalendarDetail as _renderCalendarDetail, buildMonthIndex, MONTH_TODOS_PAGE_SIZE } from './calendar.js';
 import { openDetail as _openDetail, closeDetail, initDetailEditor } from './detail.js';
 import { createOverlay, closeOverlay, showConfirmDialog } from './overlay.js';
 import { applyTheme } from './theme.js';
@@ -282,6 +282,9 @@ let currentList = 'todo';
 let currentTag = null;
 let selectedDate = null;
 let calendarMode = 'month';
+let calendarDetailMode = 'day';
+let visibleMonthCount = MONTH_TODOS_PAGE_SIZE;
+let monthLoadFrame = null;
 let chartCollapsed = false;
 let currentMonth = new Date();
 let doneCollapsed = true;
@@ -864,8 +867,8 @@ function appendTodoItems(container, todos) {
   container.appendChild(fragment);
 }
 
-function renderTodoItem(t) {
-  return createTodoItemEl(t, { currentList, tags: data.tags });
+function renderTodoItem(t, opts = {}) {
+  return createTodoItemEl(t, { currentList, tags: data.tags, ...opts });
 }
 
 function createTimelineGroupRow(level, label) {
@@ -943,6 +946,7 @@ function renderCalendar() {
   const monthIndex = monthIndexCache.index;
   _renderCalendar({ currentMonth, selectedDate, data, getTodosForDate, onDetailRender: renderCalendarDetail, mode: calendarMode }, monthIndex);
   syncCalendarViewState();
+  attachMonthScrollListener();
 }
 
 function syncCalendarViewState() {
@@ -979,6 +983,7 @@ function syncCalendarViewState() {
 function setCalendarMode(mode) {
   if (!['month', 'tasks', 'completed'].includes(mode)) return;
   calendarMode = mode;
+  resetVisibleMonthCount();
   syncCalendarViewState();
 }
 
@@ -991,8 +996,52 @@ function getTodosForDate(date) {
   return _getTodosForDate(date, data);
 }
 
+function resetVisibleMonthCount() {
+  visibleMonthCount = MONTH_TODOS_PAGE_SIZE;
+}
+
+function getCalendarDetailScroll() {
+  return document.querySelector('#calendar-detail .calendar-detail-scroll');
+}
+
+function attachMonthScrollListener() {
+  const scroller = getCalendarDetailScroll();
+  if (!scroller) return;
+  scroller.onscroll = () => {
+    if (monthLoadFrame) return;
+    monthLoadFrame = requestAnimationFrame(() => {
+      monthLoadFrame = null;
+      loadMoreMonthIfNeeded(scroller);
+    });
+  };
+}
+
+function refreshCalendarDetail({ preserveScroll = false } = {}) {
+  const scroller = getCalendarDetailScroll();
+  const top = preserveScroll ? (scroller?.scrollTop || 0) : 0;
+  const left = preserveScroll ? (scroller?.scrollLeft || 0) : 0;
+  renderCalendarDetail(monthIndexCache.index);
+  const next = getCalendarDetailScroll();
+  if (next && preserveScroll) {
+    next.scrollTop = top;
+    next.scrollLeft = left;
+  }
+  attachMonthScrollListener();
+}
+
+function loadMoreMonthIfNeeded(scrollEl = null) {
+  if (calendarDetailMode !== 'month') return;
+  const detail = document.getElementById('calendar-detail');
+  const total = Number(detail?.dataset.monthTotal || 0);
+  const rendered = Number(detail?.dataset.monthRendered || 0);
+  if (!total || rendered >= total) return;
+  if (scrollEl && !isNearScrollBottom(scrollEl)) return;
+  visibleMonthCount = Math.min(total, visibleMonthCount + MONTH_TODOS_PAGE_SIZE);
+  refreshCalendarDetail({ preserveScroll: true });
+}
+
 function renderCalendarDetail(monthIndex) {
-  _renderCalendarDetail({ selectedDate, data, renderTodoItem, mode: calendarMode }, monthIndex);
+  _renderCalendarDetail({ selectedDate, data, renderTodoItem, mode: calendarMode, detailView: calendarDetailMode, monthDate: currentMonth, visibleMonthCount }, monthIndex);
 }
 
 function showMonthPicker(currentMonth, onConfirm) {
@@ -1615,6 +1664,7 @@ export async function initApp() {
       currentMonth.setFullYear(currentMonth.getFullYear() - 1);
     }
     selectedDate = null;
+    resetVisibleMonthCount();
     renderCalendar();
   });
 
@@ -1625,6 +1675,7 @@ export async function initApp() {
       currentMonth.setFullYear(currentMonth.getFullYear() + 1);
     }
     selectedDate = null;
+    resetVisibleMonthCount();
     renderCalendar();
   });
 
@@ -1632,6 +1683,7 @@ export async function initApp() {
     const today = new Date();
     currentMonth = new Date(today.getFullYear(), today.getMonth(), 1);
     selectedDate = today;
+    resetVisibleMonthCount();
     renderCalendar();
   });
 
@@ -1639,8 +1691,36 @@ export async function initApp() {
     showMonthPicker(currentMonth, (year, month) => {
       currentMonth = new Date(year, month, 1);
       selectedDate = null;
+      resetVisibleMonthCount();
       renderCalendar();
     });
+  });
+
+  document.getElementById('calendar-detail').addEventListener('click', (e) => {
+    const switchBtn = e.target.closest('[data-detail-view]');
+    if (switchBtn) {
+      const view = switchBtn.dataset.detailView === 'month' ? 'month' : 'day';
+      if (view !== calendarDetailMode) {
+        calendarDetailMode = view;
+        resetVisibleMonthCount();
+        refreshCalendarDetail();
+      }
+      return;
+    }
+    if (e.target.closest('[data-action="load-more-month"]')) {
+      loadMoreMonthIfNeeded();
+      return;
+    }
+    const jump = e.target.closest('[data-jump-date]');
+    if (jump?.dataset.jumpDate) {
+      const parsed = parseLocalDateInput(jump.dataset.jumpDate);
+      if (!parsed) return;
+      selectedDate = parsed;
+      calendarDetailMode = 'day';
+      currentMonth = new Date(parsed.getFullYear(), parsed.getMonth(), 1);
+      resetVisibleMonthCount();
+      renderCalendar();
+    }
   });
 
   calendarDays.addEventListener('click', (e) => {

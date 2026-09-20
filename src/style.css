@@ -1354,6 +1354,11 @@ body::before {
   color: var(--text-muted);
 }
 
+.badge-span {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent-text);
+}
+
 .badge-tag {
   /* 用 rgba + CSS 变量控制 alpha，避免 backdrop-filter 在父级 hover 时
      重新采样玻璃背景形成"半浅色块"残留。
@@ -3155,18 +3160,292 @@ body::before {
   overflow: hidden;
 }
 
-.calendar-detail h3 {
+.calendar-detail-header {
   flex: none;
-  font-size: 13px;
-  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
   min-height: 44px;
   margin: 0;
-  padding: 12px 16px;
+  padding: 8px 12px 8px 16px;
   background: color-mix(in srgb, var(--glass-surface-strong) 90%, transparent);
   backdrop-filter: blur(var(--ui-glass-blur-light)) saturate(125%);
   -webkit-backdrop-filter: blur(var(--ui-glass-blur-light)) saturate(125%);
   border-bottom: 1px solid var(--glass-divider);
   box-sizing: border-box;
+}
+
+.calendar-detail-header h3 {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-bottom: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.calendar-detail-header h3 small.calendar-detail-sub {
+  margin-left: 6px;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.calendar-detail-switch {
+  display: flex;
+  flex: none;
+  gap: 4px;
+}
+
+.calendar-detail-switch-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--ui-radius-xs);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background var(--motion-normal), color var(--motion-normal), border-color var(--motion-normal);
+}
+
+.detail-switch-icon {
+  width: 13px;
+  height: 13px;
+}
+
+.calendar-detail-switch-btn.active {
+  color: var(--accent-text);
+  background: color-mix(in srgb, var(--accent) 18%, var(--glass-control-bg));
+  border-color: color-mix(in srgb, var(--accent) 46%, transparent);
+  box-shadow: var(--glass-control-shadow);
+}
+
+.calendar-detail-switch-btn:hover:not(.active) {
+  color: var(--text-primary);
+  background: var(--glass-control-bg-hover);
+  border-color: var(--glass-control-border-hover);
+}
+
+.calendar-detail-switch-btn:focus-visible {
+  outline: none;
+  border-color: var(--text-secondary);
+}
+
+.calendar-month-list {
+  padding: 10px 12px 0;
+}
+
+.calendar-month-group {
+  margin-bottom: 10px;
+}
+
+.calendar-month-group:last-child {
+  margin-bottom: 0;
+}
+
+.calendar-month-group-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: calc(100% + 24px);
+  margin-left: -12px;
+  padding: 5px 18px 5px 16px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--glass-surface-strong) 55%, transparent);
+  backdrop-filter: blur(var(--ui-glass-blur-light)) saturate(125%);
+  -webkit-backdrop-filter: blur(var(--ui-glass-blur-light)) saturate(125%);
+  border: none;
+  border-radius: 0;
+  cursor: pointer;
+  text-align: left;
+  transition: color var(--motion-normal);
+}
+
+.calendar-month-group-header:hover:not(:disabled) {
+  color: var(--text-primary);
+}
+
+.calendar-month-group-header:hover:not(:disabled) .month-group-jump-icon {
+  color: var(--accent-text);
+}
+
+.calendar-month-group-header:focus-visible {
+  outline: none;
+  color: var(--text-primary);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.calendar-month-group-header:disabled {
+  cursor: default;
+}
+
+.calendar-month-group.is-today .month-group-date::before {
+  background: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.calendar-month-group-header.is-complete .month-group-count {
+  color: var(--success);
+}
+
+.month-group-date {
+  position: relative;
+  display: flex;
+  flex: 1;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  padding-left: 12px;
+}
+
+.month-group-date::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 55%, var(--glass-surface-strong));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 12%, transparent);
+  transform: translateY(-50%);
+}
+
+.month-group-date strong {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.month-group-date > span {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.month-group-today {
+  font-size: 11px;
+  color: var(--accent-text);
+  white-space: nowrap;
+}
+
+.month-group-count {
+  flex: none;
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.month-group-jump-icon {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  color: var(--text-muted);
+  transition: color var(--motion-normal);
+}
+
+.calendar-month-group .calendar-todo-list {
+  padding: 6px 0 0;
+  overflow: visible;
+}
+
+.calendar-month-group .calendar-todo-list .todo-item {
+  margin-bottom: 6px;
+  padding: 10px 14px;
+}
+
+.calendar-month-group .calendar-todo-list .todo-item:last-child {
+  margin-bottom: 0;
+}
+
+.calendar-month-sentinel {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  padding: 10px 12px 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.calendar-month-sentinel.is-complete {
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+}
+
+.month-sentinel-icon {
+  width: 14px;
+  height: 14px;
+  color: var(--accent-text);
+}
+
+.calendar-month-progress {
+  height: 4px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--text-muted) 22%, transparent);
+  border-radius: var(--ui-radius-xs);
+}
+
+.calendar-month-progress i {
+  display: block;
+  height: 100%;
+  background: color-mix(in srgb, var(--accent) 65%, transparent);
+  border-radius: var(--ui-radius-xs);
+  transition: width var(--motion-normal);
+}
+
+.calendar-month-more {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+}
+
+.month-more-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.calendar-month-empty,
+.calendar-detail-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 28px 16px;
+  text-align: center;
+}
+
+.month-empty-icon,
+.detail-empty-icon {
+  width: 28px;
+  height: 28px;
+  color: var(--text-muted);
+}
+
+.calendar-month-empty .empty-state-hint,
+.calendar-detail-empty .empty-state-hint {
+  padding: 0;
 }
 
 .calendar-detail-scroll {
@@ -3194,7 +3473,8 @@ body::before {
   margin-bottom: 0;
 }
 
-.calendar-todo-list.date-entering {
+.calendar-todo-list.date-entering,
+.calendar-month-list.date-entering {
   animation: calendarTodoListEnter var(--motion-panel);
   transform-origin: center top;
 }
@@ -3211,7 +3491,8 @@ body::before {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .calendar-todo-list.date-entering {
+  .calendar-todo-list.date-entering,
+  .calendar-month-list.date-entering {
     animation: none;
   }
 }
@@ -5817,12 +6098,21 @@ html.mini-snap-collapsed .mini-resize-handle {
   left: 50%;
   z-index: 2;
   display: block;
-  width: 8px;
+  width: 6px;
   height: 2px;
   border-radius: 999px;
   background: var(--accent);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
   transform: translateX(-50%);
+}
+
+.calendar-container[data-calendar-mode="month"] .calendar-task-marker[data-count-tier="2"] {
+  width: 12px;
+}
+
+.calendar-container[data-calendar-mode="month"] .calendar-task-marker[data-count-tier="3"] {
+  width: 18px;
+  height: 3px;
 }
 
 .calendar-container[data-calendar-mode="month"] .calendar-day.has-completed::after {

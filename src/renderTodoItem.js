@@ -8,7 +8,7 @@ function setIconLabel(element, iconName, label) {
   if (label) element.appendChild(document.createTextNode(label));
 }
 
-export function createTodoItemEl(t, { currentList, tags }) {
+export function createTodoItemEl(t, { currentList, tags, spanText = '' }) {
   const item = document.createElement('div');
   item.className = 'todo-item' + (t.done ? ' done' : '') + (t.archived ? ' archived' : '');
   item.dataset.id = t.id;
@@ -35,7 +35,7 @@ export function createTodoItemEl(t, { currentList, tags }) {
   title.textContent = t.title;
   body.appendChild(title);
 
-  const badges = buildBadges(t, tags, currentList);
+  const badges = buildBadges(t, tags, currentList, spanText);
   if (badges) body.appendChild(badges);
 
   item.appendChild(body);
@@ -63,7 +63,7 @@ export function createTodoItemEl(t, { currentList, tags }) {
   return item;
 }
 
-function buildBadges(t, tags, currentList) {
+function buildBadges(t, tags, currentList, spanText = '') {
   const meta = document.createElement('div');
   meta.className = 'todo-meta';
   let count = 0;
@@ -83,6 +83,15 @@ function buildBadges(t, tags, currentList) {
       meta.appendChild(badge);
       count++;
     }
+  }
+
+  /* 跨天任务在整月分组中的“持续至”提示，由调用方按分组日期计算传入 */
+  if (spanText) {
+    const badge = document.createElement('span');
+    badge.className = 'badge badge-span';
+    setIconLabel(badge, 'calendar-range', spanText);
+    meta.appendChild(badge);
+    count++;
   }
 
   if (t.tag) {

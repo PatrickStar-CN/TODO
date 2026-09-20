@@ -2,12 +2,12 @@ import assert from 'node:assert/strict';
 import { webcrypto, createHash } from 'node:crypto';
 import { countByList, countTagUndone, getFilteredTodos, sortByPriority, splitPendingDone } from '../src/selectors.js';
 import { DEFAULT_UI_STYLE, normalizeUiStyle } from '../src/uiPreferences.js';
-import { buildMonthActivityIndex, buildYearCompletionIndex, buildYearTaskIndex, getCompletedTodosForDate, getTaskTodosForDate } from '../src/calendar.js';
+import { buildMonthActivityIndex, buildYearCompletionIndex, buildYearTaskIndex, getCompletedTodosForDate, getMonthTodos, getTaskTodosForDate, groupMonthTodos, paginateList, MONTH_TODOS_PAGE_SIZE } from '../src/calendar.js';
 import { initReminders, computeNextMonthlyReminder } from '../src/reminder.js';
 import { createRuntimeIndex } from '../src/runtimeIndex.js';
 import { encrypt, initCrypto, tryDecrypt } from '../src/utils/crypto.js';
 import { escapeAttr, escapeHtml } from '../src/utils/html.js';
-import { parseLocalDateInput, toLocalDateInput, toLocalDatetime, isToday } from '../src/utils/date.js';
+import { parseLocalDateInput, toLocalDateInput, toLocalDatetime, isToday, getMonthRange } from '../src/utils/date.js';
 import { animateWindowRect, cancelWindowRectAnimation, centerRect, computeCollapsedY, easeOutCubic, ensureDisplayHz, framesPerApply, isNearScreenTop, rectAt, WINDOW_ANIM_MAX_HZ } from '../src/miniSnap.js';
 import { buildCurlProxyPs, buildDownloadCurlPs, buildDownloadWebRequestPs, buildFetchCurlPs, buildFetchWebRequestPs, buildProxyAssignPs, buildTlsPs, buildUpdateTaskRun, compareVersions, createUpdater, normalizeTargetDir, psQuote, sanitizeNetDetail, toEncodedCommand } from '../src/updater.js';
 import { getNextTagDotStyle, getTagTaskCount } from '../src/shared.js';
@@ -242,6 +242,64 @@ const completedOnDate = getCompletedTodosForDate(new Date(2026, 1, 3), {
 });
 assert.deepEqual(completedOnDate.map(todo => todo.id), ['done-morning', 'done-evening']);
 
+/* 整月任务：复用日历覆盖规则去重聚合；完成模式按 doneAt 落月 */
+{
+  const monthData = {
+    todos: [
+      { id: 'span', createdAt: '2026-09-01T08:00:00', startTime: '2026-08-28T08:00:00', endTime: '2026-09-02T10:00:00' },
+      { id: 'single', createdAt: '2026-09-10T08:00:00', startTime: '2026-09-10T08:00:00' },
+      { id: 'other-month', createdAt: '2026-10-01T08:00:00' },
+      { id: 'done-sep', createdAt: '2026-09-01T08:00:00', doneAt: '2026-09-15T10:00:00' },
+      { id: 'done-oct', createdAt: '2026-09-01T08:00:00', doneAt: '2026-10-01T10:00:00' },
+      { id: 'invalid', createdAt: 'invalid', doneAt: null }
+    ]
+  };
+  /* 跨月覆盖任务计入 9 月一次，且按落在本月首日分组，不显示上月组头 */
+  const sept = getMonthTodos(2026, 8, monthData, 'month');
+  assert.deepEqual(sept.map(t => t.id), ['span', 'single', 'done-sep']);
+  const groups = groupMonthTodos(sept, 'month', 2026, 8);
+  assert.ok(groups.every(g => g.key >= '2026-09-01' && g.key < '2026-10-01'), '整月分组键必须落在当月');
+  assert.equal(groups[0].key, '2026-09-01');
+  /* 完成模式只收 doneAt 落月 */
+  assert.deepEqual(getMonthTodos(2026, 8, monthData, 'completed').map(t => t.id), ['done-sep']);
+  assert.deepEqual(getMonthTodos(2026, 9, monthData, 'completed').map(t => t.id), ['done-oct']);
+  /* 与单日规则一致：整月集合 = 各单日并集（去重） */
+  const union = new Set();
+  for (let d = 1; d <= 30; d++) {
+    getTaskTodosForDate(new Date(2026, 8, d), monthData).forEach(t => union.add(t.id));
+  }
+  assert.deepEqual([...union].sort(), ['done-sep', 'single', 'span']);
+}
+
+/* 整月增量加载：按任务项切片，边界安全 */
+{
+  assert.equal(MONTH_TODOS_PAGE_SIZE, 25);
+  const list = Array.from({ length: 60 }, (_, i) => ({ id: `t${i}` }));
+  assert.equal(paginateList(list, 25).length, 25);
+  assert.equal(paginateList(list, 25)[24].id, 't24');
+  assert.equal(paginateList(list, 200).length, 60);
+  assert.deepEqual(paginateList(list, 0), []);
+  assert.deepEqual(paginateList(null, 25), []);
+}
+
+/* AI 月报：自然月范围（月中任一天归属本月、12 月跨年、闰年 2 月） */
+{
+  const sept = getMonthRange(new Date(2026, 8, 15));
+  assert.equal(sept.startDate.getFullYear(), 2026);
+  assert.equal(sept.startDate.getMonth(), 8);
+  assert.equal(sept.startDate.getDate(), 1);
+  assert.equal(sept.endDate.getFullYear(), 2026);
+  assert.equal(sept.endDate.getMonth(), 9);
+  assert.equal(sept.endDate.getDate(), 1);
+  assert.equal(sept.rangeLabel, '9/1 ~ 9/30');
+  const dec = getMonthRange(new Date(2026, 11, 5));
+  assert.equal(dec.endDate.getFullYear(), 2027);
+  assert.equal(dec.endDate.getMonth(), 0);
+  assert.equal(dec.rangeLabel, '12/1 ~ 12/31');
+  const feb = getMonthRange(new Date(2024, 1, 10));
+  assert.equal(feb.rangeLabel, '2/1 ~ 2/29');
+}
+
 const indexedData = {
   todos: [
     { id: 'a', title: 'Write report', desc: 'Quarterly', tag: 'work', todo: true, important: false, done: false, archived: false, createdAt: 1 },
@@ -389,6 +447,39 @@ assert.ok(/onBeforeDetailClose:\s*\(\)\s*=>\s*\{[\s\S]*?saveDetailForm\(\)/.test
 assert.ok(!/visibleTags/.test(appSource), 'app.js 侧栏不得再按 undone 过滤标签，应显示所有标签');
 assert.ok(/countTagUndone\(data,\s*tag\)/.test(appSource), 'app.js 侧栏应使用 countTagUndone 计算待完成数量');
 assert.ok(!/\$\{stats\.undone\}\/\$\{stats\.total\}/.test(appSource), 'app.js 侧栏标签计数不得再渲染 待完成/总数 双计数');
+/* 日历整月入口：详情区日/月切换、按月增量加载、组头跳天 */
+{
+  const calendarSource = readFileSync(path.join(__dirname, '../src/calendar.js'), 'utf8');
+  assert.ok(/data-detail-view/.test(calendarSource), 'calendar.js 详情区应提供 按天/按月 切换入口');
+  assert.ok(/getMonthTodos/.test(calendarSource), 'calendar.js 应提供整月聚合 getMonthTodos');
+  assert.ok(/data-action="load-more-month"/.test(calendarSource), 'calendar.js 整月列表应提供加载更多入口');
+  assert.ok(/jumpDate/.test(calendarSource), 'calendar.js 整月分组头应支持跳回单日');
+  assert.ok(/month-group-date/.test(calendarSource), 'calendar.js 整月分组头应包含日期与计数展示结构');
+  assert.ok(/calendar-month-progress/.test(calendarSource), 'calendar.js 整月底部应展示加载进度');
+  assert.ok(/month-group-today/.test(calendarSource), 'calendar.js 当天分组应有今天标记');
+  assert.ok(/is-complete/.test(calendarSource), 'calendar.js 整组完成时应有完成态样式');
+  assert.ok(/calendar-range/.test(calendarSource), 'calendar.js 按月切换应使用图标库图标');
+  assert.ok(/data-count-tier/.test(calendarSource), 'calendar.js 月历格子任务量标识应按数量分档');
+  assert.ok(/持续至/.test(calendarSource), 'calendar.js 跨天任务应提示持续至日期');
+  const renderSource = readFileSync(path.join(__dirname, '../src/renderTodoItem.js'), 'utf8');
+  assert.ok(/badge-span/.test(renderSource), 'renderTodoItem.js 应支持持续至徽章（opt-in，不影响其他视图）');
+  assert.ok(/calendar-detail-sub/.test(calendarSource), 'calendar.js 整月标题应展示已完成统计');
+  const monthStyleSource = readFileSync(path.join(__dirname, '../src/style.css'), 'utf8');
+  assert.ok(/\.calendar-month-group-header\s*\{[^}]*position:\s*sticky/.test(monthStyleSource), '整月分组头应粘性悬停，长列表导航不迷路');
+  assert.ok(/\.calendar-task-marker\[data-count-tier/.test(monthStyleSource), '任务量标识分档应有对应样式');
+  assert.ok(/calendarDetailMode/.test(appSource), 'app.js 应维护日历详情 日/月 运行时状态');
+  assert.ok(/visibleMonthCount/.test(appSource), 'app.js 整月列表应按任务项增量加载');
+  assert.ok(/loadMoreMonthIfNeeded/.test(appSource), 'app.js 应提供整月增量加载逻辑');
+}
+/* AI 月报：日报/周报/月报三页签与自然月范围 */
+{
+  const aiSource = readFileSync(path.join(__dirname, '../src/aiSummary.js'), 'utf8');
+  assert.ok(/monthly/.test(aiSource), 'aiSummary.js 应支持 monthly 月报类型');
+  assert.ok(/getMonthRange|getMonthlyReportRange/.test(aiSource), 'aiSummary.js 月报范围应收敛到自然月范围函数');
+  assert.ok(/下月计划/.test(aiSource), 'aiSummary.js 月报计划标签应为 下月计划');
+  const htmlSourceMonthly = readFileSync(path.join(__dirname, '../index.html'), 'utf8');
+  assert.ok(/data-type="monthly"/.test(htmlSourceMonthly), 'index.html AI 总结应包含月报页签');
+}
 /* 已完成面板拖拽调高：分隔条语义、触摸独占与键盘支持 */
 const doneResizeSource = readFileSync(path.join(__dirname, '../src/donePanelResize.js'), 'utf8');
 assert.ok(/setPointerCapture/.test(doneResizeSource), 'donePanelResize.js 拖拽应捕获指针');

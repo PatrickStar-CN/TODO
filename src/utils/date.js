@@ -24,6 +24,15 @@ export function formatMonthDay(date) {
   return `${date.getMonth() + 1}/${date.getDate()}`;
 }
 
+/* 自然月范围：所选日期归属其所在月份，返回 [月初, 下月初) 与展示标签 */
+export function getMonthRange(baseDate) {
+  const startDate = new Date(baseDate.getFullYear(), baseDate.getMonth(), 1);
+  const endDate = new Date(baseDate.getFullYear(), baseDate.getMonth() + 1, 1);
+  const monthEnd = new Date(endDate);
+  monthEnd.setDate(monthEnd.getDate() - 1);
+  return { startDate, endDate, rangeLabel: `${formatMonthDay(startDate)} ~ ${formatMonthDay(monthEnd)}` };
+}
+
 export function isSameDay(d1, d2) {
   return d1.getFullYear() === d2.getFullYear() &&
     d1.getMonth() === d2.getMonth() &&

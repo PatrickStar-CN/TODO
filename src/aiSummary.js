@@ -1,9 +1,13 @@
-import { toLocalDateInput, parseLocalDateInput, formatMonthDay } from './utils/date.js';
+import { toLocalDateInput, parseLocalDateInput, formatMonthDay, getMonthRange } from './utils/date.js';
 import { setDatePickerValue } from './datePicker.js';
 import { escapeHtml } from './utils/html.js';
 import { closeDetail } from './detail.js';
 import { resolveAiApiUrl } from './utils/aiApi.js';
 import { getUiMotionDuration } from './uiPreferences.js';
+
+export function getMonthlyReportRange(baseDate) {
+  return getMonthRange(baseDate);
+}
 
 export function initAiSummary({ data, saveData, showToast }) {
   let summaryType = 'daily';
@@ -40,6 +44,9 @@ export function initAiSummary({ data, saveData, showToast }) {
       const end = new Date(start);
       end.setDate(end.getDate() + 6);
       summaryDateRangeEl.textContent = `${formatMonthDay(start)} ~ ${formatMonthDay(end)}`;
+    } else if (summaryType === 'monthly') {
+      const range = getMonthlyReportRange(baseDate);
+      summaryDateRangeEl.textContent = range.rangeLabel;
     } else {
       summaryDateRangeEl.textContent = '';
     }
@@ -135,6 +142,11 @@ export function initAiSummary({ data, saveData, showToast }) {
       endDate = new Date(startDate);
       endDate.setDate(endDate.getDate() + 1);
       rangeLabel = formatMonthDay(startDate);
+    } else if (summaryType === 'monthly') {
+      const range = getMonthlyReportRange(baseDate);
+      startDate = range.startDate;
+      endDate = range.endDate;
+      rangeLabel = range.rangeLabel;
     } else {
       const day = baseDate.getDay();
       startDate = new Date(baseDate);
@@ -159,8 +171,8 @@ export function initAiSummary({ data, saveData, showToast }) {
       return created < endDate && (!end || end >= startDate);
     });
 
-    const typeLabel = summaryType === 'daily' ? '日报' : '周报';
-    const planLabel = summaryType === 'daily' ? '明日计划' : '下周计划';
+    const typeLabel = summaryType === 'daily' ? '日报' : summaryType === 'monthly' ? '月报' : '周报';
+    const planLabel = summaryType === 'daily' ? '明日计划' : summaryType === 'monthly' ? '下月计划' : '下周计划';
     const doneList = doneTodos.length > 0
       ? doneTodos.map(t => `- ${t.title}${t.priority !== 'none' ? `（优先级：${{high:'高',medium:'中',low:'低'}[t.priority]}）` : ''}${t.tag ? `（标签：${t.tag}）` : ''}${t.desc ? `\n  备注：${t.desc}` : ''}`).join('\n')
       : '- 无';
@@ -262,7 +274,7 @@ function buildPrompt({ data, summaryType, typeLabel, planLabel, rangeLabel, done
       .replace(/\{pendingList\}/g, pendingList)
       .replace(/\{plan\}/g, planLabel);
   }
-  const wordLimit = summaryType === 'daily' ? '300' : '500';
+  const wordLimit = summaryType === 'daily' ? '300' : summaryType === 'monthly' ? '800' : '500';
   return `你是一位专业的项目管理助手，擅长撰写简洁、结构清晰的工作报告。
 
 请根据以下任务数据，生成一份高质量的${typeLabel}。
