@@ -1455,6 +1455,45 @@ body::before {
   background: var(--glass-control-bg-hover);
 }
 
+.done-resize-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 10px;
+  margin-top: 2px;
+  cursor: ns-resize;
+  touch-action: none;
+  border-radius: var(--ui-radius-xs);
+  transition: background var(--motion-fast);
+}
+
+.done-resize-handle:hover,
+.done-resize-handle.dragging {
+  background: var(--glass-control-bg-hover);
+}
+
+.done-resize-handle:focus-visible {
+  outline: none;
+  background: var(--glass-control-bg-hover);
+  box-shadow: inset 0 0 0 1px var(--accent-text);
+}
+
+.done-resize-grip {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--text-muted);
+  opacity: 0.55;
+  flex-shrink: 0;
+}
+
+.done-resize-handle:hover .done-resize-grip,
+.done-resize-handle.dragging .done-resize-grip,
+.done-resize-handle:focus-visible .done-resize-grip {
+  opacity: 1;
+  background: var(--accent-text);
+}
+
 .done-header:not(.collapsed) {
   border-bottom: 1px solid var(--glass-divider);
 }
@@ -3778,28 +3817,6 @@ body::before {
   animation: viewFadeIn 0.2s ease-out;
 }
 
-@keyframes doneListExpand {
-  from {
-    opacity: 0;
-    max-height: 0;
-  }
-  to {
-    opacity: 1;
-    max-height: min(35vh, 280px);
-  }
-}
-
-@keyframes doneListCollapse {
-  from {
-    opacity: 1;
-    max-height: min(35vh, 280px);
-  }
-  to {
-    opacity: 0;
-    max-height: 0;
-  }
-}
-
 .context-menu {
   position: fixed;
   z-index: 2000;
@@ -3907,10 +3924,11 @@ body::before {
 }
 
 .done-list-wrapper {
-  max-height: min(35vh, 280px);
+  max-height: var(--done-list-height, min(35vh, 280px));
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
+  transition: max-height var(--motion-normal, 250ms ease-out), opacity var(--motion-fast, 150ms ease-out);
 }
 
 .done-header.collapsed + .done-list-wrapper {
@@ -3919,12 +3937,13 @@ body::before {
   overflow: hidden;
 }
 
-.done-list-wrapper.expanding {
-  animation: doneListExpand 0.3s ease-out forwards;
+.done-section.done-collapsed .done-resize-handle {
+  display: none;
 }
 
-.done-list-wrapper.collapsing {
-  animation: doneListCollapse 0.25s ease-in forwards;
+/* 拖拽时关闭过渡，保证高度 1:1 跟随指针，避免过渡滞后造成橡皮筋感 */
+.done-section.resizing .done-list-wrapper {
+  transition: none;
 }
 
 @keyframes todoCompletionExit {

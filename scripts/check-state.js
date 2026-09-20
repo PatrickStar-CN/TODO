@@ -13,6 +13,7 @@ import { buildUpdateTaskRun, compareVersions, createUpdater, toEncodedCommand } 
 import { getNextTagDotStyle, getTagTaskCount } from '../src/shared.js';
 import { resolveAiApiUrl } from '../src/utils/aiApi.js';
 import { DEFAULT_TIMELINE_SETTINGS, formatTimelineTime, getTimelineDateParts, normalizeTimelineSettings, sortTimelineTodos } from '../src/timeline.js';
+import { clampDonePanelHeight, computeDonePanelHeightFromPointer, computeDonePanelMaxHeightFromRects } from '../src/donePanelResize.js';
 
 assert.equal(resolveAiApiUrl('https://api.openai.com/v1'), 'https://api.openai.com/v1/chat/completions');
 assert.equal(resolveAiApiUrl('https://api.openai.com/v1/'), 'https://api.openai.com/v1/chat/completions');
@@ -100,6 +101,17 @@ const data = { todos };
 assert.deepEqual(countByList(data), { todo: 1, important: 1, all: 2, archived: 1 });
 assert.equal(countTagUndone(data, 'work'), 1);
 assert.equal(countTagUndone(data, 'home'), 1);
+
+/* 已完成面板拖拽调高：钳制、指针换算与上限推导均为纯函数 */
+assert.equal(clampDonePanelHeight(200, 120, 600), 200);
+assert.equal(clampDonePanelHeight(50, 120, 600), 120);
+assert.equal(clampDonePanelHeight(900, 120, 600), 600);
+assert.equal(clampDonePanelHeight('bad', 120, 600), 280);
+assert.equal(computeDonePanelHeightFromPointer(700, 400, 50), 250);
+/* 上限保证面板顶部停在新增任务栏下方：容器底边 − 输入栏底边 − 面板铬高 */
+assert.equal(computeDonePanelMaxHeightFromRects({ containerBottom: 800, addBarBottom: 150, chromeHeight: 90 }), 560);
+assert.equal(computeDonePanelMaxHeightFromRects({ containerBottom: 300, addBarBottom: 200, chromeHeight: 90 }), 120);
+assert.equal(computeDonePanelMaxHeightFromRects({ containerBottom: NaN, addBarBottom: 150, chromeHeight: 90 }), 600);
 
 data._index = {
   counts: { todo: 9, important: 8, all: 7, archived: 6 },
@@ -373,6 +385,22 @@ assert.ok(/export function setDatePickerValue/.test(datePickerSource), 'datePick
 const appSource = readFileSync(path.join(__dirname, '../src/app.js'), 'utf8');
 assert.ok(/function saveDetailForm\s*\(\)\s*\{[\s\S]*?runtimeIndex\.update\(todo,\s*patch\)[\s\S]*?saveData\(\)/.test(appSource), 'app.js 应提供 saveDetailForm 统一保存详情改动');
 assert.ok(/onBeforeDetailClose:\s*\(\)\s*=>\s*\{[\s\S]*?saveDetailForm\(\)/.test(appSource), 'app.js 应在 onBeforeDetailClose 中调用 saveDetailForm');
+/* 侧栏标签：显示所有标签，计数只展示待完成数量 */
+assert.ok(!/visibleTags/.test(appSource), 'app.js 侧栏不得再按 undone 过滤标签，应显示所有标签');
+assert.ok(/countTagUndone\(data,\s*tag\)/.test(appSource), 'app.js 侧栏应使用 countTagUndone 计算待完成数量');
+assert.ok(!/\$\{stats\.undone\}\/\$\{stats\.total\}/.test(appSource), 'app.js 侧栏标签计数不得再渲染 待完成/总数 双计数');
+/* 已完成面板拖拽调高：分隔条语义、触摸独占与键盘支持 */
+const doneResizeSource = readFileSync(path.join(__dirname, '../src/donePanelResize.js'), 'utf8');
+assert.ok(/setPointerCapture/.test(doneResizeSource), 'donePanelResize.js 拖拽应捕获指针');
+assert.ok(/ArrowUp/.test(doneResizeSource) && /ArrowDown/.test(doneResizeSource), 'donePanelResize.js 应支持方向键调整高度');
+const styleSource = readFileSync(path.join(__dirname, '../src/style.css'), 'utf8');
+assert.ok(/touch-action:\s*none/.test(styleSource), '拖拽条应禁用触摸默认滚动');
+assert.ok(/done-resize-handle/.test(readFileSync(path.join(__dirname, '../index.html'), 'utf8')), 'index.html 应包含已完成面板拖拽条');
+/* 展开/折叠走 transition（起止均为当前计算值，拖拽后不跳变）；拖拽期间关闭过渡避免滞后 */
+assert.ok(/\.done-list-wrapper\s*\{[^}]*transition:\s*max-height/.test(styleSource), '已完成列表应用 transition 实现展开/折叠动画');
+assert.ok(/\.done-section\.resizing\s+\.done-list-wrapper\s*\{[^}]*transition:\s*none/.test(styleSource), '拖拽期间应关闭列表过渡以保证跟手');
+assert.ok(!/doneListExpand/.test(styleSource) && !/doneListCollapse/.test(styleSource), '写死默认高度的关键帧动画应已移除');
+assert.ok(/expectCollapsed/.test(appSource), 'app.js 折叠切换应凭期望状态丢弃过期过渡回调');
 
 /* 设置-系统-检测更新：仓库可配置、版本号解析与已是最新时的版本展示 */
 assert.equal(createUpdater({}).getRepo(), 'PatrickStar-CN/TODO');

@@ -11,7 +11,7 @@ import { renderCalendar as _renderCalendar, getTodosForDate as _getTodosForDate,
 import { openDetail as _openDetail, closeDetail, initDetailEditor } from './detail.js';
 import { createOverlay, closeOverlay, showConfirmDialog } from './overlay.js';
 import { applyTheme } from './theme.js';
-import { applyUiStyle, normalizeUiStyle } from './uiPreferences.js';
+import { applyUiStyle, getUiMotionDuration, normalizeUiStyle } from './uiPreferences.js';
 import { initAiSummary } from './aiSummary.js';
 import { initReminders } from './reminder.js';
 import { initMiniMode } from './miniMode.js';
@@ -20,6 +20,7 @@ import { initDatePicker } from './datePicker.js';
 import { initSettings } from './settings.js';
 import { createUpdater } from './updater.js';
 import { createRuntimeIndex } from './runtimeIndex.js';
+import { computeDonePanelMaxHeightFromRects, initDonePanelResize } from './donePanelResize.js';
 import { iconSvg, setIcon } from './icons.js';
 import { getTagDotStyle, getTagTaskCount, isNeutralinoEnv } from './shared.js';
 
@@ -683,22 +684,18 @@ function renderSidebar() {
   document.getElementById('count-archived').textContent = counts.archived;
 
   const tagListEl = document.getElementById('tag-list');
-  /* 使用 tagTotal 索引判断 tag 是否有关联任务（O(T)） */
-  const tagTotalIdx = (data._index && data._index.tagTotal) || {};
-  const visibleTags = data.tags.filter(tag => {
-    const total = tagTotalIdx[tag] || 0;
-    if (total === 0) return true;
-    /* 有任务时，tagUndone > 0 即未全部归档 */
-    const undone = (data._index && data._index.tagUndone && data._index.tagUndone[tag]) || 0;
-    return undone > 0;
-  });
-  tagListEl.innerHTML = visibleTags.map(tag => `
-    <a href="#" class="tag-item ${currentTag === tag ? 'active' : ''}" data-tag="${escapeHtml(tag)}" draggable="false">
+  /* 显示所有标签：不再按 tagUndone 过滤已完成/已归档标签 */
+  tagListEl.innerHTML = data.tags.map(tag => {
+    const undone = countTagUndone(data, tag);
+    const label = `待完成 ${undone}`;
+    return `
+    <a href="#" class="tag-item ${currentTag === tag ? 'active' : ''}" data-tag="${escapeHtml(tag)}" draggable="false" title="${escapeHtml(label)}" aria-label="${escapeHtml(`${tag}，${label}`)}">
       <span class="tag-dot" ${getTagDotStyle(tag, data.tags)}></span>
       <span class="tag-label">${escapeHtml(tag)}</span>
-      <span class="nav-count">${countTagUndone(data, tag)}</span>
+      <span class="nav-count">${undone}</span>
     </a>
-  `).join('');
+  `;
+  }).join('');
 
   document.querySelectorAll('.nav-item[data-list]').forEach(el => {
     el.classList.toggle('active', !currentTag && el.dataset.list === currentList);
@@ -815,6 +812,7 @@ function renderTodoList() {
   doneCountEl.textContent = done.length;
   doneSection.style.display = done.length > 0 ? 'block' : 'none';
   doneToggleEl.classList.toggle('collapsed', doneCollapsed);
+  doneSection.classList.toggle('done-collapsed', doneCollapsed);
   doneListEl.innerHTML = '';
   doneListEl.dataset.total = String(done.length);
   if (!doneCollapsed) {
@@ -1278,6 +1276,7 @@ export async function initApp() {
 
   const quickAdd = document.getElementById('quick-add');
   const doneToggle = document.getElementById('done-toggle');
+  const doneResizeHandle = document.getElementById('done-resize-handle');
   const listView = document.getElementById('view-list');
   const doneSection = document.getElementById('done-section');
   const doneListWrapper = document.getElementById('done-list-wrapper');
@@ -1321,6 +1320,18 @@ export async function initApp() {
     donePanelObserver.observe(taskScrollArea);
     donePanelObserver.observe(addTaskBar);
   }
+
+  initDonePanelResize({
+    section: doneSection,
+    header: doneToggle,
+    handle: doneResizeHandle,
+    getMaxHeight: () => computeDonePanelMaxHeightFromRects({
+      containerBottom: listView.getBoundingClientRect().bottom,
+      addBarBottom: addTaskBar.getBoundingClientRect().bottom,
+      chromeHeight: (doneToggle.offsetHeight || 50) + (doneResizeHandle?.offsetHeight || 12) + 16 + 12
+    }),
+    onHeightChange: scheduleDonePanelLayoutSync
+  });
 
   doneListWrapper.addEventListener('scroll', () => {
     scheduleDoneIncrementalLoad(doneListWrapper);
@@ -1503,26 +1514,31 @@ export async function initApp() {
     doneCollapsed = !doneCollapsed;
     resetDoneIncrementalLoad();
     doneToggle.classList.toggle('collapsed', doneCollapsed);
+    doneSection.classList.toggle('done-collapsed', doneCollapsed);
     const wrapper = document.getElementById('done-list-wrapper');
-    if (doneCollapsed) {
-      wrapper.classList.remove('expanding');
-      wrapper.classList.add('collapsing');
+    const expectCollapsed = doneCollapsed;
+    /* 高度过渡走 CSS transition（起点/终点均为当前计算值，拖拽后也不跳变）；
+       transitionend 可能因快速连点或零时长动效不触发，用定时器兜底，
+       并凭 expectCollapsed 丢弃过期回调。 */
+    let settled = false;
+    const settle = () => {
+      if (settled) return;
+      settled = true;
+      wrapper.removeEventListener('transitionend', onTransitionEnd);
+      clearTimeout(fallbackTimer);
+      if (doneCollapsed !== expectCollapsed) return;
+      if (expectCollapsed) renderTodoList();
       scheduleDonePanelLayoutSync();
-      wrapper.addEventListener('animationend', () => {
-        renderTodoList();
-        wrapper.classList.remove('collapsing');
-        scheduleDonePanelLayoutSync();
-      }, { once: true });
-    } else {
-      renderTodoList();
-      wrapper.classList.remove('collapsing');
-      wrapper.classList.add('expanding');
-      scheduleDonePanelLayoutSync();
-      wrapper.addEventListener('animationend', () => {
-        wrapper.classList.remove('expanding');
-        scheduleDonePanelLayoutSync();
-      }, { once: true });
-    }
+    };
+    const onTransitionEnd = (event) => {
+      if (event.target !== wrapper) return;
+      if (event.propertyName && event.propertyName !== 'max-height') return;
+      settle();
+    };
+    const fallbackTimer = setTimeout(settle, getUiMotionDuration('normal') + 200);
+    if (!expectCollapsed) renderTodoList();
+    wrapper.addEventListener('transitionend', onTransitionEnd);
+    scheduleDonePanelLayoutSync();
   });
 
   document.getElementById('btn-archive-done').addEventListener('click', (e) => {
