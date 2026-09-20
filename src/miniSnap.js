@@ -29,14 +29,152 @@ export function computeCollapsedY(heightPhysical, stripCss, dpr) {
   return -(Math.max(strip, heightPhysical) - strip);
 }
 
+/* ---- 模式切换窗口矩形插值（步进对齐 vsync，见下方显示器自适应采样） ----
+ * Neutralino 原生 setSize/move 都是瞬时生效的 IPC，模式切换时直接调用会
+ * 看到"闪—缩小—瞬移"三段跳变。这里按持续时间插值出中间矩形，调用方每 N 个
+ * vsync 帧下发一次 setSize + move，实现尺寸与位置联动的平滑过渡。
+ * 坐标与 setSize/move 使用同一单位（原生物理像素），内部不做 dpr 换算。 */
+
+/** 纯函数：elapsed 时刻的插值矩形（四舍五入取整）与是否结束 */
+export function rectAt(from, to, elapsed, duration) {
+  const total = Math.max(1, duration);
+  const p = Math.min(1, Math.max(0, elapsed / total));
+  const eased = easeOutCubic(p);
+  const rect = {};
+  for (const key of ['x', 'y', 'width', 'height']) {
+    rect[key] = Math.round(from[key] + (to[key] - from[key]) * eased);
+  }
+  return { rect, done: p >= 1 };
+}
+
+/** 纯函数：宽高为 w/h 的窗口在显示器内的居中矩形 */
+export function centerRect(displayWidth, displayHeight, width, height) {
+  return {
+    x: Math.round((displayWidth - width) / 2),
+    y: Math.round((displayHeight - height) / 2),
+    width,
+    height
+  };
+}
+
+let rectAnimToken = 0;
+let rectAnimRafId = null;
+
+/** 取消进行中的窗口矩形动画（模式反复切换时防重叠） */
+export function cancelWindowRectAnimation() {
+  rectAnimToken += 1;
+  if (rectAnimRafId != null) {
+    cancelAnimationFrame(rectAnimRafId);
+    rectAnimRafId = null;
+  }
+}
+
+/* 从 from 插值到 to：每步调用 apply(rect, done) 下发 setSize + move。
+ * duration <= 0 或 reduce-motion 时直接下发终态；resolve(true) 表示播完，
+ * resolve(false) 表示中途被更新的动画取消。 */
+export function animateWindowRect({ from, to, duration, apply }) {
+  cancelWindowRectAnimation();
+  const token = ++rectAnimToken;
+  const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  if (reduceMotion || duration <= 0) {
+    apply(to, true);
+    return Promise.resolve(true);
+  }
+  const startTime = performance.now();
+  let frame = 0;
+  /* 步进对齐 vsync：首帧立即下发保证跟手，之后每 N 帧一次（N 由实测刷新率决定） */
+  const every = framesPerApply(cachedDisplayHz);
+  return new Promise((resolve) => {
+    const step = (now) => {
+      if (token !== rectAnimToken) {
+        resolve(false);
+        return;
+      }
+      const elapsed = now - startTime;
+      const { rect, done } = rectAt(from, to, elapsed, duration);
+      frame += 1;
+      if (done || frame === 1 || frame % every === 0) {
+        try {
+          apply(rect, done);
+        } catch {}
+      }
+      if (done) {
+        rectAnimRafId = null;
+        resolve(true);
+      } else {
+        rectAnimRafId = requestAnimationFrame(step);
+      }
+    };
+    rectAnimRafId = requestAnimationFrame(step);
+  });
+}
+
 import { isNeutralinoEnv } from './shared.js';
 
 const DRAG_POLL_MS = 100;// 拖拽轮询间隔（ms）
 const DRAG_STABLE_POLLS = 2;// 拖拽结束轮询次数，判断是否稳定
 const SLIDE_DURATION = 260;// 收起/展开动画时长（ms）
-/* 动画采样间隔：每次 window.move 都是一次 IPC，260ms 内以 60fps 逐帧调用
-   约 16 次；节流到 ~30fps 只发约 8 次，快速滑动的视觉差异几乎不可感知。 */
-const SLIDE_STEP_MS = 33;
+
+/* ---- 显示器自适应采样：动画步进对齐 vsync ----
+ * 固定毫秒节流在高刷屏上看起来一顿一顿，还可能与 vsync 错相位产生抖动。
+ * 这里用 rAF 实测显示器刷新率并缓存，动画每 N 个 vsync 帧下发一次 IPC：
+ * 60Hz 屏逐帧下发，高刷屏跳帧下发，把 IPC 频率封顶在 WINDOW_ANIM_MAX_HZ 以内。
+ * 缓动按流逝时间计算，与步进无关，因此跳帧不影响动画正确性，只影响密度。 */
+export const WINDOW_ANIM_MAX_HZ = 72;
+
+let cachedDisplayHz = 0;
+let hzMeasureTask = null;
+
+/* 实测显示器刷新率：取连续 rAF 间隔的中位数换算，调用时才碰 window，import 安全 */
+export function measureDisplayHz(samples = 24) {
+  return new Promise((resolve) => {
+    const deltas = [];
+    let last = 0;
+    const tick = (now) => {
+      if (last > 0) deltas.push(now - last);
+      last = now;
+      if (deltas.length >= samples) {
+        deltas.sort((a, b) => a - b);
+        const median = deltas[Math.floor(deltas.length / 2)] || 0;
+        cachedDisplayHz = median > 0 ? Math.round(1000 / median) : 60;
+        resolve(cachedDisplayHz);
+      } else {
+        requestAnimationFrame(tick);
+      }
+    };
+    requestAnimationFrame(tick);
+  });
+}
+
+/* 启动一次测量（fire-and-forget），已缓存或测量中则直接复用 */
+export function ensureDisplayHz() {
+  if (cachedDisplayHz > 0) return Promise.resolve(cachedDisplayHz);
+  if (!hzMeasureTask) {
+    hzMeasureTask = measureDisplayHz().finally(() => { hzMeasureTask = null; });
+  }
+  return hzMeasureTask;
+}
+
+/** 纯函数：按显示器刷新率，每多少个 vsync 帧下发一次（未知按 60Hz） */
+export function framesPerApply(hz) {
+  const rate = hz > 0 ? hz : 60;
+  return Math.max(1, Math.ceil(rate / WINDOW_ANIM_MAX_HZ));
+}
+
+/* 收起/展开动画时长跟随全局外观动效速度（默认 260ms）；import 安全：
+   只在浏览器运行时读取，node 回归测试仅导入纯函数不受影响 */
+export function panelSlideDurationMs(fallback = SLIDE_DURATION) {
+  try {
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return 0;
+  } catch {}
+  try {
+    if (typeof document !== 'undefined' && document.documentElement.dataset.motion === 'off') return 0;
+    const raw = getComputedStyle(document.documentElement).getPropertyValue('--duration-panel');
+    const value = Number.parseFloat(raw);
+    if (Number.isFinite(value) && value >= 0) return value;
+  } catch {}
+  return fallback;
+}
 
 export function initMiniSnap({
   isMiniMode,
@@ -104,8 +242,8 @@ export function initMiniSnap({
     slideToken += 1;
   };
 
-  /* 平滑滑动到 targetY：rAF 驱动 + easeOutCubic，按 SLIDE_STEP_MS 采样调用
-     window.move（IPC 减半，内容不重排）；reduce-motion 时直接瞬移。
+  /* 平滑滑动到 targetY：rAF 驱动 + easeOutCubic，按显示器 vsync 步进调用
+     window.move（高刷屏跳帧，IPC 封顶；内容不重排）；reduce-motion 时直接瞬移。
      token 保证取消后的旧动画不再生效。 */
   function slideWindowTo(targetY) {
     cancelSlide();
@@ -113,20 +251,22 @@ export function initMiniSnap({
     slideTarget = targetY < 0 ? 'collapse' : 'expand';
     Neutralino.window.getPosition().then(({ x, y }) => {
       if (token !== slideToken) return;
-      if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+      const slideDuration = panelSlideDurationMs();
+      if (slideDuration < 1) {
         Neutralino.window.move(x, targetY).catch(() => {});
         finishSlide(token, targetY);
         return;
       }
       const startY = y;
       const startTime = performance.now();
-      let lastStep = 0;
+      const every = framesPerApply(cachedDisplayHz);
+      let frame = 0;
       const step = (now) => {
         if (token !== slideToken) return;
         const elapsed = now - startTime;
-        const p = Math.min(1, elapsed / SLIDE_DURATION);
-        if (p >= 1 || elapsed - lastStep >= SLIDE_STEP_MS) {
-          lastStep = elapsed;
+        const p = Math.min(1, elapsed / slideDuration);
+        frame += 1;
+        if (p >= 1 || frame === 1 || frame % every === 0) {
           const nextY = Math.round(startY + (targetY - startY) * easeOutCubic(p));
           Neutralino.window.move(x, nextY).catch(() => {});
         }
@@ -309,6 +449,8 @@ export function initMiniSnap({
     attached = true;
     collapsed = false;
     snapped = false;
+    /* 后台实测显示器刷新率，供收起/展开与模式切换动画自适应步进 */
+    ensureDisplayHz();
     document.documentElement.addEventListener('mouseleave', onMouseLeaveDoc);
     document.documentElement.addEventListener('mouseenter', onMouseEnterDoc);
     const region = getDragRegion();

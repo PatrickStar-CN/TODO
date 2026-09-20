@@ -432,7 +432,7 @@ body::before {
   flex-direction: column;
   border-right: 1px solid var(--glass-border);
   flex-shrink: 0;
-  transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: width var(--motion-normal);
   border-radius: 0 16px 16px 0;
   position: relative;
   overflow: hidden;
@@ -480,7 +480,7 @@ body::before {
   cursor: pointer;
   padding: 6px 8px;
   border-radius: 10px;
-  transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), color 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background var(--motion-normal), border-color var(--motion-normal), color var(--motion-normal), box-shadow var(--motion-normal);
   line-height: 1;
   box-shadow: var(--glass-btn-shadow);
 }
@@ -516,7 +516,7 @@ body::before {
   color: var(--text-nav);
   font-size: 14px;
   cursor: pointer;
-  transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1), color 0.2s cubic-bezier(0.4, 0, 0.2, 1), transform 0.15s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background var(--motion-normal), color var(--motion-normal), transform var(--motion-fast), border-color var(--motion-normal), box-shadow var(--motion-normal);
   margin-bottom: 0;
   min-height: 40px;
 }
@@ -611,7 +611,7 @@ body::before {
   color: var(--text-secondary);
   cursor: pointer;
   text-decoration: none;
-  transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1), color 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background var(--motion-normal), color var(--motion-normal), border-color var(--motion-normal), box-shadow var(--motion-normal);
   margin-bottom: 0;
   min-height: 36px;
 }
@@ -814,7 +814,7 @@ body::before {
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   z-index: 1000;
-  animation: overlayFadeIn 0.2s ease;
+  animation: overlayFadeIn var(--motion-normal);
 }
 
 .tag-input-box {
@@ -831,7 +831,7 @@ body::before {
   border-radius: 14px;
   padding: 20px;
   box-shadow: var(--glass-shadow-lg);
-  animation: modalExpandIn 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: modalExpandIn var(--motion-panel);
 }
 
 .tag-input-box h4 {
@@ -871,7 +871,7 @@ body::before {
   font-size: 13px;
   line-height: 1.2;
   outline: none;
-  transition: border-color 0.15s;
+  transition: border-color var(--motion-fast);
 }
 
 .tag-manage-input:focus {
@@ -891,7 +891,7 @@ body::before {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  transition: opacity 0.15s, transform 0.1s;
+  transition: opacity var(--motion-fast), transform var(--motion-fast);
 }
 
 .tag-manage-add-btn:hover {
@@ -918,7 +918,7 @@ body::before {
   padding: 10px 12px;
   border-radius: 8px;
   background: var(--bg-elevated);
-  transition: background 0.15s, transform 0.15s, opacity 0.2s;
+  transition: background var(--motion-fast), transform var(--motion-fast), opacity var(--motion-normal);
 }
 
 .tag-manage-item:hover {
@@ -927,7 +927,7 @@ body::before {
 
 .tag-manage-item .tag-delete-btn {
   opacity: 0;
-  transition: opacity 0.15s;
+  transition: opacity var(--motion-fast);
 }
 
 .tag-manage-item:hover .tag-delete-btn {
@@ -935,7 +935,7 @@ body::before {
 }
 
 .tag-manage-item.removing {
-  animation: tagSlideOut 0.25s ease forwards;
+  animation: tagSlideOut var(--motion-normal) forwards;
 }
 
 @keyframes tagSlideOut {
@@ -957,7 +957,7 @@ body::before {
   border-radius: 4px;
   padding: 2px 4px;
   margin: -2px -4px;
-  transition: background 0.15s;
+  transition: background var(--motion-fast);
 }
 
 .tag-manage-name:hover {
@@ -1023,7 +1023,7 @@ body::before {
   padding: 8px 14px;
   cursor: pointer;
   font-size: 13px;
-  transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1), transform 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background var(--motion-normal), border-color var(--motion-normal), box-shadow var(--motion-normal), transform var(--motion-fast);
   backdrop-filter: var(--glass-btn-blur);
   -webkit-backdrop-filter: var(--glass-btn-blur);
   box-shadow: var(--glass-btn-shadow);
@@ -1111,7 +1111,7 @@ body::before {
   align-items: center;
   gap: 8px;
   padding: 0 32px 8px;
-  animation: popupFadeIn 0.15s ease;
+  animation: popupFadeIn var(--motion-fast);
 }
 
 .search-bar.hidden {
@@ -1129,7 +1129,7 @@ body::before {
   color: var(--text-primary);
   font-size: 13.5px;
   outline: none;
-  transition: border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: border-color var(--motion-normal);
 }
 
 .search-bar input:focus {
@@ -1161,7 +1161,7 @@ body::before {
   align-items: center;
   padding: 12px 16px;
   gap: 12px;
-  transition: border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: border-color var(--motion-normal);
 }
 
 .add-task-bar:focus-within {
@@ -1208,7 +1208,7 @@ body::before {
   cursor: pointer;
   padding: 6px 10px;
   border-radius: 10px;
-  transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background var(--motion-normal), border-color var(--motion-normal), box-shadow var(--motion-normal);
   box-shadow: var(--glass-btn-shadow);
 }
 
@@ -1228,7 +1228,7 @@ body::before {
   cursor: pointer;
   padding: 6px 12px;
   border-radius: 10px;
-  transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), color 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background var(--motion-normal), border-color var(--motion-normal), color var(--motion-normal), box-shadow var(--motion-normal);
   display: flex;
   align-items: center;
   gap: 4px;
@@ -1258,7 +1258,7 @@ body::before {
   border-radius: 16px;
   margin-bottom: 8px;
   cursor: pointer;
-  transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background var(--motion-normal), border-color var(--motion-normal), transform var(--motion-normal), box-shadow var(--motion-normal);
   border: 1px solid var(--glass-border);
   box-shadow: var(--glass-shadow-float);
   position: relative;
@@ -1294,7 +1294,7 @@ body::before {
   justify-content: center;
   cursor: pointer;
   background: var(--glass-bg-input);
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all var(--motion-normal);
 }
 
 .todo-checkbox:hover {
@@ -1401,7 +1401,7 @@ body::before {
   display: flex;
   gap: 2px;
   opacity: 0;
-  transition: opacity 0.15s;
+  transition: opacity var(--motion-fast);
 }
 
 .todo-item:hover .todo-actions {
@@ -1534,7 +1534,7 @@ body::before {
   border-radius: 10px;
   color: var(--text-secondary);
   cursor: pointer;
-  transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), color 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background var(--motion-normal), border-color var(--motion-normal), color var(--motion-normal), box-shadow var(--motion-normal);
   box-shadow: var(--glass-btn-shadow);
 }
 
@@ -1564,7 +1564,7 @@ body::before {
 
 .done-header .arrow {
   font-size: 10px;
-  transition: transform 0.2s;
+  transition: transform var(--motion-normal);
 }
 
 .done-header.collapsed .arrow {
@@ -1620,11 +1620,11 @@ body::before {
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   z-index: 899;
-  animation: overlayFadeIn 0.2s ease;
+  animation: overlayFadeIn var(--motion-normal);
 }
 
 .detail-overlay.hiding {
-  animation: overlayFadeOut 0.15s ease forwards;
+  animation: overlayFadeOut var(--motion-fast) forwards;
 }
 
 .summary-overlay {
@@ -1637,11 +1637,11 @@ body::before {
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   z-index: 899;
-  animation: overlayFadeIn 0.2s ease;
+  animation: overlayFadeIn var(--motion-normal);
 }
 
 .summary-overlay.hiding {
-  animation: overlayFadeOut 0.15s ease forwards;
+  animation: overlayFadeOut var(--motion-fast) forwards;
 }
 
 .detail-header {
@@ -1680,7 +1680,7 @@ body::before {
   color: var(--text-primary);
   font-size: 13px;
   outline: none;
-  transition: border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), background 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: border-color var(--motion-normal), background var(--motion-normal);
 }
 
 /* === 原生 select 统一玻璃化（日期选择器/月份选择器） === */
@@ -1703,7 +1703,7 @@ body::before {
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238892a8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'></polyline></svg>");
   background-repeat: no-repeat;
   background-position: right 10px center;
-  transition: border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1), background 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: border-color var(--motion-normal), box-shadow var(--motion-normal), background var(--motion-normal);
 }
 
 .detail-row input:focus,
@@ -1738,7 +1738,7 @@ body::before {
   align-items: center;
   justify-content: space-between;
   position: relative;
-  transition: border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1), background 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: border-color var(--motion-normal), box-shadow var(--motion-normal), background var(--motion-normal);
 }
 
 .detail-select:hover {
@@ -1764,7 +1764,7 @@ body::before {
   flex-shrink: 0;
   pointer-events: none;
   color: var(--text-muted);
-  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform var(--motion-normal);
 }
 
 /* 下拉弹窗 */
@@ -1781,7 +1781,7 @@ body::before {
   border-radius: 12px;
   padding: 5px;
   box-shadow: var(--glass-shadow-lg);
-  animation: popupFadeIn 0.15s ease-out;
+  animation: popupFadeIn var(--motion-fast);
 }
 
 .detail-dropdown-item {
@@ -1793,7 +1793,7 @@ body::before {
   color: var(--text-nav);
   cursor: pointer;
   border-radius: 8px;
-  transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1), transform 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background var(--motion-normal), transform var(--motion-fast);
 }
 
 .detail-dropdown-item:hover {
@@ -1855,7 +1855,7 @@ body::before {
   color: var(--text-primary);
   font-size: 13px;
   outline: none;
-  transition: border-color 0.2s;
+  transition: border-color var(--motion-normal);
   box-sizing: border-box;
 }
 
@@ -1887,7 +1887,7 @@ body::before {
   cursor: pointer;
   flex: 1;
   box-shadow: 0 2px 12px rgba(79, 70, 229, 0.3);
-  transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1), transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background var(--motion-normal), box-shadow var(--motion-normal), transform var(--motion-normal);
 }
 
 .btn-primary:hover {
@@ -1907,7 +1907,7 @@ body::before {
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   box-shadow: 0 2px 12px rgba(239, 68, 68, 0.3);
-  transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background var(--motion-normal), box-shadow var(--motion-normal);
 }
 
 .btn-danger:hover {
@@ -1934,12 +1934,12 @@ body::before {
   display: flex;
   flex-direction: column;
   z-index: 900;
-  animation: modalExpandIn 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: modalExpandIn var(--motion-panel);
   overflow: hidden;
 }
 
 .summary-panel.hiding {
-  animation: modalShrinkOut 0.2s cubic-bezier(0.4, 0, 1, 1) forwards;
+  animation: modalShrinkOut var(--motion-normal) forwards;
 }
 
 .summary-header {
@@ -1984,7 +1984,7 @@ body::before {
   color: var(--text-secondary);
   font-size: 13px;
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all var(--motion-normal), box-shadow var(--motion-normal);
 }
 
 .summary-tab.active {
@@ -2071,7 +2071,7 @@ body::before {
   color: var(--text-primary);
   font-size: 13px;
   cursor: pointer;
-  transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background var(--motion-normal), border-color var(--motion-normal), box-shadow var(--motion-normal);
   box-shadow: var(--glass-btn-shadow);
 }
 
@@ -2095,9 +2095,9 @@ body::before {
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   z-index: 900;
-  animation: overlayFadeIn 0.2s ease;
+  animation: overlayFadeIn var(--motion-normal);
 }
-.settings-overlay.closing { animation: overlayFadeOut 0.15s ease forwards; }
+.settings-overlay.closing { animation: overlayFadeOut var(--motion-fast) forwards; }
 
 .settings-modal {
   position: fixed;
@@ -2115,9 +2115,9 @@ body::before {
   box-shadow: var(--glass-shadow-lg);
   display: flex;
   flex-direction: column;
-  animation: modalExpandIn 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: modalExpandIn var(--motion-panel);
 }
-.settings-overlay.closing .settings-modal { animation: modalShrinkOut 0.2s cubic-bezier(0.4, 0, 1, 1) forwards; }
+.settings-overlay.closing .settings-modal { animation: modalShrinkOut var(--motion-normal) forwards; }
 
 .settings-header {
   display: flex;
@@ -2145,7 +2145,7 @@ body::before {
   color: var(--text-secondary);
   font-size: 13px;
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all var(--motion-normal);
 }
 .settings-tab:hover:not(.active) { background: var(--bg-elevated); }
 .settings-tab.active {
@@ -2183,7 +2183,7 @@ body::before {
   font-size: 13px;
   outline: none;
   box-sizing: border-box;
-  transition: border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), background 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: border-color var(--motion-normal), background var(--motion-normal);
 }
 .settings-row input:focus,
 .settings-row textarea:focus {
@@ -2208,7 +2208,7 @@ body::before {
   color: var(--text-secondary);
   font-size: 13px;
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all var(--motion-normal);
 }
 .theme-opt:hover:not(.active) { background: var(--bg-elevated); }
 .theme-opt.active {
@@ -2254,7 +2254,7 @@ body::before {
   border-radius: 6px;
   margin-bottom: 6px;
   background: var(--glass-control-bg);
-  transition: border-color 0.15s, background 0.15s;
+  transition: border-color var(--motion-fast), background var(--motion-fast);
 }
 .settings-pane[data-pane="tags"] .tag-manage-item:hover {
   border-color: var(--accent);
@@ -2506,7 +2506,7 @@ body::before {
   padding: 0 14px;
   border-radius: 10px;
   white-space: nowrap;
-  transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background var(--motion-normal);
 }
 
 .calendar-layout {
@@ -3002,7 +3002,7 @@ body::before {
   font-size: 13px;
   cursor: pointer;
   border: 1px solid var(--glass-border);
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all var(--motion-normal);
 }
 
 .month-picker-actions #picker-cancel {
@@ -3114,7 +3114,7 @@ body::before {
   cursor: pointer;
   font-size: 0;
   position: relative;
-  transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background var(--motion-normal);
 }
 
 .calendar-day:hover {
@@ -3195,7 +3195,7 @@ body::before {
 }
 
 .calendar-todo-list.date-entering {
-  animation: calendarTodoListEnter 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: calendarTodoListEnter var(--motion-panel);
   transform-origin: center top;
 }
 
@@ -3316,7 +3316,7 @@ body::before {
   min-width: 180px;
   box-shadow: var(--glass-shadow-lg);
   z-index: 1000;
-  animation: popupFadeIn 0.15s ease;
+  animation: popupFadeIn var(--motion-fast);
 }
 
 @keyframes popupFadeIn {
@@ -3343,7 +3343,7 @@ body::before {
   cursor: pointer;
   border-radius: 8px;
   margin: 0 6px;
-  transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1), transform 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background var(--motion-normal), transform var(--motion-fast);
 }
 
 .popup-option:hover {
@@ -3405,7 +3405,7 @@ body::before {
   color: var(--text-primary);
   font-size: 13px;
   cursor: pointer;
-  transition: border-color 0.2s;
+  transition: border-color var(--motion-normal);
   box-sizing: border-box;
   position: relative;
 }
@@ -3449,7 +3449,7 @@ body::before {
   box-shadow: var(--glass-shadow-lg);
   padding: 12px;
   font-size: 13px;
-  animation: popupFadeIn 0.15s ease-out;
+  animation: popupFadeIn var(--motion-fast);
 }
 
 .dp-header {
@@ -3468,7 +3468,7 @@ body::before {
   padding: 4px 6px;
   border-radius: 8px;
   line-height: 1;
-  transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1), color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background var(--motion-normal), color var(--motion-normal);
 }
 
 .dp-nav-btn:hover {
@@ -3496,7 +3496,7 @@ body::before {
   padding: 3px 10px;
   border-radius: 8px;
   margin-left: auto;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all var(--motion-normal), box-shadow var(--motion-normal);
 }
 
 .dp-today-btn:hover {
@@ -3530,7 +3530,7 @@ body::before {
   cursor: default;
   font-size: 13px;
   color: var(--text-primary);
-  transition: background 0.15s;
+  transition: background var(--motion-fast);
 }
 
 .dp-day:not(.dp-other):not(.dp-selected):hover {
@@ -3600,7 +3600,7 @@ body::before {
   font-size: 12px;
   cursor: pointer;
   border: 1px solid var(--glass-border);
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all var(--motion-normal);
 }
 
 .dp-btn-confirm {
@@ -3657,7 +3657,7 @@ body::before {
   font-weight: 500;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: opacity var(--motion-panel), transform var(--motion-panel);
   z-index: 999;
   box-shadow: var(--glass-shadow-lg);
 }
@@ -3695,11 +3695,11 @@ body::before {
 }
 
 .todo-item.entering {
-  animation: todoSlideIn 0.25s ease-out;
+  animation: todoSlideIn var(--motion-normal);
 }
 
 .todo-item.removing {
-  animation: todoSlideOut 0.2s cubic-bezier(0.4, 0, 1, 1) forwards;
+  animation: todoSlideOut var(--motion-normal) forwards;
   pointer-events: none;
   will-change: opacity, translate;
 }
@@ -3783,19 +3783,19 @@ body::before {
 }
 
 .tag-input-overlay {
-  animation: overlayFadeIn 0.2s ease-out;
+  animation: overlayFadeIn var(--motion-normal);
 }
 
 .tag-input-overlay.closing {
-  animation: overlayFadeOut 0.15s ease-in forwards;
+  animation: overlayFadeOut var(--motion-fast) forwards;
 }
 
 .tag-input-box {
-  animation: modalExpandIn 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: modalExpandIn var(--motion-panel);
 }
 
 .tag-input-overlay.closing .tag-input-box {
-  animation: modalShrinkOut 0.2s cubic-bezier(0.4, 0, 1, 1) forwards;
+  animation: modalShrinkOut var(--motion-normal) forwards;
 }
 
 @keyframes detailSlideIn {
@@ -3821,11 +3821,11 @@ body::before {
 }
 
 .detail-panel {
-  animation: modalExpandIn 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: modalExpandIn var(--motion-panel);
 }
 
 .detail-panel.hiding {
-  animation: modalShrinkOut 0.2s cubic-bezier(0.4, 0, 1, 1) forwards;
+  animation: modalShrinkOut var(--motion-normal) forwards;
 }
 
 @keyframes viewFadeIn {
@@ -3834,7 +3834,7 @@ body::before {
 }
 
 .view.active {
-  animation: viewFadeIn 0.2s ease-out;
+  animation: viewFadeIn var(--motion-normal);
 }
 
 .context-menu {
@@ -3850,7 +3850,7 @@ body::before {
   border-radius: 14px;
   padding: 4px 0;
   box-shadow: var(--glass-shadow-lg);
-  animation: contextMenuFadeIn 0.1s ease;
+  animation: contextMenuFadeIn var(--motion-fast);
 }
 
 .context-menu-item {
@@ -3863,7 +3863,7 @@ body::before {
   cursor: pointer;
   border-radius: 8px;
   margin: 0 4px;
-  transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background var(--motion-normal);
 }
 
 .context-menu-item:hover {
@@ -3978,7 +3978,7 @@ body::before {
 }
 
 .todo-item.completion-exit {
-  animation: todoCompletionExit 0.2s cubic-bezier(0.4, 0, 1, 1) forwards;
+  animation: todoCompletionExit var(--motion-normal) forwards;
   pointer-events: none;
   will-change: opacity, translate;
 }
@@ -3999,6 +3999,26 @@ body::before {
 
 .mini-panel.hidden {
   display: none !important;
+}
+
+/* 模式切换交叉淡入淡出：display 互换由 JS 按过渡时长分帧编排，
+   此处只负责透明度与位移，时长跟随全局动画速度设置 */
+.app,
+.mini-panel {
+  transition: opacity var(--motion-panel), transform var(--motion-panel);
+}
+
+.app.mode-swap-out,
+.mini-panel.mode-swap-out {
+  opacity: 0;
+  transform: scale(0.985);
+  visibility: hidden;
+  /* visibility 延迟到淡出结束才翻转：淡出动画不受影响，翻转后浏览器跳过绘制，
+     窗口尺寸动画期间不再每帧重绘玻璃界面；移除类时立即恢复可见再淡入 */
+  transition:
+    opacity var(--motion-panel),
+    transform var(--motion-panel),
+    visibility 0s linear var(--motion-panel);
 }
 
 .mini-header {
@@ -4030,7 +4050,7 @@ body::before {
   cursor: pointer;
   padding: 2px 6px;
   border-radius: 4px;
-  transition: background 0.15s, color 0.15s;
+  transition: background var(--motion-fast), color var(--motion-fast);
 }
 
 .mini-btn:hover {
@@ -4070,7 +4090,7 @@ body::before {
   font-size: 12px;
   color: var(--text-primary);
   cursor: default;
-  transition: background 0.12s;
+  transition: background var(--motion-fast);
   position: relative;
 }
 
@@ -4085,7 +4105,7 @@ body::before {
   border: 1.5px solid var(--checkbox-border);
   flex-shrink: 0;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all var(--motion-normal);
 }
 
 .mini-todo-item .mini-checkbox:hover {
@@ -4158,7 +4178,7 @@ body::before {
   box-shadow: var(--glass-shadow-lg);
   z-index: 3000;
   pointer-events: none;
-  animation: popupFadeIn 0.15s ease;
+  animation: popupFadeIn var(--motion-fast);
 }
 
 .mini-tooltip.hidden {
@@ -4176,7 +4196,7 @@ body::before {
   touch-action: none;
   z-index: 10;
   opacity: 0.55;
-  transition: opacity 0.15s;
+  transition: opacity var(--motion-fast);
 }
 
 .mini-resize-handle:hover,
@@ -4263,7 +4283,7 @@ html.mini-snap-collapsed .mini-resize-handle {
   cursor: pointer;
   padding: 6px 8px;
   border-radius: 10px;
-  transition: background 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), color 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background var(--motion-normal), border-color var(--motion-normal), color var(--motion-normal), box-shadow var(--motion-normal);
   box-shadow: var(--glass-btn-shadow);
 }
 
@@ -7176,7 +7196,7 @@ html.mini-snap-collapsed .mini-resize-handle {
 
 body::before {
   background: var(--bg-base);
-  transition: opacity var(--motion-panel), filter var(--motion-panel);
+  transition: opacity var(--motion-panel);
 }
 
 :root[data-theme="light"] body::before {
@@ -7937,7 +7957,7 @@ body > .quick-popup {
   height: 0;
   pointer-events: auto;
   opacity: 0;
-  transition: opacity 160ms ease;
+  transition: opacity var(--motion-fast);
   will-change: transform;
 }
 

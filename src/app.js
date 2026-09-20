@@ -584,7 +584,7 @@ function animateTodoReflow(previousPositions, changedId) {
         { opacity: 0, transform: 'translateY(6px)' },
         { opacity: 1, transform: 'translateY(0)' }
       ], {
-        duration: 200,
+        duration: getUiMotionDuration('fast'),
         easing: 'cubic-bezier(0.16, 1, 0.3, 1)'
       });
       return;
@@ -604,7 +604,7 @@ function animateTodoReflow(previousPositions, changedId) {
       { transform: `translateY(${deltaY}px)` },
       { transform: 'translateY(0)' }
     ], {
-      duration: 280,
+      duration: getUiMotionDuration('normal'),
       easing: 'cubic-bezier(0.22, 1, 0.36, 1)'
     });
   });
@@ -648,7 +648,7 @@ function setTodoDoneAnimated(todo, doneState, itemEl = null) {
   sourceEl.addEventListener('animationend', event => {
     if (event.target === sourceEl) commitOnce();
   });
-  setTimeout(commitOnce, 260);
+  setTimeout(commitOnce, getUiMotionDuration('normal') + 60);
 }
 
 function render(scopes = null) {
@@ -1780,7 +1780,7 @@ export async function initApp() {
       sourceEl.addEventListener('animationend', event => {
         if (event.target === sourceEl) removeOnce();
       });
-      setTimeout(removeOnce, 260);
+      setTimeout(removeOnce, getUiMotionDuration('normal') + 60);
     });
   }
 

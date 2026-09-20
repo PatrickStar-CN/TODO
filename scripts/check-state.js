@@ -8,7 +8,7 @@ import { createRuntimeIndex } from '../src/runtimeIndex.js';
 import { encrypt, initCrypto, tryDecrypt } from '../src/utils/crypto.js';
 import { escapeAttr, escapeHtml } from '../src/utils/html.js';
 import { parseLocalDateInput, toLocalDateInput, toLocalDatetime, isToday } from '../src/utils/date.js';
-import { computeCollapsedY, easeOutCubic, isNearScreenTop } from '../src/miniSnap.js';
+import { animateWindowRect, cancelWindowRectAnimation, centerRect, computeCollapsedY, easeOutCubic, ensureDisplayHz, framesPerApply, isNearScreenTop, rectAt, WINDOW_ANIM_MAX_HZ } from '../src/miniSnap.js';
 import { buildUpdateTaskRun, compareVersions, createUpdater, toEncodedCommand } from '../src/updater.js';
 import { getNextTagDotStyle, getTagTaskCount } from '../src/shared.js';
 import { resolveAiApiUrl } from '../src/utils/aiApi.js';
@@ -640,6 +640,79 @@ assert.ok(/btn-cancel-update/.test(settingsSource), '设置页应提供取消下
       assert.ok(!body.includes('0 0 0 3px'), `${sel} 聚焦不得加外圈显示`);
     });
   });
+}
+
+/* 模式切换窗口矩形插值：端点、四舍五入、单调收缩、居中与 IPC 步数预算 */
+{
+  const from = { x: 390, y: 190, width: 1100, height: 700 };
+  const to = { x: 1660, y: 20, width: 240, height: 288 };
+  const start = rectAt(from, to, 0, 280);
+  assert.deepEqual(start.rect, from);
+  assert.equal(start.done, false);
+  const end = rectAt(from, to, 280, 280);
+  assert.deepEqual(end.rect, to);
+  assert.equal(end.done, true);
+  const over = rectAt(from, to, 9999, 280);
+  assert.deepEqual(over.rect, to);
+  assert.equal(over.done, true);
+  /* 收缩过程宽高单调非增、坐标取整 */
+  let prev = null;
+  for (const t of [0, 40, 80, 120, 160, 200, 240]) {
+    const cur = rectAt(from, to, t, 280).rect;
+    assert.ok(Number.isInteger(cur.x) && Number.isInteger(cur.y));
+    assert.ok(Number.isInteger(cur.width) && Number.isInteger(cur.height));
+    if (prev) {
+      assert.ok(cur.width <= prev.width && cur.height <= prev.height);
+    }
+    prev = cur;
+  }
+  assert.deepEqual(centerRect(1920, 1080, 1100, 700), { x: 410, y: 190, width: 1100, height: 700 });
+  /* 采样间隔有界：60Hz 屏逐帧下发，高刷屏跳帧，IPC 频率封顶 */
+  assert.equal(WINDOW_ANIM_MAX_HZ, 72);
+  assert.equal(framesPerApply(60), 1);
+  assert.equal(framesPerApply(120), 2);
+  assert.equal(framesPerApply(144), 2);
+  assert.equal(framesPerApply(0), 1);
+  /* 280ms 动画下发次数：60Hz 屏约 18 次、144Hz 屏约 22 次 */
+  const appliesAt = (hz) => Math.ceil((280 / (1000 / hz)) / framesPerApply(hz)) + 1;
+  assert.ok(appliesAt(60) <= 20);
+  assert.ok(appliesAt(144) <= 24);
+  assert.equal(typeof animateWindowRect, 'function');
+  assert.equal(typeof cancelWindowRectAnimation, 'function');
+  assert.equal(typeof ensureDisplayHz, 'function');
+  /* 内容交叉淡入淡出：过渡跟随全局动效，隐藏态用 opacity 表达 */
+  assert.ok(/\.app\.mode-swap-out,\s*\.mini-panel\.mode-swap-out\s*\{[^}]*opacity:\s*0/.test(styleSource), '模式切换应提供 mode-swap-out 淡出态');
+  assert.ok(/\.app,\s*\.mini-panel\s*\{[^}]*var\(--motion-panel\)/.test(styleSource), '模式切换过渡应跟随全局动效');
+  /* 切换编排：窗口插值联动、显示器缓存、无硬等待 */
+  const miniSource = readFileSync(path.join(__dirname, '../src/miniMode.js'), 'utf8');
+  assert.ok(/animateWindowRect/.test(miniSource), 'miniMode.js 切换应使用窗口矩形插值动画');
+  assert.ok(!/setTimeout\(r,\s*100\)/.test(miniSource), '退出切换不得再硬等待 100ms');
+  assert.ok(/getPrimaryDisplay|cachedDisplay/.test(miniSource), '显示器几何应缓存复用而非每次串行获取');
+  /* 切换编排：窗口动画期间内容保持隐藏（落定后淡入），避免边动画边淡入加重绘制 */
+  assert.ok(!/const unveil = fadeInEl/.test(miniSource), '窗口动画期间内容应保持隐藏（落定后淡入），不得并发淡入');
+  assert.ok(/await animateWindowRect\(\{[\s\S]{0,3000}?await fadeInEl/.test(miniSource), '应窗口动画完成后再淡入内容');
+  /* 隐藏态必须带 visibility 跳过绘制，否则尺寸动画每帧重绘玻璃界面导致卡顿 */
+  assert.ok(/\.app\.mode-swap-out,\s*\.mini-panel\.mode-swap-out\s*\{[^}]*visibility:\s*hidden/.test(styleSource), 'mode-swap-out 应含 visibility 跳过绘制');
+  /* 退出迷你模式后标题栏按钮：改扩展样式必须带 SWP_FRAMECHANGED 强制窗框重绘，
+     否则残留 TOOLWINDOW 形态（最小化/最大化按钮缺失）；恢复调用应先于尺寸动画 */
+  assert.ok(/SetWindowPos/.test(miniSource), '任务栏样式切换后必须用 SetWindowPos 刷新窗框');
+  assert.ok(/0x27/.test(miniSource), '窗框刷新必须带 SWP_FRAMECHANGED（0x27 = NOSIZE|NOMOVE|NOZORDER|FRAMECHANGED）');
+}
+
+/* 其余动效收敛：transition/animation 声明不得含硬编码时长（涟漪按压物理时长、
+   loading 无限循环、visibility 延迟除外），全部跟随全局动效设置 */
+{
+  const decls = [...styleSource.matchAll(/(?:transition|animation)\s*:[^;]+;/g)].map(m => m[0]);
+  const hardcoded = decls.filter(d => {
+    if (/glassRipple/.test(d) || /infinite/.test(d)) return false;
+    const t = d.replace(/var\([^)]*\)/g, '').replace(/\b0s\b/g, '').replace(/\b0\.01ms\b/g, '');
+    return /\d+(\.\d+)?(ms|s)\b/.test(t);
+  }).map(d => d.replace(/\s+/g, ' ').slice(0, 100));
+  assert.deepEqual(hardcoded, [], `存在硬编码动效时长: ${hardcoded.join(' | ')}`);
+  /* JS 侧兜底超时与 WAAPI 时长必须跟随全局动效，不得写死 */
+  assert.ok(!/setTimeout\((commitOnce|removeOnce),\s*260\)/.test(appSource), '完成/删除动画兜底超时应跟随全局动效');
+  const snapSource = readFileSync(path.join(__dirname, '../src/miniSnap.js'), 'utf8');
+  assert.ok(/panelSlideDurationMs/.test(snapSource), '贴边收起动画时长应跟随全局动效');
 }
 
 console.log('State checks passed');
