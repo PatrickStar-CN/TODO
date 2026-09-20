@@ -10,7 +10,7 @@ import { escapeAttr, escapeHtml } from '../src/utils/html.js';
 import { parseLocalDateInput, toLocalDateInput, toLocalDatetime, isToday, getMonthRange } from '../src/utils/date.js';
 import { animateWindowRect, cancelWindowRectAnimation, centerRect, computeCollapsedY, easeOutCubic, ensureDisplayHz, framesPerApply, isNearScreenTop, rectAt, WINDOW_ANIM_MAX_HZ } from '../src/miniSnap.js';
 import { buildCurlProxyPs, buildDownloadCurlPs, buildDownloadWebRequestPs, buildFetchCurlPs, buildFetchWebRequestPs, buildProxyAssignPs, buildTlsPs, buildUpdateTaskRun, compareVersions, createUpdater, normalizeTargetDir, psQuote, sanitizeNetDetail, toEncodedCommand } from '../src/updater.js';
-import { getNextTagDotStyle, getTagTaskCount } from '../src/shared.js';
+import { INSTANCE_LOCK_DIR, INSTANCE_LOCK_FILE, getNextTagDotStyle, getTagTaskCount } from '../src/shared.js';
 import { resolveAiApiUrl } from '../src/utils/aiApi.js';
 import { DEFAULT_TIMELINE_SETTINGS, formatTimelineTime, getTimelineDateParts, normalizeTimelineSettings, sortTimelineTodos } from '../src/timeline.js';
 import { clampDonePanelHeight, computeDonePanelHeightFromPointer, computeDonePanelMaxHeightFromRects } from '../src/donePanelResize.js';
@@ -771,6 +771,10 @@ assert.ok(/btn-cancel-update/.test(settingsSource), '设置页应提供取消下
   assert.ok(/路径校验失败/.test(updaterSource), 'pending 往返不一致必须拦截调度');
   assert.ok(/Log \('targetDir='/.test(updaterSource), '替换脚本应记录解析后的目标目录');
   assert.ok(/更新包缺失/.test(updaterSource), '替换脚本应预检新文件存在');
+  assert.equal(`${INSTANCE_LOCK_DIR}/${INSTANCE_LOCK_FILE}`, 'todo-tools-instance.lock/owner.json');
+  const mainSource = readFileSync(path.join(__dirname, '../src/main.js'), 'utf8');
+  assert.ok(/from '\.\/shared\.js'/.test(mainSource) && /INSTANCE_LOCK_DIR/.test(mainSource), '单实例锁位置应由 shared.js 统一定义，main.js 不得自立副本');
+  assert.ok(/INSTANCE_LOCK_FILE/.test(updaterSource), 'applyUpdate 退出前应释放单实例锁，避免新版本误判重复实例静默退出');
 }
 
 /* applyUpdate 全链路：就绪态 → 写 pending/脚本 → 注册任务 → 退出；
@@ -861,9 +865,11 @@ assert.ok(/btn-cancel-update/.test(settingsSource), '设置页应提供取消下
     .filter((c) => c.includes('-EncodedCommand'))
     .map((c) => Buffer.from(c.trim().split(' ').pop(), 'base64').toString('utf16le'))
     .filter((s) => s.includes('TODO-Tools-Update') && s.includes('/Create')).length;
-  /* 正常路径：任务注册 + 退出，无失败 */
+  /* 正常路径：任务注册 + 释放单实例锁 + 退出，无失败 */
   {
     const fsMem = new Map();
+    const LOCK_KEY = 'C:\\Temp\\todo-tools-instance.lock\\owner.json';
+    fsMem.set(LOCK_KEY, JSON.stringify({ instanceId: 'old-instance', updatedAt: Date.now() }));
     const { cmds, wasExited } = setup(fsMem);
     const u = createUpdater({ showToast: () => {} });
     await u.checkForUpdates();
@@ -872,6 +878,7 @@ assert.ok(/btn-cancel-update/.test(settingsSource), '设置页应提供取消下
     assert.equal(u.getState().phase, 'ready');
     await u.applyUpdate();
     assert.equal(createdTasks(cmds), 1, '应注册一次性计划任务');
+    assert.ok(!fsMem.has(LOCK_KEY), '退出前应删除单实例锁文件，否则新版本误判重复实例静默退出');
     assert.equal(wasExited(), true);
     assert.equal(u.getState().phase, 'ready');
     assert.equal(u.getState().error || null, null);

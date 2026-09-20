@@ -1,5 +1,6 @@
 import './style.css';
 import { flushAppData, initApp } from './app.js';
+import { INSTANCE_LOCK_DIR, INSTANCE_LOCK_FILE } from './shared.js';
 import { initRipple } from './ripple.js';
 import { registerWindowsToastApp } from './windowsToast.js';
 import { hydrateIcons } from './icons.js';
@@ -9,8 +10,6 @@ import { initOverlayScrollbars } from './overlayScrollbars.js';
 const SECOND_INSTANCE_EVENT = 'todo-tools:second-instance';
 const RESTORE_MAIN_WINDOW_EVENT = 'todo-tools:restore-main-window';
 const INSTANCE_ID_KEY = 'todo-tools-instance-id';
-const INSTANCE_LOCK_DIR = 'todo-tools-instance.lock';
-const INSTANCE_LOCK_FILE = 'owner.json';
 const LOCK_STALE_MS = 8000;
 const LOCK_HEARTBEAT_MS = 2000;
 

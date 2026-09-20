@@ -8,7 +8,8 @@
  *     GitHub 资产无 CORS 头，fetch 不可用；下载支持逻辑取消，取消后回到可重试态）；
  *  3. SHA-256 校验（发布附带的 .sha256 asset；取不到期望哈希则直接失败，绝不跳过）
  *     → Expand-Archive 解压 → 核对文件大小；
- *  4. 写 pending.json 与替换脚本（.ps1），注册一次性计划任务后退出应用;
+ *  4. 写 pending.json 与替换脚本（.ps1），注册一次性计划任务，
+ *     释放单实例锁后退出应用（否则新版本因锁新鲜而误判重复实例静默退出）;
  *  5. 计划任务（独立进程树，不随主进程回收）等主进程退出 → 备份 exe/resources.neu → 替换 → 拉起新版本；
  *  6. 下次启动自检：按 pending.version 与运行版本比对判定成败——成功清理备份，
  *     失败成对回滚（避免 exe 新 + res 旧混搭）并清理标记。
@@ -22,7 +23,7 @@
  *  - 替换/回滚失败时旧文件备份兜底，不会让程序处于不可启动状态。
  */
 
-import { isNeutralinoEnv } from './shared.js';
+import { INSTANCE_LOCK_DIR, INSTANCE_LOCK_FILE, isNeutralinoEnv } from './shared.js';
 
 /** semver 逐段比较：忽略 v 前缀；数字段与文本段混合时数字段更新（如 1.1.1-beta < 1.1.1）。
  *  空版本视为最旧（本地版本未知时允许提示更新）；
@@ -741,6 +742,15 @@ export function createUpdater({ showToast, appConfig = {} }) {
       );
       /* /Run 失败必须抛错：否则应用退出后更新静默丢失 */
       if (runResult.exitCode !== 0) throw new Error(`触发更新任务失败（${runResult.stdErr || runResult.exitCode}）`);
+      /* 退出前释放单实例锁：老进程心跳刚停（≤2s），锁文件仍新鲜；
+       * 若不删，替换脚本数秒内拉起的新版本会误判“已有实例在运行”
+       * （锁未过期）而静默退出，导致更新成功但程序没打开、pending 残留。
+       * 只删 owner.json 即可：新实例认领逻辑（main.js claimSingleInstance）
+       * 在锁缺失时重建锁目录并接管；删失败也不阻塞退出（新实例按过期锁处理）。 */
+      try {
+        const tempDir = await Neutralino.os.getPath('temp');
+        await Neutralino.filesystem.remove(joinPath(joinPath(tempDir, INSTANCE_LOCK_DIR), INSTANCE_LOCK_FILE));
+      } catch {}
       await Neutralino.app.exit();
     } catch (e) {
       setState({ phase: 'failed', error: `启动更新失败：${e?.message || e}` });

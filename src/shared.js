@@ -41,3 +41,8 @@ export function getTagTaskCount(data, tag) {
 export function isNeutralinoEnv() {
   return typeof Neutralino !== 'undefined' && typeof NL_PORT !== 'undefined';
 }
+
+/* 单实例锁位置（main.js 心跳维护，updater.js 更新退出前释放）：
+ * 集中定义避免两处硬编码漂移。 */
+export const INSTANCE_LOCK_DIR = 'todo-tools-instance.lock';
+export const INSTANCE_LOCK_FILE = 'owner.json';
