@@ -482,8 +482,19 @@ function renderUpdateStatus(overlay, s) {
     }
   } else if (s.phase === 'downloading' || s.phase === 'verifying') {
     const pct = Math.round((s.progress || 0) * 100);
+    const existingBar = statusArea.querySelector('.update-progress');
+    const existingFill = statusArea.querySelector('.update-progress > span');
+    const existingPct = statusArea.querySelector('[data-progress-pct]');
+    if (existingBar && existingFill && existingPct) {
+      /* 原地更新宽度与文案，复用 CSS transition 做平滑过渡；
+       * 每次 innerHTML 重建节点会杀掉过渡，表现为 0→100 直跳 */
+      existingFill.style.width = `${pct}%`;
+      existingBar.setAttribute('aria-valuenow', String(pct));
+      existingPct.textContent = s.phase === 'downloading' ? ` ${pct}%` : '';
+      return;
+    }
     html += `<div class="update-progress" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><span style="width:${pct}%"></span></div>`;
-    html += `<span class="update-status-text">${UPDATE_PHASE_TEXT[s.phase]}${s.phase === 'downloading' ? ` ${pct}%` : ''}</span>`;
+    html += `<span class="update-status-text">${UPDATE_PHASE_TEXT[s.phase]}<span data-progress-pct>${s.phase === 'downloading' ? ` ${pct}%` : ''}</span></span>`;
   } else if (UPDATE_PHASE_TEXT[s.phase]) {
     html += `<span class="update-status-text">${UPDATE_PHASE_TEXT[s.phase]}${s.phase === 'latest' && s.version ? `（v${escapeHtml(s.version)}）` : ''}</span>`;
   }

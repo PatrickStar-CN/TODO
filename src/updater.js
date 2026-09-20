@@ -317,7 +317,9 @@ export function createUpdater({ showToast, appConfig = {} }) {
   }
 
   /* 下载 zip 并轮询临时文件大小回传进度（exec 通道无进度事件，用文件大小近似）；
-     失败清理半文件并自动重试一次；取消后丢弃结果回到 available */
+     失败清理半文件并自动重试一次；取消后丢弃结果回到 available。
+     轮询 150ms 且先立即采样一次：10MB 级包在快网下 200ms 内下完，
+     等首轮询（旧 400ms）会直接 0→100，中间态一次也采不到。 */
   async function downloadWithProgress(url, dest, totalSize, tag = 'dl') {
     let lastErr = null;
     for (let attempt = 0; attempt <= 1; attempt++) {
@@ -326,13 +328,13 @@ export function createUpdater({ showToast, appConfig = {} }) {
       let stopped = false;
       const poll = (async () => {
         while (!stopped && !cancelRequested) {
-          await new Promise(r => setTimeout(r, 400));
           try {
             const s = await Neutralino.filesystem.getStats(dest);
             if (totalSize > 0) {
               setState({ phase: 'downloading', progress: Math.min(1, s.size / totalSize) });
             }
           } catch {}
+          await new Promise(r => setTimeout(r, 150));
         }
       })();
       try {
@@ -570,7 +572,9 @@ export function createUpdater({ showToast, appConfig = {} }) {
       setState({ phase: 'downloading', version, progress: 0 });
       await downloadWithProgress(zipAsset.browser_download_url, zipPath, zipAsset.size || 0, 'dl-zip');
 
-      setState({ phase: 'downloading', version, progress: 0.99 });
+      /* sha 文件极小，保持 zip 完成时的满格进度（setState 合并保留 progress: 1），
+       * 旧代码硬写 0.99 会造成 100%→99% 的视觉回退 */
+      setState({ phase: 'downloading', version });
       try {
         await downloadFileExec(shaAsset.browser_download_url, shaPath, 'dl-sha');
       } catch (e) {

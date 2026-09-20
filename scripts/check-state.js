@@ -551,6 +551,10 @@ assert.equal(
 );
 
 assert.ok(/--max-time/.test(updaterSource), 'curl 兜底应带 --max-time 总超时');
+assert.ok(/setTimeout\(r, 150\)/.test(updaterSource), '下载进度轮询应 150ms 采样，快网小包才有中间态');
+assert.ok(!/progress: 0\.99/.test(updaterSource), 'zip 完成后不得回退到 0.99');
+assert.ok(/data-progress-pct/.test(settingsSource), '进度文案应可原地更新');
+assert.ok(/existingFill\.style\.width/.test(settingsSource), '进度条应原地改宽度以复用 CSS 过渡，而非 innerHTML 重建');
 assert.ok(/cancelDownload/.test(updaterSource), 'updater 应支持取消下载');
 assert.ok(/if \(!expected\) throw/.test(updaterSource), 'SHA-256 取不到期望哈希时必须直接失败');
 assert.ok(/r\.stdErr/.test(updaterSource) && !/r\.stderr/.test(updaterSource), '应使用 stdErr 字段取进程错误输出');
@@ -937,6 +941,82 @@ assert.ok(/btn-cancel-update/.test(settingsSource), '设置页应提供取消下
     assert.equal(wasExited(), false);
     teardown();
   }
+}
+
+/* 下载进度：慢速下载中应采到 0<p<1 的中间值，而非 0→100 直跳 */
+{
+  const fsMem = new Map();
+  const dirSet = new Set();
+  const base = 'C:\\Temp\\todo-tools-update';
+  const JSON_KEY = `${base}\\latest-release.json`;
+  const ZIP_KEY = `${base}\\todo-tools-win_x64.zip`;
+  const SHA_KEY = `${base}\\todo-tools-win_x64.zip.sha256`;
+  globalThis.NL_PORT = 45678;
+  globalThis.Neutralino = {
+    app: { getConfig: async () => ({ version: '1.2.2' }) },
+    os: {
+      getPath: async () => 'C:\\Temp',
+      execCommand: async (cmd) => {
+        if (cmd.includes('check-web.ps1')) {
+          fsMem.set(JSON_KEY, JSON.stringify({
+            tag_name: 'v9.9.9',
+            body: 'notes',
+            assets: [
+              { name: 'todo-tools-win_x64.zip', size: 8, browser_download_url: 'https://example.com/pkg.zip' },
+              { name: 'todo-tools-win_x64.zip.sha256', size: 65, browser_download_url: 'https://example.com/pkg.sha256' }
+            ]
+          }));
+          return { exitCode: 0, stdOut: '', stdErr: '' };
+        }
+        if (cmd.includes('dl-zip-web.ps1')) {
+          /* 先写一半停 500ms，模拟慢速下载，给 150ms 轮询留采样窗口 */
+          fsMem.set(ZIP_KEY, '1234');
+          await new Promise(r => setTimeout(r, 500));
+          fsMem.set(ZIP_KEY, 'ZIPBYTES');
+          return { exitCode: 0, stdOut: '', stdErr: '' };
+        }
+        if (cmd.includes('dl-sha-web.ps1')) {
+          fsMem.set(SHA_KEY, createHash('sha256').update('ZIPBYTES').digest('hex'));
+          return { exitCode: 0, stdOut: '', stdErr: '' };
+        }
+        if (cmd.includes('Expand-Archive')) {
+          fsMem.set(`${base}\\extracted\\todo-tools-win_x64.exe`, 'EXE');
+          fsMem.set(`${base}\\extracted\\resources.neu`, 'RES');
+        }
+        return { exitCode: 0, stdOut: '', stdErr: '' };
+      }
+    },
+    filesystem: {
+      createDirectory: async (p) => {
+        if (dirSet.has(p)) throw new Error('exists');
+        dirSet.add(p);
+      },
+      getStats: async (p) => {
+        if (fsMem.has(p)) return { size: String(fsMem.get(p)).length };
+        if (dirSet.has(p)) return { size: 0 };
+        throw new Error('missing');
+      },
+      readFile: async (p) => {
+        if (fsMem.has(p)) return fsMem.get(p);
+        throw new Error('missing');
+      },
+      readBinaryFile: async (p) => new TextEncoder().encode(fsMem.get(p) ?? ''),
+      writeFile: async (p, content) => { fsMem.set(p, content); },
+      remove: async (p) => { fsMem.delete(p); }
+    }
+  };
+  const seen = [];
+  const progressUpdater = createUpdater({ showToast: () => {} });
+  const unsub = progressUpdater.onStatus((s) => {
+    if (s.phase === 'downloading' && typeof s.progress === 'number') seen.push(s.progress);
+  });
+  await progressUpdater.checkForUpdates();
+  await progressUpdater.downloadAndPrepare();
+  unsub();
+  assert.equal(progressUpdater.getState().phase, 'ready');
+  assert.ok(seen.some((p) => p > 0 && p < 1), `应采到中间进度，实际序列: ${seen.join(',')}`);
+  delete globalThis.Neutralino;
+  delete globalThis.NL_PORT;
 }
 
 /* 下载取消流程：check → available → downloading → cancel → available（版本与资产保留） */
