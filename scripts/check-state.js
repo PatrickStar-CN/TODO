@@ -9,7 +9,7 @@ import { encrypt, initCrypto, tryDecrypt } from '../src/utils/crypto.js';
 import { escapeAttr, escapeHtml } from '../src/utils/html.js';
 import { parseLocalDateInput, toLocalDateInput, toLocalDatetime, isToday } from '../src/utils/date.js';
 import { animateWindowRect, cancelWindowRectAnimation, centerRect, computeCollapsedY, easeOutCubic, ensureDisplayHz, framesPerApply, isNearScreenTop, rectAt, WINDOW_ANIM_MAX_HZ } from '../src/miniSnap.js';
-import { buildUpdateTaskRun, compareVersions, createUpdater, toEncodedCommand } from '../src/updater.js';
+import { buildCurlProxyPs, buildDownloadCurlPs, buildDownloadWebRequestPs, buildFetchCurlPs, buildFetchWebRequestPs, buildProxyAssignPs, buildTlsPs, buildUpdateTaskRun, compareVersions, createUpdater, psQuote, sanitizeNetDetail, toEncodedCommand } from '../src/updater.js';
 import { getNextTagDotStyle, getTagTaskCount } from '../src/shared.js';
 import { resolveAiApiUrl } from '../src/utils/aiApi.js';
 import { DEFAULT_TIMELINE_SETTINGS, formatTimelineTime, getTimelineDateParts, normalizeTimelineSettings, sortTimelineTodos } from '../src/timeline.js';
@@ -440,9 +440,234 @@ assert.ok(/if \(!expected\) throw/.test(updaterSource), 'SHA-256 取不到期望
 assert.ok(/r\.stdErr/.test(updaterSource) && !/r\.stderr/.test(updaterSource), '应使用 stdErr 字段取进程错误输出');
 assert.ok(/\/TR '\$\{buildUpdateTaskRun\(scriptPath\)\}'/.test(updaterSource), '计划任务 /TR 应整体加引号');
 assert.ok(/runResult\.exitCode/.test(updaterSource), 'schtasks /Run 结果必须检查');
+assert.ok(/DefaultCredentials/.test(updaterSource), '更新请求应携带系统代理默认凭证，避免 407');
+assert.ok(/IsBypassed/.test(updaterSource), '更新请求应判断代理旁路，直连地址不走代理');
+assert.ok(/GetProxy/.test(updaterSource), 'curl 兜底应解析系统代理地址后显式传入');
+assert.ok(/--proxy/.test(updaterSource), 'curl 兜底应带 --proxy 参数');
+assert.ok(/Tls13/.test(updaterSource), 'TLS 应兼容 Tls13，避免写死 Tls12');
+assert.ok(/buildFetchCurlPs/.test(updaterSource), '检查阶段应有 curl 兜底（fetchJson 双路）');
+assert.ok(/407/.test(updaterSource), '代理 407 应有独立提示分支');
+assert.ok(/check-web\.ps1/.test(updaterSource), '检查脚本应落盘后 -File 执行，避免内联 -Command 被 cmd 改写');
+assert.ok(/update-check\.log/.test(updaterSource), '检查/下载各阶段应写诊断日志');
+assert.ok(/execThrow/.test(updaterSource), 'exec 启动失败应转为可诊断错误');
 assert.ok(/File\]::Open\(\$exePath/.test(updaterSource), '替换脚本应等待主进程退出');
 assert.ok(/pending\.version/.test(updaterSource), '启动自检应用版本比对判定成败');
 assert.ok(/btn-cancel-update/.test(settingsSource), '设置页应提供取消下载按钮');
+
+/* 系统代理构造器：单引号转义、TLS 兼容、代理装配、curl 显式代理、诊断截断 */
+{
+  assert.equal(psQuote("C:\\Temp\\O'Brien\\x"), "'C:\\Temp\\O''Brien\\x'");
+  assert.ok(buildTlsPs().includes('Tls12') && buildTlsPs().includes('Tls13'), 'TLS 片段应同时覆盖 Tls12 与 Tls13');
+  const assign = buildProxyAssignPs('$target', '$req');
+  assert.ok(assign.includes('IsBypassed($target)') && assign.includes('DefaultCredentials'), '代理装配应先判旁路再挂默认凭证');
+  const curlProxy = buildCurlProxyPs('$target');
+  assert.ok(curlProxy.includes('--proxy') && curlProxy.includes('--noproxy'), 'curl 代理片段应同时处理走代理与旁路直连');
+  const webPs = buildFetchWebRequestPs('https://api.github.com/x', 'C:\\Temp\\a.json', 'C:\\Temp\\a.err.txt');
+  assert.ok(webPs.includes('TODO-Tools-Updater') && webPs.includes('IsBypassed'), '检查第一路应带 UA 并走系统代理');
+  const curlPs = buildFetchCurlPs('https://api.github.com/x', 'C:\\Temp\\a.json', 'C:\\Temp\\a.code', 'C:\\Temp\\a.log');
+  assert.ok(curlPs.includes('--proxy') && curlPs.includes('--max-time 30') && curlPs.includes('TODO-Tools-Updater'), '检查第二路 curl 应显式代理、带总超时与 UA');
+  const dlCurl = buildDownloadCurlPs('https://example.com/p.zip', 'C:\\Temp\\p.zip', 'C:\\Temp\\p.log');
+  assert.ok(dlCurl.includes('--proxy') && dlCurl.includes('--max-time 300'), '下载 curl 兜底应显式代理并带总超时');
+  const dlWeb = buildDownloadWebRequestPs('https://example.com/p.zip', 'C:\\Temp\\p.zip');
+  assert.ok(dlWeb.includes('IsBypassed') && dlWeb.includes('DefaultCredentials'), '下载第一路应走系统代理');
+  assert.equal(sanitizeNetDetail('  a\n b  '), 'a b');
+  assert.equal(sanitizeNetDetail(''), '');
+  assert.ok(sanitizeNetDetail('x'.repeat(200)).length <= 161, '诊断摘要应截断');
+}
+
+/* 检查阶段 curl 兜底：第一路 exit 1（网络失败）→ 第二路成功应回到 available */
+{
+  const fsMem = new Map();
+  const dirSet = new Set();
+  const base = 'C:\\Temp\\todo-tools-update';
+  const JSON_KEY = `${base}\\latest-release.json`;
+  let calls = 0;
+  globalThis.NL_PORT = 45678;
+  globalThis.Neutralino = {
+    app: { getConfig: async () => ({ version: '1.2.2' }) },
+    os: {
+      getPath: async () => 'C:\\Temp',
+      execCommand: async (cmd) => {
+        calls += 1;
+        /* 第二路为 check-curl.ps1，第一路为 check-web.ps1（-File 模式下命令中不再含 URL/UA） */
+        if (cmd.includes('check-curl.ps1')) {
+          fsMem.set(JSON_KEY, JSON.stringify({ tag_name: 'v9.9.9', body: 'notes', assets: [] }));
+          return { exitCode: 0, stdOut: '', stdErr: '' };
+        }
+        if (cmd.includes('check-web.ps1')) {
+          fsMem.set(`${base}\\latest-release.err.txt`, 'connection timed out');
+        }
+        return { exitCode: 1, stdOut: '', stdErr: '' };
+      }
+    },
+    filesystem: {
+      createDirectory: async (p) => {
+        if (dirSet.has(p)) throw new Error('exists');
+        dirSet.add(p);
+      },
+      getStats: async (p) => {
+        if (fsMem.has(p)) return { size: String(fsMem.get(p)).length };
+        if (dirSet.has(p)) return { size: 0 };
+        throw new Error('missing');
+      },
+      readFile: async (p) => {
+        if (fsMem.has(p)) return fsMem.get(p);
+        throw new Error('missing');
+      },
+      writeFile: async (p, content) => { fsMem.set(p, content); },
+      remove: async (p) => { fsMem.delete(p); }
+    }
+  };
+  const fallbackUpdater = createUpdater({ showToast: () => {} });
+  await fallbackUpdater.checkForUpdates();
+  assert.equal(fallbackUpdater.getState().phase, 'available');
+  assert.equal(fallbackUpdater.getState().version, '9.9.9');
+  assert.ok(calls >= 3, '第一路应重试一次后才走 curl 兜底');
+  const checkLog = fsMem.get(`${base}\\update-check.log`) || '';
+  assert.ok(/check-web exit=1/.test(checkLog) && /check-curl exit=0/.test(checkLog), '诊断日志应记录两路阶段结果');
+
+/* .NET WriteAllText 默认带 BOM：JSON 解析前必须剥离，否则 exit=0 也会报解析失败 */
+{
+  const fsMem = new Map();
+  const dirSet = new Set();
+  const base = 'C:\\Temp\\todo-tools-update';
+  const JSON_KEY = `${base}\\latest-release.json`;
+  globalThis.NL_PORT = 45678;
+  globalThis.Neutralino = {
+    app: { getConfig: async () => ({ version: '1.2.2' }) },
+    os: {
+      getPath: async () => 'C:\\Temp',
+      execCommand: async () => {
+        fsMem.set(JSON_KEY, '\uFEFF' + JSON.stringify({ tag_name: 'v9.9.9', body: 'notes', assets: [] }));
+        return { exitCode: 0, stdOut: '', stdErr: '' };
+      }
+    },
+    filesystem: {
+      createDirectory: async (p) => {
+        if (dirSet.has(p)) throw new Error('exists');
+        dirSet.add(p);
+      },
+      getStats: async (p) => {
+        if (fsMem.has(p)) return { size: String(fsMem.get(p)).length };
+        if (dirSet.has(p)) return { size: 0 };
+        throw new Error('missing');
+      },
+      readFile: async (p) => {
+        if (fsMem.has(p)) return fsMem.get(p);
+        throw new Error('missing');
+      },
+      writeFile: async (p, content) => { fsMem.set(p, content); },
+      remove: async (p) => { fsMem.delete(p); }
+    }
+  };
+  const bomUpdater = createUpdater({ showToast: () => {} });
+  await bomUpdater.checkForUpdates();
+  assert.equal(bomUpdater.getState().phase, 'available');
+  assert.equal(bomUpdater.getState().version, '9.9.9');
+  delete globalThis.Neutralino;
+  delete globalThis.NL_PORT;
+}
+
+/* exit=0 但 JSON 不可读：应记 Wjson 并降级走 curl，而不是抛秃错 */
+{
+  const fsMem = new Map();
+  const dirSet = new Set();
+  const base = 'C:\\Temp\\todo-tools-update';
+  const JSON_KEY = `${base}\\latest-release.json`;
+  globalThis.NL_PORT = 45678;
+  globalThis.Neutralino = {
+    app: { getConfig: async () => ({ version: '1.2.2' }) },
+    os: {
+      getPath: async () => 'C:\\Temp',
+      execCommand: async (cmd) => {
+        if (cmd.includes('check-curl.ps1')) {
+          fsMem.set(JSON_KEY, JSON.stringify({ tag_name: 'v9.9.9', body: 'notes', assets: [] }));
+          return { exitCode: 0, stdOut: '', stdErr: '' };
+        }
+        fsMem.set(JSON_KEY, 'not-json{{{');
+        return { exitCode: 0, stdOut: '', stdErr: '' };
+      }
+    },
+    filesystem: {
+      createDirectory: async (p) => {
+        if (dirSet.has(p)) throw new Error('exists');
+        dirSet.add(p);
+      },
+      getStats: async (p) => {
+        if (fsMem.has(p)) return { size: String(fsMem.get(p)).length };
+        if (dirSet.has(p)) return { size: 0 };
+        throw new Error('missing');
+      },
+      readFile: async (p) => {
+        if (fsMem.has(p)) return fsMem.get(p);
+        throw new Error('missing');
+      },
+      writeFile: async (p, content) => { fsMem.set(p, content); },
+      remove: async (p) => { fsMem.delete(p); }
+    }
+  };
+  const jsonFallbackUpdater = createUpdater({ showToast: () => {} });
+  await jsonFallbackUpdater.checkForUpdates();
+  assert.equal(jsonFallbackUpdater.getState().phase, 'available');
+  const jsonLog = fsMem.get(`${base}\\update-check.log`) || '';
+  assert.ok(/json bad/.test(jsonLog), '坏 JSON 应记入诊断日志');
+  delete globalThis.Neutralino;
+  delete globalThis.NL_PORT;
+}
+  delete globalThis.Neutralino;
+  delete globalThis.NL_PORT;
+}
+
+/* 检查失败分支：407 独立提示、纯网络失败携带诊断细节 */
+{
+  const dirSet = new Set();
+  const mkFs = (mem) => ({
+    createDirectory: async (p) => {
+      if (dirSet.has(p)) throw new Error('exists');
+      dirSet.add(p);
+    },
+    getStats: async (p) => {
+      if (mem.has(p)) return { size: String(mem.get(p)).length };
+      if (dirSet.has(p)) return { size: 0 };
+      throw new Error('missing');
+    },
+    readFile: async (p) => {
+      if (mem.has(p)) return mem.get(p);
+      throw new Error('missing');
+    },
+    writeFile: async (p, content) => { mem.set(p, content); },
+    remove: async (p) => { mem.delete(p); }
+  });
+  globalThis.NL_PORT = 45678;
+  globalThis.Neutralino = {
+    app: { getConfig: async () => ({ version: '1.2.2' }) },
+    os: {
+      getPath: async () => 'C:\\Temp',
+      execCommand: async () => ({ exitCode: 407, stdOut: '', stdErr: '' })
+    },
+    filesystem: mkFs(new Map())
+  };
+  const authUpdater = createUpdater({ showToast: () => {} });
+  await authUpdater.checkForUpdates();
+  assert.equal(authUpdater.getState().phase, 'failed');
+  assert.ok(/407/.test(authUpdater.getState().error), '407 应提示代理认证');
+  const errMem = new Map();
+  globalThis.Neutralino.os.execCommand = async (cmd) => {
+    /* 模拟 PowerShell 首错落盘：fetchJson 启动时会先清临时文件，此处在失败时写回 */
+    if (cmd.includes('check-web.ps1')) {
+      errMem.set('C:\\Temp\\todo-tools-update\\latest-release.err.txt', 'proxy connect failed');
+    }
+    return { exitCode: 1, stdOut: '', stdErr: '' };
+  };
+  globalThis.Neutralino.filesystem = mkFs(errMem);
+  const netUpdater = createUpdater({ showToast: () => {} });
+  await netUpdater.checkForUpdates();
+  assert.equal(netUpdater.getState().phase, 'failed');
+  assert.ok(/网络连接异常/.test(netUpdater.getState().error), '纯网络失败应报网络连接异常');
+  assert.ok(/proxy connect failed/.test(netUpdater.getState().error), '网络失败文案应携带诊断细节');
+  delete globalThis.Neutralino;
+  delete globalThis.NL_PORT;
+}
 
 /* 下载取消流程：check → available → downloading → cancel → available（版本与资产保留） */
 {
@@ -455,7 +680,7 @@ assert.ok(/btn-cancel-update/.test(settingsSource), '设置页应提供取消下
     os: {
       getPath: async () => 'C:\\Temp',
       execCommand: async (cmd) => {
-        if (cmd.includes('TODO-Tools-Updater')) {
+        if (cmd.includes('check-web.ps1')) {
           fsMem.set(JSON_KEY, JSON.stringify({
             tag_name: 'v9.9.9',
             body: 'notes',
@@ -466,7 +691,7 @@ assert.ok(/btn-cancel-update/.test(settingsSource), '设置页应提供取消下
           }));
           return { exitCode: 0, stdOut: '', stdErr: '' };
         }
-        if (cmd.includes('https://example.com')) {
+        if (cmd.includes('.ps1')) {
           await new Promise(() => {});
         }
         return { exitCode: 0, stdOut: '', stdErr: '' };
@@ -521,7 +746,7 @@ assert.ok(/btn-cancel-update/.test(settingsSource), '设置页应提供取消下
     os: {
       getPath: async () => 'C:\\Temp',
       execCommand: async (cmd) => {
-        if (cmd.includes('TODO-Tools-Updater')) {
+        if (cmd.includes('check-web.ps1')) {
           fsMem.set(JSON_KEY, JSON.stringify({
             tag_name: 'v9.9.9',
             body: 'notes',
@@ -532,12 +757,12 @@ assert.ok(/btn-cancel-update/.test(settingsSource), '设置页应提供取消下
           }));
           return { exitCode: 0, stdOut: '', stdErr: '' };
         }
-        if (cmd.includes('pkg.zip')) {
+        if (cmd.includes('dl-zip-web.ps1')) {
           await new Promise(r => setTimeout(r, 100));
           fsMem.set(ZIP_KEY, 'ZIPBYTES');
           return { exitCode: 0, stdOut: '', stdErr: '' };
         }
-        if (cmd.includes('pkg.sha256')) {
+        if (cmd.includes('dl-sha-web.ps1')) {
           await new Promise(r => setTimeout(r, 1500));
           /* 真实哈希：若取消守卫缺失，流程会一路走到 ready（竞态复现） */
           fsMem.set(SHA_KEY, createHash('sha256').update('ZIPBYTES').digest('hex'));
