@@ -11,7 +11,7 @@ import { parseLocalDateInput, toLocalDateInput, toLocalDatetime, isToday, getMon
 import { animateWindowRect, cancelWindowRectAnimation, centerRect, computeCollapsedY, easeOutCubic, ensureDisplayHz, framesPerApply, isNearScreenTop, rectAt, WINDOW_ANIM_MAX_HZ } from '../src/miniSnap.js';
 import { buildCurlProxyPs, buildDownloadCurlPs, buildDownloadWebRequestPs, buildFetchCurlPs, buildFetchWebRequestPs, buildProxyAssignPs, buildTlsPs, buildUpdateTaskRun, compareVersions, createUpdater, normalizeTargetDir, psQuote, sanitizeNetDetail, toEncodedCommand } from '../src/updater.js';
 import { INSTANCE_LOCK_DIR, INSTANCE_LOCK_FILE, getNextTagDotStyle, getTagTaskCount } from '../src/shared.js';
-import { resolveAiApiUrl } from '../src/utils/aiApi.js';
+import { extractCompleteContent, parseSseLine, resolveAiApiUrl } from '../src/utils/aiApi.js';
 import { DEFAULT_TIMELINE_SETTINGS, formatTimelineTime, getTimelineDateParts, normalizeTimelineSettings, sortTimelineTodos } from '../src/timeline.js';
 import { clampDonePanelHeight, computeDonePanelHeightFromPointer, computeDonePanelMaxHeightFromRects } from '../src/donePanelResize.js';
 
@@ -21,6 +21,21 @@ assert.equal(resolveAiApiUrl('https://api.openai.com/v1/chat/completions'), 'htt
 assert.equal(resolveAiApiUrl('https://example.com/v1/chat/completions?key=test'), 'https://example.com/v1/chat/completions?key=test');
 assert.equal(resolveAiApiUrl('https://example.com/custom-endpoint'), 'https://example.com/custom-endpoint');
 assert.equal(resolveAiApiUrl(''), '');
+
+/* SSE 单行解析：data 前缀兼容有/无空格；[DONE] 结束；非 SSE 行忽略 */
+assert.deepEqual(parseSseLine('data: {"choices":[{"delta":{"content":"你好"}}]}'), { done: false, content: '你好' });
+assert.deepEqual(parseSseLine('data:{"choices":[{"delta":{"content":"hi"}}]}'), { done: false, content: 'hi' });
+assert.deepEqual(parseSseLine('data: [DONE]'), { done: true, content: '' });
+assert.deepEqual(parseSseLine(': ping'), { done: false, content: '' });
+assert.deepEqual(parseSseLine(''), { done: false, content: '' });
+assert.deepEqual(parseSseLine('data: not-json'), { done: false, content: '' });
+assert.deepEqual(parseSseLine('data: {"choices":[{}]}'), { done: false, content: '' });
+/* 整包兜底：网关无视 stream 时从完整 JSON 提正文或服务端错误 */
+assert.equal(extractCompleteContent('{"choices":[{"message":{"content":"月报正文"}}]}'), '月报正文');
+assert.equal(extractCompleteContent('{"choices":[{"text":"abc"}]}'), 'abc');
+assert.equal(extractCompleteContent('{"error":{"message":"overloaded"}}'), '请求失败：overloaded');
+assert.equal(extractCompleteContent(''), '');
+assert.equal(extractCompleteContent('not json'), '');
 
 /* HTML 转义：引号必须被转义，防止属性注入 */
 assert.equal(escapeHtml('<b>"x"</b>'), '&lt;b&gt;&quot;x&quot;&lt;/b&gt;');
@@ -440,6 +455,16 @@ assert.ok(/setDatePickerValue/.test(detailSource), 'detail.js 应在 openDetail 
 const datePickerSource = readFileSync(path.join(__dirname, '../src/datePicker.js'), 'utf8');
 assert.ok(/syncValue\(value\)/.test(datePickerSource), 'datePicker.js 应提供 syncValue 同步触发器、输入值与清除按钮');
 assert.ok(/export function setDatePickerValue/.test(datePickerSource), 'datePicker.js 应导出 setDatePickerValue');
+/* 报告流式链路：flush 尾行、DONE 终结外层、整包兜底、自动滚动、流式态清理 */
+{
+  const aiSource = readFileSync(path.join(__dirname, '../src/aiSummary.js'), 'utf8');
+  assert.ok(/parseSseLine/.test(aiSource), 'aiSummary 应复用 SSE 单行解析');
+  assert.ok(/decoder\.decode\(\)/.test(aiSource), '流结束应 flush 解码器，避免丢弃尾行');
+  assert.ok(/while \(!streamDone\)/.test(aiSource), '[DONE] 应终结外层读取循环');
+  assert.ok(/extractCompleteContent/.test(aiSource), '零流式输出时应尝试整包兜底');
+  assert.ok(/scrollTop = .*scrollHeight/.test(aiSource), '流式追加应自动滚到底部');
+  assert.ok(/is-streaming/.test(aiSource), '生成中应标记流式态并在各出口清理');
+}
 const appSource = readFileSync(path.join(__dirname, '../src/app.js'), 'utf8');
 assert.ok(/function saveDetailForm\s*\(\)\s*\{[\s\S]*?runtimeIndex\.update\(todo,\s*patch\)[\s\S]*?saveData\(\)/.test(appSource), 'app.js 应提供 saveDetailForm 统一保存详情改动');
 assert.ok(/onBeforeDetailClose:\s*\(\)\s*=>\s*\{[\s\S]*?saveDetailForm\(\)/.test(appSource), 'app.js 应在 onBeforeDetailClose 中调用 saveDetailForm');
@@ -1085,6 +1110,8 @@ assert.ok(/btn-cancel-update/.test(settingsSource), '设置页应提供取消下
   assert.ok(/\.badge-reminder\s*\{[^}]*var\(--warning-bg\)[^}]*var\(--warning-text\)/.test(css), 'badge-reminder 应使用 warning 主题变量');
   // 任务行操作按钮应为 flex 居中，保证图标对齐与触控尺寸
   assert.ok(/\.todo-actions button\s*\{[^}]*display:\s*inline-flex/.test(css), 'todo-actions button 应为 flex 居中');
+  assert.ok(/\.summary-output\.is-streaming::after/.test(css), '流式光标应有样式定义');
+  assert.ok(/@keyframes summaryCaret/.test(css), '流式光标应有闪烁关键帧');
   // 输入类聚焦：只允许背景 tint，不得出现 accent 边框或外圈（所有同名规则块逐一检查）
   const eachBlock = (sel) => {
     const bodies = [];

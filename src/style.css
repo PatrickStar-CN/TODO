@@ -9014,6 +9014,21 @@ body {
   to { transform: rotate(360deg); }
 }
 
+/* 流式输出光标：生成中跟随文本末尾闪烁，结束即移除 */
+.summary-output.is-streaming::after {
+  content: '';
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  background: var(--accent);
+  animation: summaryCaret 1s steps(2, start) infinite;
+}
+@keyframes summaryCaret {
+  to { visibility: hidden; }
+}
+
 .summary-footer {
   padding: 0 16px 16px;
   border-top: 0;
@@ -9052,6 +9067,9 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .summary-loading-indicator {
+    animation-duration: 1.8s;
+  }
+  .summary-output.is-streaming::after {
     animation-duration: 1.8s;
   }
 }

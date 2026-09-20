@@ -2,7 +2,7 @@ import { toLocalDateInput, parseLocalDateInput, formatMonthDay, getMonthRange } 
 import { setDatePickerValue } from './datePicker.js';
 import { escapeHtml } from './utils/html.js';
 import { closeDetail } from './detail.js';
-import { resolveAiApiUrl } from './utils/aiApi.js';
+import { extractCompleteContent, parseSseLine, resolveAiApiUrl } from './utils/aiApi.js';
 import { getUiMotionDuration } from './uiPreferences.js';
 
 export function getMonthlyReportRange(baseDate) {
@@ -212,35 +212,57 @@ export function initAiSummary({ data, saveData, showToast }) {
       }
 
       summaryOutput.textContent = '';
+      /* 流式态：末尾闪烁光标 + 随内容自动滚到底，长月报也能感知进度 */
+      summaryOutput.classList.add('is-streaming');
+      const scrollSummaryToBottom = () => {
+        summaryOutput.scrollTop = summaryOutput.scrollHeight;
+      };
       const reader = response.body?.getReader();
       if (!reader) {
         const json = await response.json();
         const content = json.choices?.[0]?.message?.content || json.choices?.[0]?.text || '';
         summaryOutput.textContent = content || '接口未返回报告内容';
         summaryFooter.classList.remove('hidden');
+        summaryOutput.classList.remove('is-streaming');
         return;
       }
       const decoder = new TextDecoder();
       let buffer = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop();
+      let streamDone = false;
+      let streamedLength = 0;
+      const consumeLines = (lines) => {
         for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-          const payload = line.slice(6).trim();
-          if (payload === '[DONE]') break;
-          try {
-            const json = JSON.parse(payload);
-            const content = json.choices?.[0]?.delta?.content;
-            if (content) {
-              summaryOutput.textContent += content;
-            }
-          } catch {}
+          const { done, content } = parseSseLine(line);
+          if (done) {
+            streamDone = true;
+            break;
+          }
+          if (content) {
+            summaryOutput.textContent += content;
+            streamedLength += content.length;
+            scrollSummaryToBottom();
+          }
         }
+      };
+
+      while (!streamDone) {
+        const { done, value } = await reader.read();
+        if (value) {
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split(/\r?\n/);
+          buffer = lines.pop();
+          consumeLines(lines);
+        }
+        if (done) break;
+      }
+      /* 尾部 flush：最后一个不完整行此前被暂存，不能丢弃 */
+      buffer += decoder.decode();
+      if (buffer) consumeLines(buffer.split(/\r?\n/));
+      summaryOutput.classList.remove('is-streaming');
+      if (streamedLength === 0) {
+        /* 网关整包返回（无视 stream:true）：从缓冲提取正文，仍为空才明示 */
+        const fallback = extractCompleteContent(buffer);
+        summaryOutput.textContent = fallback || '接口未返回报告内容（已收到响应但无可解析正文）';
       }
       summaryFooter.classList.remove('hidden');
     } catch (err) {
@@ -251,6 +273,7 @@ export function initAiSummary({ data, saveData, showToast }) {
       generateReportBtn.classList.remove('is-loading');
       generateReportBtn.removeAttribute('aria-busy');
       generateReportLabel.textContent = '生成报告';
+      summaryOutput.classList.remove('is-streaming');
     }
   });
 
