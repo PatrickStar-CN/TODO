@@ -585,4 +585,61 @@ assert.ok(/btn-cancel-update/.test(settingsSource), '设置页应提供取消下
   delete globalThis.NL_PORT;
 }
 
+/* UI 一致性回归：CSS 变量、焦点、图标与主题硬编码 */
+{
+  const css = styleSource;
+  const defs = new Set([...css.matchAll(/--([\w-]+)\s*:/g)].map(m => m[1]));
+  // 无 fallback 的 var(--x) 必须在 CSS 内有定义；JS 内联写入的变量列入白名单（类级默认值兜底）
+  const JS_SET_VARS = new Set(['tag-color', 'tag-color-rgb']);
+  const bareUses = [...css.matchAll(/var\(--([\w-]+)\)/g)].map(m => m[1]);
+  const undefinedBare = [...new Set(bareUses)].filter(v => !defs.has(v) && !JS_SET_VARS.has(v));
+  assert.deepEqual(undefinedBare, [], `存在未定义的无 fallback CSS 变量: ${undefinedBare.join(', ')}`);
+  // 已修复的错别字变量不得回退
+  assert.ok(!/var\(--warning\)/.test(css), '应使用 var(--warning-text)，不得引用不存在的 var(--warning)');
+  assert.ok(defs.has('text-disabled'), '应定义 --text-disabled');
+  assert.ok(defs.has('glass-surface-soft'), '应定义 --glass-surface-soft');
+  // 焦点：不使用紫色亮边框；日历日期必须保留可见焦点
+  assert.ok(!/outline:\s*2px solid var\(--accent\)/.test(css), '焦点不得使用紫色亮边框 outline');
+  assert.ok(/\.calendar-day:focus-visible\s*\{[^}]*border-color/.test(css), 'calendar-day:focus-visible 应通过边框表达焦点，不加外圈');
+  assert.ok(!/^\s*:focus-visible\s*\{[^}]*box-shadow/m.test(css), '全局焦点不得加外圈显示');
+  // 头部操作图标统一走图标库
+  const htmlSource = readFileSync(path.join(__dirname, '../index.html'), 'utf8');
+  assert.ok(!/<svg class="view-header-action-icon"/.test(htmlSource), '头部操作图标应使用 data-icon统一渲染，不得内联 SVG');
+  assert.ok(/data-icon="search"/.test(htmlSource) && /data-icon="document"/.test(htmlSource), '搜索/AI总结按钮应使用 data-icon');
+  // 标签徽章与菜单色点在无内联 style 时仍有默认值
+  assert.ok(/\.todo-meta \.badge-tag[\s\S]*?--tag-color:\s*#6366f1/.test(css), 'badge-tag 应提供 --tag-color 默认值');
+  assert.ok(/--menu-item-color,\s*var\(--accent\)/.test(css), 'menu-color-dot 应提供 --menu-item-color 回退');
+  assert.ok(/repeat\(var\(--calendar-weeks,\s*53\)/.test(css), '年度热力图应提供 --calendar-weeks 回退');
+  // 亮色主题：设置标签项与提醒徽章不得硬编码浅色/暖色
+  assert.ok(!/\.settings-pane\[data-pane="tags"\][\s\S]{0,400}?rgba\(255,\s*255,\s*255,\s*0\.0[48]\)/.test(css), '设置标签项不得硬编码白色半透明背景');
+  assert.ok(/\.badge-reminder\s*\{[^}]*var\(--warning-bg\)[^}]*var\(--warning-text\)/.test(css), 'badge-reminder 应使用 warning 主题变量');
+  // 任务行操作按钮应为 flex 居中，保证图标对齐与触控尺寸
+  assert.ok(/\.todo-actions button\s*\{[^}]*display:\s*inline-flex/.test(css), 'todo-actions button 应为 flex 居中');
+  // 输入类聚焦：只允许背景 tint，不得出现 accent 边框或外圈（所有同名规则块逐一检查）
+  const eachBlock = (sel) => {
+    const bodies = [];
+    let i = -1;
+    while ((i = css.indexOf(sel, i + 1)) !== -1) {
+      const open = css.indexOf('{', i);
+      bodies.push(css.slice(open, css.indexOf('}', open)));
+    }
+    assert.ok(bodies.length > 0, `应存在规则 ${sel}`);
+    return bodies;
+  };
+  [
+    '.search-bar input:focus,',
+    '.add-task-bar:focus-within',
+    '.settings-tag-add-bar:focus-within',
+    '.detail-select:focus-visible',
+    '.glass-select .glass-select-trigger:focus-visible',
+    '.dp-time-row select:focus,',
+    '.settings-content-card .settings-row input:focus,',
+  ].forEach((sel) => {
+    eachBlock(sel).forEach((body) => {
+      assert.ok(!body.includes('var(--accent)'), `${sel} 聚焦不得使用 accent 边框`);
+      assert.ok(!body.includes('0 0 0 3px'), `${sel} 聚焦不得加外圈显示`);
+    });
+  });
+}
+
 console.log('State checks passed');

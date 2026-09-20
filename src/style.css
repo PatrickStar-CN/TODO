@@ -57,7 +57,9 @@
   --overlay: rgba(10, 15, 25, 0.75);
   --shadow: rgba(0, 0, 0, 0.35);
   --toast-shadow: rgba(52, 211, 153, 0.2);
-  --focus-ring: transparent;
+  --focus-ring: rgba(140, 150, 180, 0.22);
+  --text-disabled: #707b8d;
+  --glass-surface-soft: rgba(26, 31, 41, 0.6);
 
   /* === 液态磨砂玻璃（暗色：烟熏低透明） === */
   --glass-bg: rgba(22, 27, 40, 0.65);
@@ -143,7 +145,9 @@
   --overlay: rgba(240, 242, 245, 0.6);
   --shadow: rgba(100, 110, 130, 0.1);
   --toast-shadow: rgba(22, 163, 74, 0.15);
-  --focus-ring: transparent;
+  --focus-ring: rgba(100, 110, 130, 0.22);
+  --text-disabled: #9aa0ad;
+  --glass-surface-soft: rgba(247, 248, 251, 0.7);
 
   /* === 液态磨砂玻璃（亮色：柔和半透明） === */
   --glass-bg: rgba(255, 255, 255, 0.72);
@@ -181,9 +185,9 @@
   display: none !important;
 }
 
+/* 键盘焦点：只用边框表达，不加外圈显示，不使用紫色亮边框 */
 :focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline: none;
 }
 
 /* ========== 玻璃按钮涟漪动效 ========== */
@@ -359,14 +363,14 @@ button:focus-visible,
 .nav-item:focus-visible,
 .tag-item:focus-visible,
 .todo-item:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-  box-shadow: 0 0 0 4px var(--focus-ring);
+  outline: none;
+  border-color: var(--accent);
   border-radius: 6px;
 }
 
 .calendar-day:focus-visible {
   outline: none;
+  border-color: var(--accent);
 }
 
 body {
@@ -1161,7 +1165,7 @@ body::before {
 }
 
 .add-task-bar:focus-within {
-  border-color: var(--accent);
+  background: var(--glass-surface-hover);
 }
 
 .add-icon {
@@ -1389,8 +1393,8 @@ body::before {
 }
 
 .badge-reminder {
-  background: rgba(251, 191, 36, 0.15);
-  color: #fbbf24;
+  background: var(--warning-bg);
+  color: var(--warning-text);
 }
 
 .todo-actions {
@@ -1412,6 +1416,16 @@ body::before {
   padding: 4px 6px;
   border-radius: 4px;
   font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  min-height: 26px;
+}
+
+.todo-actions button .app-icon {
+  width: 15px;
+  height: 15px;
 }
 
 .todo-actions button:hover {
@@ -1700,8 +1714,7 @@ body::before {
 
 .dp-time-row select:focus,
 .month-picker-row select:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--focus-ring);
+  background-color: var(--glass-surface-hover);
 }
 
 .detail-row textarea {
@@ -2240,12 +2253,12 @@ body::before {
   border: 1px solid var(--glass-border);
   border-radius: 6px;
   margin-bottom: 6px;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--glass-control-bg);
   transition: border-color 0.15s, background 0.15s;
 }
 .settings-pane[data-pane="tags"] .tag-manage-item:hover {
   border-color: var(--accent);
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--glass-control-bg-hover);
 }
 .settings-pane[data-pane="tags"] .tag-manage-name {
   flex: 1;
@@ -2275,19 +2288,19 @@ body::before {
   min-height: 48px;
   margin: 0 2px 12px;
   padding: 7px 8px 7px 11px;
+  background: var(--glass-surface-strong);
   background: color-mix(in srgb, var(--glass-surface-strong) 72%, transparent);
-  backdrop-filter: blur(18px) saturate(135%);
-  -webkit-backdrop-filter: blur(18px) saturate(135%);
+  backdrop-filter: blur(var(--ui-glass-blur, 18px)) saturate(135%);
+  -webkit-backdrop-filter: blur(var(--ui-glass-blur, 18px)) saturate(135%);
   border: 1px solid var(--glass-border);
-  border-radius: 12px;
+  border-radius: var(--ui-radius, 12px);
   box-shadow: var(--glass-soft-shadow), var(--glass-inset-highlight);
   box-sizing: border-box;
   flex-shrink: 0;
 }
 
 .settings-tag-add-bar:focus-within {
-  border-color: color-mix(in srgb, var(--accent) 68%, var(--glass-stroke-strong));
-  box-shadow: var(--glass-control-shadow-hover), 0 0 0 3px var(--focus-ring), var(--glass-inset-highlight);
+  background: var(--glass-surface-hover);
 }
 
 .settings-tag-preview {
@@ -2624,6 +2637,14 @@ body::before {
   width: 15px;
   height: 15px;
   flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.view-header-action-icon .app-icon {
+  width: 100%;
+  height: 100%;
 }
 
 @media (max-width: 640px) {
@@ -2850,8 +2871,7 @@ body::before {
 
 .glass-select .glass-select-trigger:focus-visible {
   outline: none;
-  border-color: color-mix(in srgb, var(--accent) 68%, var(--glass-stroke-strong));
-  box-shadow: 0 0 0 3px var(--focus-ring), var(--glass-inset-highlight);
+  background: var(--glass-surface-hover);
 }
 
 .glass-select-value {
@@ -3046,7 +3066,7 @@ body::before {
   grid-column: 2;
   grid-row: 1;
   display: grid;
-  grid-template-columns: repeat(var(--calendar-weeks), var(--calendar-heat-cell));
+  grid-template-columns: repeat(var(--calendar-weeks, 53), var(--calendar-heat-cell));
   gap: var(--calendar-heat-gap);
   min-width: max-content;
   color: var(--text-muted);
@@ -4370,15 +4390,17 @@ html.mini-snap-collapsed .mini-resize-handle {
 }
 
 .add-task-bar {
+  background: var(--glass-surface-strong);
   background: color-mix(in srgb, var(--glass-surface-strong) 72%, transparent);
-  backdrop-filter: blur(18px) saturate(135%);
-  -webkit-backdrop-filter: blur(18px) saturate(135%);
+  backdrop-filter: blur(var(--ui-glass-blur, 18px)) saturate(135%);
+  -webkit-backdrop-filter: blur(var(--ui-glass-blur, 18px)) saturate(135%);
   border-color: var(--glass-stroke-strong);
   box-shadow: var(--glass-soft-shadow), var(--glass-inset-highlight);
 }
 
 .add-task-bar:focus-within {
-  box-shadow: var(--glass-soft-shadow), 0 0 0 3px var(--focus-ring), var(--glass-inset-highlight);
+  background: var(--glass-surface-hover);
+  box-shadow: var(--glass-soft-shadow), var(--glass-inset-highlight);
 }
 
 .nav-item:hover,
@@ -4513,8 +4535,6 @@ html.mini-snap-collapsed .mini-resize-handle {
 .popup-date-input:focus,
 .mini-input-row input:focus {
   background: var(--glass-surface-hover);
-  border-color: color-mix(in srgb, var(--accent) 68%, var(--glass-stroke-strong));
-  box-shadow: 0 0 0 3px var(--focus-ring), var(--glass-inset-highlight);
 }
 
 .summary-header,
@@ -4877,12 +4897,16 @@ html.mini-snap-collapsed .mini-resize-handle {
 }
 
 /* Dropdown interaction and popup alignment. */
-.detail-select.is-open,
-.detail-select:focus-visible {
+.detail-select.is-open {
   outline: none;
   background: var(--glass-surface-hover);
   border-color: color-mix(in srgb, var(--accent) 68%, var(--glass-stroke-strong));
   box-shadow: 0 0 0 3px var(--focus-ring), var(--glass-inset-highlight);
+}
+
+.detail-select:focus-visible {
+  outline: none;
+  background: var(--glass-surface-hover);
 }
 
 .detail-select.is-open .detail-select-arrow {
@@ -5162,6 +5186,8 @@ html.mini-snap-collapsed .mini-resize-handle {
 /* List tag badges derive from the same palette as sidebar/settings swatches. */
 .todo-meta .badge-tag,
 .todo-item:hover > .todo-body .badge-tag {
+  --tag-color: #6366f1;
+  --tag-color-rgb: 99, 102, 241;
   background: rgba(var(--tag-color-rgb), 0.18);
   color: color-mix(in srgb, var(--tag-color) 76%, var(--text-primary));
   box-shadow: inset 0 0 0 1px rgba(var(--tag-color-rgb), 0.38);
@@ -5875,8 +5901,8 @@ html.mini-snap-collapsed .mini-resize-handle {
 }
 
 .notification-status-dot[data-state="pending"] {
-  background: var(--warning);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--warning) 18%, transparent);
+  background: var(--warning-text);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--warning-text) 18%, transparent);
 }
 
 .notification-status-dot[data-state="blocked"],
@@ -6858,8 +6884,6 @@ html.mini-snap-collapsed .mini-resize-handle {
 .settings-content-card .settings-row input:focus,
 .settings-content-card .settings-row textarea:focus {
   background: var(--glass-control-bg-hover);
-  border-color: color-mix(in srgb, var(--accent) 62%, var(--glass-control-border-hover));
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 13%, transparent), var(--glass-inset-highlight);
 }
 
 .settings-ai-card .settings-primary-action {
@@ -7402,15 +7426,20 @@ body,
 }
 
 .detail-panel .detail-select:hover,
-.detail-panel .detail-select:focus-visible,
 .detail-panel .detail-select.is-open,
-.detail-panel .dp-trigger:hover,
-.detail-panel .dp-trigger:focus-visible {
+.detail-panel .dp-trigger:hover {
   outline: none;
   color: var(--text-primary);
   background: color-mix(in srgb, var(--glass-control-bg-hover) var(--ui-control-opacity), transparent);
   border-color: color-mix(in srgb, var(--accent) 48%, var(--glass-control-border-hover));
   box-shadow: 0 0 0 3px var(--focus-ring), var(--glass-control-shadow-hover), var(--glass-inset-highlight);
+}
+
+.detail-panel .detail-select:focus-visible,
+.detail-panel .dp-trigger:focus-visible {
+  outline: none;
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--glass-control-bg-hover) var(--ui-control-opacity), transparent);
 }
 
 .detail-panel .detail-select-trigger {
@@ -8260,11 +8289,7 @@ body {
 }
 
 .add-task-bar:focus-within {
-  border-color: color-mix(in srgb, var(--accent) 62%, var(--glass-control-border-hover));
-  box-shadow:
-    0 0 0 3px color-mix(in srgb, var(--accent) 13%, transparent),
-    var(--ui-card-shadow),
-    var(--ui-card-highlight);
+  background: var(--glass-surface-hover);
 }
 
 .add-task-bar > :not(.quick-popup) {
@@ -8384,8 +8409,8 @@ body {
 }
 
 .calendar-day:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline: none;
+  border-color: var(--accent);
 }
 
 .detail-panel,
@@ -8529,8 +8554,8 @@ body {
 }
 
 .summary-tab:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline: none;
+  border-color: var(--accent);
 }
 
 .summary-date-row {
@@ -8781,9 +8806,9 @@ body {
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  background: var(--menu-item-color);
+  background: var(--menu-item-color, var(--accent));
   box-shadow:
-    0 0 0 3px color-mix(in srgb, var(--menu-item-color) 13%, transparent),
+    0 0 0 3px color-mix(in srgb, var(--menu-item-color, var(--accent)) 13%, transparent),
     inset 0 0 0 1px color-mix(in srgb, white 18%, transparent);
 }
 
@@ -9241,6 +9266,8 @@ html.mini-mode-active .mini-panel {
 /* 标签 chip：进入迷你模式时让标签用主题色呈现，与主界面 badge 一致且不超小窗宽度 */
 /* Mini 列表标签沿用主列表的边框气泡样式：--tag-color-rgb 浅色底 + 内圈描边 */
 .mini-todo-item .mini-item-tag {
+  --tag-color: #6366f1;
+  --tag-color-rgb: 99, 102, 241;
   display: inline-flex;
   align-items: center;
   flex: 0 0 auto;
@@ -9267,7 +9294,7 @@ html.mini-mode-active .mini-panel {
   height: 5px;
   flex: 0 0 5px;
   border-radius: 50%;
-  background: var(--tag-color);
+  background: var(--tag-color, #6366f1);
 }
 
 .mini-todo-item .mini-item-tag-label {
@@ -10062,8 +10089,8 @@ html.mini-mode-active .mini-panel {
 
 .settings-switch:focus-visible,
 .timeline-sort-options button:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline: none;
+  border-color: var(--accent);
 }
 
 .timeline-sort-settings {
