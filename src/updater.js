@@ -68,6 +68,14 @@ export function psQuote(s) {
   return `'${String(s).replace(/'/g, "''")}'`;
 }
 
+/* 应用目录归一化：NL_PATH 可能是正斜杠、混杂分隔符或带尾部分隔符，
+ * 统一为无尾部反斜杠形态（盘符根如 E:\ 保留），避免替换脚本拼出断裂路径 */
+export function normalizeTargetDir(p) {
+  let s = String(p || '').replace(/\//g, '\\');
+  while (s.length > 3 && s.endsWith('\\')) s = s.slice(0, -1);
+  return s;
+}
+
 /* TLS 兼容片段：Tls12 必备，Tls11/Tls13 反射追加（旧 .NET 无 Tls13 枚举时忽略） */
 export function buildTlsPs() {
   return `$tls=[System.Net.SecurityProtocolType]::Tls12; try { $tls=$tls -bor ([Enum]::Parse([System.Net.SecurityProtocolType],'Tls11')) } catch {}; try { $tls=$tls -bor ([Enum]::Parse([System.Net.SecurityProtocolType],'Tls13')) } catch {}; [System.Net.ServicePointManager]::SecurityProtocol=$tls`;
@@ -608,8 +616,9 @@ export function createUpdater({ showToast, appConfig = {} }) {
   /* 替换脚本：由计划任务以 -File 启动，$PSScriptRoot 即更新目录。
      参数从同目录 pending.json 读取（UTF-8，用 .NET ReadAllText 避免 PowerShell 5.1 按 ANSI 解码中文乱码），
      从而 schtasks /TR 只需一条短命令（/TR 值不能超过 261 字符）。
-     流程：等待主进程退出（独占打开探测，最长 20s；超时则继续，靠后续复制重试与回滚兜底）
-     → 备份 → 复制（被锁重试）→ 拉起新版本；失败自动恢复备份；最后自删任务。 */
+      流程：解析并归一化目标目录（记日志备查）→ 校验新文件存在
+      → 等待主进程退出（独占打开探测，最长 20s；超时则继续，靠后续复制重试与回滚兜底）
+      → 备份 → 复制（被锁重试）→ 拉起新版本；失败自动恢复备份；最后自删任务。 */
   function buildApplyScript() {
     return [
       `$ErrorActionPreference = 'Stop'`,
@@ -619,7 +628,8 @@ export function createUpdater({ showToast, appConfig = {} }) {
       `Log 'begin'`,
       `try {`,
       `  $pending = [System.IO.File]::ReadAllText((Join-Path $dir 'pending.json'), [System.Text.Encoding]::UTF8) | ConvertFrom-Json`,
-      `  $targetDir = ($pending.targetDir -replace '/', '\')`,
+      `  $targetDir = (($pending.targetDir -replace '/', '\\').TrimEnd('\\'))`,
+      `  if ([string]::IsNullOrEmpty($targetDir)) { throw 'pending.json 缺少 targetDir' }`,
       `  $exeName = $pending.exeName`,
       `  $newDir = Join-Path $dir 'extracted'`,
       `  $exePath = Join-Path $targetDir $exeName`,
@@ -628,6 +638,11 @@ export function createUpdater({ showToast, appConfig = {} }) {
       `  $bakRes = $resPath + '.bak'`,
       `  $newExe = Join-Path $newDir $exeName`,
       `  $newRes = Join-Path $newDir 'resources.neu'`,
+      `  Log ('targetDir=' + $targetDir)`,
+      `  Log ('exePath=' + $exePath)`,
+      `  Log ('newExe=' + $newExe)`,
+      `  if (!(Test-Path -LiteralPath $newExe)) { throw ('更新包缺失：' + $newExe) }`,
+      `  if (!(Test-Path -LiteralPath $newRes)) { throw ('更新包缺失：' + $newRes) }`,
       `  for ($i = 0; $i -lt 20; $i++) {`,
       `    try {`,
       `      if (Test-Path -LiteralPath $exePath) { $t = [System.IO.File]::Open($exePath, 'Open', 'Read', 'None'); $t.Close() }`,
@@ -673,10 +688,20 @@ export function createUpdater({ showToast, appConfig = {} }) {
     if (!isNeutralinoEnv() || state.phase !== 'ready' || !state.dirs) return;
     try {
       const { dir, unzipDir } = state.dirs;
-      const targetDir = window.NL_PATH || '';
+      /* NL_PATH 可能是正斜杠/混杂分隔符/带尾部分隔符，先归一化再使用 */
+      const targetDir = normalizeTargetDir(typeof window !== 'undefined' ? window.NL_PATH : '');
       if (!targetDir) throw new Error('无法定位应用目录');
       if (!(await exists(joinPath(targetDir, exeName)))) {
         throw new Error('替换目标不存在，开发模式下无法完成更新，请使用打包版应用');
+      }
+      /* 写权限预检：Program Files 等目录非提权写不动，提前明确报错，
+       * 而不是注册任务后在替换脚本里静默 FAILED 回滚 */
+      const probePath = joinPath(targetDir, '.write-test');
+      try {
+        await Neutralino.filesystem.writeFile(probePath, 'ok');
+        await Neutralino.filesystem.remove(probePath);
+      } catch (e) {
+        throw new Error(`目标目录无写入权限，请以管理员身份运行后再更新（${e?.message || e}）`);
       }
       const pending = {
         targetDir,
@@ -688,6 +713,17 @@ export function createUpdater({ showToast, appConfig = {} }) {
       const scriptPath = joinPath(dir, SCRIPT_NAME);
       await Neutralino.filesystem.writeFile(pendingPath, JSON.stringify(pending));
       await Neutralino.filesystem.writeFile(scriptPath, buildApplyScript());
+      /* 往返校验：曾出现 pending.json 落盘后路径分隔符损坏（替换脚本报找不到路径），
+       * 注册任务前把读回的值与写入值比对，不一致直接失败，绝不调度注定失败的任务 */
+      let roundTrip = null;
+      try {
+        roundTrip = JSON.parse(await Neutralino.filesystem.readFile(pendingPath));
+      } catch (e) {
+        throw new Error(`更新标记写入后无法读回，已停止（${e?.message || e}）`);
+      }
+      if (roundTrip?.targetDir !== targetDir || roundTrip?.exeName !== exeName) {
+        throw new Error(`更新标记写入异常（路径校验失败：${sanitizeNetDetail(roundTrip?.targetDir, 120) || '空'}），已停止`);
+      }
       /* schtasks /ST 仅分钟精度：先注册 +1 分钟兜底计划，再立即 /Run 触发。
          任务进程由 Task Scheduler 托管，独立于应用进程树，主进程退出后照常执行。
          /TR 值不能超过 261 字符：直接以 -File 启动替换脚本，参数由脚本从

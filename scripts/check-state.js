@@ -9,7 +9,7 @@ import { encrypt, initCrypto, tryDecrypt } from '../src/utils/crypto.js';
 import { escapeAttr, escapeHtml } from '../src/utils/html.js';
 import { parseLocalDateInput, toLocalDateInput, toLocalDatetime, isToday } from '../src/utils/date.js';
 import { animateWindowRect, cancelWindowRectAnimation, centerRect, computeCollapsedY, easeOutCubic, ensureDisplayHz, framesPerApply, isNearScreenTop, rectAt, WINDOW_ANIM_MAX_HZ } from '../src/miniSnap.js';
-import { buildCurlProxyPs, buildDownloadCurlPs, buildDownloadWebRequestPs, buildFetchCurlPs, buildFetchWebRequestPs, buildProxyAssignPs, buildTlsPs, buildUpdateTaskRun, compareVersions, createUpdater, psQuote, sanitizeNetDetail, toEncodedCommand } from '../src/updater.js';
+import { buildCurlProxyPs, buildDownloadCurlPs, buildDownloadWebRequestPs, buildFetchCurlPs, buildFetchWebRequestPs, buildProxyAssignPs, buildTlsPs, buildUpdateTaskRun, compareVersions, createUpdater, normalizeTargetDir, psQuote, sanitizeNetDetail, toEncodedCommand } from '../src/updater.js';
 import { getNextTagDotStyle, getTagTaskCount } from '../src/shared.js';
 import { resolveAiApiUrl } from '../src/utils/aiApi.js';
 import { DEFAULT_TIMELINE_SETTINGS, formatTimelineTime, getTimelineDateParts, normalizeTimelineSettings, sortTimelineTodos } from '../src/timeline.js';
@@ -667,6 +667,153 @@ assert.ok(/btn-cancel-update/.test(settingsSource), '设置页应提供取消下
   assert.ok(/proxy connect failed/.test(netUpdater.getState().error), '网络失败文案应携带诊断细节');
   delete globalThis.Neutralino;
   delete globalThis.NL_PORT;
+}
+
+/* 替换前自保：目标目录归一化、写权限预检、pending 往返校验、脚本内路径日志与新文件预检 */
+{
+  assert.equal(normalizeTargetDir('E:/all/Tools/todo-tools'), 'E:\\all\\Tools\\todo-tools');
+  assert.equal(normalizeTargetDir('E:\\all\\Tools\\todo-tools\\'), 'E:\\all\\Tools\\todo-tools');
+  assert.equal(normalizeTargetDir('E:\\'), 'E:\\');
+  assert.equal(normalizeTargetDir(''), '');
+  assert.ok(/normalizeTargetDir/.test(updaterSource), 'applyUpdate 应归一化 NL_PATH 再使用');
+  assert.ok(/无写入权限/.test(updaterSource), '目标目录不可写应提前明确报错');
+  assert.ok(/路径校验失败/.test(updaterSource), 'pending 往返不一致必须拦截调度');
+  assert.ok(/Log \('targetDir='/.test(updaterSource), '替换脚本应记录解析后的目标目录');
+  assert.ok(/更新包缺失/.test(updaterSource), '替换脚本应预检新文件存在');
+}
+
+/* applyUpdate 全链路：就绪态 → 写 pending/脚本 → 注册任务 → 退出；
+ * 写坏 pending（模拟分隔符损坏）或目录不可写时，必须在调度任务前失败 */
+{
+  const base = 'C:\\Temp\\todo-tools-update';
+  const JSON_KEY = `${base}\\latest-release.json`;
+  const ZIP_KEY = `${base}\\todo-tools-win_x64.zip`;
+  const SHA_KEY = `${base}\\todo-tools-win_x64.zip.sha256`;
+  const APP_EXE = 'C:\\App\\todo-tools-win_x64.exe';
+  const setup = (fsMem, { corruptPending = false, denyAppWrite = false } = {}) => {
+    const dirSet = new Set();
+    const cmds = [];
+    let exited = false;
+    globalThis.NL_PORT = 45678;
+    globalThis.window = { NL_PATH: 'C:\\App' };
+    globalThis.Neutralino = {
+      app: {
+        getConfig: async () => ({ version: '1.2.2' }),
+        exit: async () => { exited = true; }
+      },
+      os: {
+        getPath: async () => 'C:\\Temp',
+        execCommand: async (cmd) => {
+          cmds.push(cmd);
+          if (cmd.includes('check-web.ps1')) {
+            fsMem.set(JSON_KEY, JSON.stringify({
+              tag_name: 'v9.9.9',
+              body: 'notes',
+              assets: [
+                { name: 'todo-tools-win_x64.zip', size: 8, browser_download_url: 'https://example.com/pkg.zip' },
+                { name: 'todo-tools-win_x64.zip.sha256', size: 65, browser_download_url: 'https://example.com/pkg.sha256' }
+              ]
+            }));
+            return { exitCode: 0, stdOut: '', stdErr: '' };
+          }
+          if (cmd.includes('dl-zip-web.ps1')) {
+            fsMem.set(ZIP_KEY, 'ZIPBYTES');
+            return { exitCode: 0, stdOut: '', stdErr: '' };
+          }
+          if (cmd.includes('dl-sha-web.ps1')) {
+            fsMem.set(SHA_KEY, createHash('sha256').update('ZIPBYTES').digest('hex'));
+            return { exitCode: 0, stdOut: '', stdErr: '' };
+          }
+          if (cmd.includes('Expand-Archive')) {
+            fsMem.set(`${base}\\extracted\\todo-tools-win_x64.exe`, 'EXE');
+            fsMem.set(`${base}\\extracted\\resources.neu`, 'RES');
+          }
+          return { exitCode: 0, stdOut: '', stdErr: '' };
+        }
+      },
+      filesystem: {
+        createDirectory: async (p) => {
+          if (dirSet.has(p)) throw new Error('exists');
+          dirSet.add(p);
+        },
+        getStats: async (p) => {
+          if (fsMem.has(p)) return { size: String(fsMem.get(p)).length };
+          if (dirSet.has(p)) return { size: 0 };
+          if (p === APP_EXE || p.indexOf('C:\\App\\') === 0) return { size: 1 };
+          throw new Error('missing');
+        },
+        readFile: async (p) => {
+          if (fsMem.has(p)) return fsMem.get(p);
+          throw new Error('missing');
+        },
+        readBinaryFile: async (p) => new TextEncoder().encode(fsMem.get(p) ?? ''),
+        writeFile: async (p, content) => {
+          if (denyAppWrite && p.indexOf('C:\\App\\') === 0) throw new Error('Access is denied');
+          if (corruptPending && p === `${base}\\pending.json`) {
+            fsMem.set(p, String(content).replace(/\\/g, ''));
+            return;
+          }
+          fsMem.set(p, content);
+        },
+        remove: async (p) => { fsMem.delete(p); }
+      }
+    };
+    return { cmds, wasExited: () => exited };
+  };
+  const teardown = () => {
+    delete globalThis.Neutralino;
+    delete globalThis.NL_PORT;
+    delete globalThis.window;
+  };
+  /* 注册任务走 -EncodedCommand（base64），解码后断言，避免明文匹配误判 */
+  const createdTasks = (cmds) => cmds
+    .filter((c) => c.includes('-EncodedCommand'))
+    .map((c) => Buffer.from(c.trim().split(' ').pop(), 'base64').toString('utf16le'))
+    .filter((s) => s.includes('TODO-Tools-Update') && s.includes('/Create')).length;
+  /* 正常路径：任务注册 + 退出，无失败 */
+  {
+    const fsMem = new Map();
+    const { cmds, wasExited } = setup(fsMem);
+    const u = createUpdater({ showToast: () => {} });
+    await u.checkForUpdates();
+    assert.equal(u.getState().phase, 'available');
+    await u.downloadAndPrepare();
+    assert.equal(u.getState().phase, 'ready');
+    await u.applyUpdate();
+    assert.equal(createdTasks(cmds), 1, '应注册一次性计划任务');
+    assert.equal(wasExited(), true);
+    assert.equal(u.getState().phase, 'ready');
+    assert.equal(u.getState().error || null, null);
+    teardown();
+  }
+  /* pending 被写坏：路径校验失败，不得调度任务、不得退出 */
+  {
+    const fsMem = new Map();
+    const { cmds, wasExited } = setup(fsMem, { corruptPending: true });
+    const u = createUpdater({ showToast: () => {} });
+    await u.checkForUpdates();
+    await u.downloadAndPrepare();
+    await u.applyUpdate();
+    assert.equal(u.getState().phase, 'failed');
+    assert.ok(/路径校验失败/.test(u.getState().error), '写坏 pending 应报路径校验失败');
+    assert.equal(createdTasks(cmds), 0, '校验失败不得注册计划任务');
+    assert.equal(wasExited(), false);
+    teardown();
+  }
+  /* 目标目录不可写：明确提示提权，不得调度任务 */
+  {
+    const fsMem = new Map();
+    const { cmds, wasExited } = setup(fsMem, { denyAppWrite: true });
+    const u = createUpdater({ showToast: () => {} });
+    await u.checkForUpdates();
+    await u.downloadAndPrepare();
+    await u.applyUpdate();
+    assert.equal(u.getState().phase, 'failed');
+    assert.ok(/无写入权限/.test(u.getState().error), '不可写目录应提示提权');
+    assert.equal(createdTasks(cmds), 0, '无权限不得注册计划任务');
+    assert.equal(wasExited(), false);
+    teardown();
+  }
 }
 
 /* 下载取消流程：check → available → downloading → cancel → available（版本与资产保留） */
