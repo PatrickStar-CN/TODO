@@ -2,7 +2,7 @@
 
 TODO Tools 是一个使用原生 JavaScript、CSS 和 HTML 构建的轻量待办事项工具。项目通过 Vite 提供 Web 开发环境，并使用 Neutralinojs 打包 Windows 桌面应用，不依赖前端框架。
 
-当前版本：`1.3.7`
+当前版本：`1.3.8`
 
 ## 功能概览
 
