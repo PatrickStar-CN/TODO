@@ -554,14 +554,18 @@ assert.equal(Buffer.from(toEncodedCommand('schtasks /Run'), 'base64').toString('
 assert.equal(Buffer.from(toEncodedCommand('C:\\Users\\中文\\Temp\\apply-update.ps1'), 'base64').toString('utf16le'), 'C:\\Users\\中文\\Temp\\apply-update.ps1');
 assert.equal(Buffer.from(toEncodedCommand('done 🚀 ok'), 'base64').toString('utf16le'), 'done 🚀 ok');
 
-/* /TR 构造：含空格路径加引号、单引号双写转义、中文原样透传 */
+/* /TR 构造：含空格路径加引号、单引号双写转义、中文原样透传；必须隐藏窗口避免重启更新弹出黑框 */
 assert.equal(
   buildUpdateTaskRun('C:\\Users\\John Doe\\Temp\\todo-tools-update\\apply-update.ps1'),
-  'powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "C:\\Users\\John Doe\\Temp\\todo-tools-update\\apply-update.ps1"'
+  'powershell.exe -NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "C:\\Users\\John Doe\\Temp\\todo-tools-update\\apply-update.ps1"'
 );
 assert.equal(
   buildUpdateTaskRun("C:\\Users\\O'Brien\\x.ps1"),
-  'powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "C:\\Users\\O\'\'Brien\\x.ps1"'
+  'powershell.exe -NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "C:\\Users\\O\'\'Brien\\x.ps1"'
+);
+assert.ok(
+  buildUpdateTaskRun('C:\\Temp\\x.ps1').includes('-WindowStyle Hidden'),
+  '计划任务更新命令必须隐藏控制台窗口'
 );
 
 assert.ok(/--max-time/.test(updaterSource), 'curl 兜底应带 --max-time 总超时');
@@ -583,6 +587,7 @@ assert.ok(/buildFetchCurlPs/.test(updaterSource), '检查阶段应有 curl 兜�
 assert.ok(/407/.test(updaterSource), '代理 407 应有独立提示分支');
 assert.ok(/check-web\.ps1/.test(updaterSource), '检查脚本应落盘后 -File 执行，避免内联 -Command 被 cmd 改写');
 assert.ok(/update-check\.log/.test(updaterSource), '检查/下载各阶段应写诊断日志');
+assert.ok(/-WindowStyle Hidden/.test(updaterSource), '更新链路 PowerShell 启动必须隐藏窗口，避免弹出黑框');
 assert.ok(/execThrow/.test(updaterSource), 'exec 启动失败应转为可诊断错误');
 assert.ok(/File\]::Open\(\$exePath/.test(updaterSource), '替换脚本应等待主进程退出');
 assert.ok(/pending\.version/.test(updaterSource), '启动自检应用版本比对判定成败');

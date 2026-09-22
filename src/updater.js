@@ -157,10 +157,12 @@ export function toEncodedCommand(ps) {
 
 /* 计划任务 /TR 值：整体用单引号包裹以兼容含空格路径；路径内单引号按 PowerShell 规则双写转义。
  * schtasks.exe 收到时外层单引号已由 PowerShell 去掉，内层双引号原样保留，
- * 任务计划程序启动时 -File 参数可正确解析含空格/中文路径。 */
+ * 任务计划程序启动时 -File 参数可正确解析含空格/中文路径。
+ * 必须带 -WindowStyle Hidden：powershell.exe 是控制台子系统程序，计划任务默认以前台可见方式
+ * 启动，不隐藏会在重启更新阶段弹出黑框（与 windowsToast.js 的隐藏启动保持一致）。 */
 export function buildUpdateTaskRun(scriptPath) {
   const safe = String(scriptPath).replace(/'/g, "''");
-  return `powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "${safe}"`;
+  return `powershell.exe -NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "${safe}"`;
 }
 
 export function createUpdater({ showToast, appConfig = {} }) {
@@ -239,7 +241,7 @@ export function createUpdater({ showToast, appConfig = {} }) {
   const removeTree = async (p) => {
     try {
       await Neutralino.os.execCommand(
-        `powershell -NoProfile -NonInteractive -Command "Remove-Item -LiteralPath '${p}' -Recurse -Force"`
+        `powershell -NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -Command "Remove-Item -LiteralPath '${p}' -Recurse -Force"`
       );
     } catch {}
   };
@@ -262,7 +264,8 @@ export function createUpdater({ showToast, appConfig = {} }) {
 
   /* 脚本一律落盘后用 -File 执行：内联 -Command 要经 cmd 中转，&、%、> 等元字符
    * 会被改写导致脚本根本没跑起来（且无任何输出文件）；-File 只传一个短路径参数，
-   * 不受此影响。exec 自身抛错（如进程起不来）转为带 execThrow 标记的 Error，
+   * 不受此影响。-WindowStyle Hidden 避免检查/下载阶段弹出控制台窗口。
+   * exec 自身抛错（如进程起不来）转为带 execThrow 标记的 Error，
    * 调用方据此给出可诊断文案而不是空细节。 */
   const execPsScript = async (dir, stage, psName, psContent) => {
     const psPath = joinPath(dir, psName);
@@ -270,7 +273,7 @@ export function createUpdater({ showToast, appConfig = {} }) {
     let r;
     try {
       r = await Neutralino.os.execCommand(
-        `powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "${psPath}"`
+        `powershell -NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "${psPath}"`
       );
     } catch (e) {
       const msg = `exec启动失败:${e?.message || e}`;
@@ -590,7 +593,7 @@ export function createUpdater({ showToast, appConfig = {} }) {
       if (actual !== expected) throw new Error('更新包校验失败（SHA-256 不匹配），已停止替换');
 
       const expand = await Neutralino.os.execCommand(
-        `powershell -NoProfile -NonInteractive -Command "Expand-Archive -LiteralPath '${zipPath}' -DestinationPath '${unzipDir}' -Force"`
+        `powershell -NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -Command "Expand-Archive -LiteralPath '${zipPath}' -DestinationPath '${unzipDir}' -Force"`
       );
       if (expand.exitCode !== 0) throw new Error('更新包解压失败');
       const exeSize = await fileSize(joinPath(unzipDir, exeName));
@@ -737,12 +740,12 @@ export function createUpdater({ showToast, appConfig = {} }) {
       const hhmm = `${String(startAt.getHours()).padStart(2, '0')}:${String(startAt.getMinutes()).padStart(2, '0')}`;
       const innerCreate = `schtasks /Create /F /TN 'TODO-Tools-Update' /SC ONCE /ST ${hhmm} /TR '${buildUpdateTaskRun(scriptPath)}'`;
       const r = await Neutralino.os.execCommand(
-        `powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand ${toEncodedCommand(innerCreate)}`
+        `powershell -NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -EncodedCommand ${toEncodedCommand(innerCreate)}`
       );
       if (r.exitCode !== 0) throw new Error(`注册更新任务失败（${r.stdErr || r.exitCode}）`);
       const innerRun = `schtasks /Run /TN 'TODO-Tools-Update'`;
       const runResult = await Neutralino.os.execCommand(
-        `powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand ${toEncodedCommand(innerRun)}`
+        `powershell -NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -EncodedCommand ${toEncodedCommand(innerRun)}`
       );
       /* /Run 失败必须抛错：否则应用退出后更新静默丢失 */
       if (runResult.exitCode !== 0) throw new Error(`触发更新任务失败（${runResult.stdErr || runResult.exitCode}）`);
