@@ -11,7 +11,7 @@ import { parseLocalDateInput, toLocalDateInput, toLocalDatetime, isToday, getMon
 import { animateWindowRect, cancelWindowRectAnimation, centerRect, computeCollapsedY, easeOutCubic, ensureDisplayHz, framesPerApply, isNearScreenTop, rectAt, WINDOW_ANIM_MAX_HZ } from '../src/miniSnap.js';
 import { buildCurlProxyPs, buildDownloadCurlPs, buildDownloadWebRequestPs, buildFetchCurlPs, buildFetchWebRequestPs, buildProxyAssignPs, buildTlsPs, buildUpdateTaskRun, compareVersions, createUpdater, normalizeTargetDir, psQuote, sanitizeNetDetail, toEncodedCommand } from '../src/updater.js';
 import { INSTANCE_LOCK_DIR, INSTANCE_LOCK_FILE, getNextTagDotStyle, getTagTaskCount } from '../src/shared.js';
-import { extractCompleteContent, parseSseLine, resolveAiApiUrl } from '../src/utils/aiApi.js';
+import { extractCompleteContent, normalizeStreamText, parseSseLine, resolveAiApiUrl } from '../src/utils/aiApi.js';
 import { DEFAULT_TIMELINE_SETTINGS, formatTimelineTime, getTimelineDateParts, normalizeTimelineSettings, sortTimelineTodos } from '../src/timeline.js';
 import { clampDonePanelHeight, computeDonePanelHeightFromPointer, computeDonePanelMaxHeightFromRects } from '../src/donePanelResize.js';
 
@@ -30,6 +30,16 @@ assert.deepEqual(parseSseLine(': ping'), { done: false, content: '' });
 assert.deepEqual(parseSseLine(''), { done: false, content: '' });
 assert.deepEqual(parseSseLine('data: not-json'), { done: false, content: '' });
 assert.deepEqual(parseSseLine('data: {"choices":[{}]}'), { done: false, content: '' });
+assert.deepEqual(parseSseLine('  data: {"choices":[{"delta":{"content":"X"}}]}'), { done: false, content: 'X' });
+assert.deepEqual(parseSseLine('data: {"choices":[{"delta":{"reasoning_content":"思考","content":"正文"}}]}'), { done: false, content: '正文' });
+/* 流式纯文本归一化：推理模型句中杂散空白收敛，不引入 Markdown 渲染 */
+assert.equal(normalizeStreamText('森兰：退料自动  \n   \n\n    回传；'), '森兰：退料自动\n\n回传；');
+assert.equal(normalizeStreamText('设备\n\n\n管理'), '设备\n\n管理');
+assert.equal(normalizeStreamText('A\r\nB\rC'), 'A\nB\nC');
+assert.equal(normalizeStreamText('\n\n标题\n正文'), '标题\n正文');
+assert.equal(normalizeStreamText('<think>思考过程</think>正文'), '正文');
+assert.equal(normalizeStreamText('行  尾\n下一行  '), '行 尾\n下一行');
+assert.equal(normalizeStreamText(''), '');
 /* 整包兜底：网关无视 stream 时从完整 JSON 提正文或服务端错误 */
 assert.equal(extractCompleteContent('{"choices":[{"message":{"content":"月报正文"}}]}'), '月报正文');
 assert.equal(extractCompleteContent('{"choices":[{"text":"abc"}]}'), 'abc');
@@ -464,6 +474,10 @@ assert.ok(/export function setDatePickerValue/.test(datePickerSource), 'datePick
   assert.ok(/extractCompleteContent/.test(aiSource), '零流式输出时应尝试整包兜底');
   assert.ok(/scrollTop = .*scrollHeight/.test(aiSource), '流式追加应自动滚到底部');
   assert.ok(/is-streaming/.test(aiSource), '生成中应标记流式态并在各出口清理');
+  assert.ok(/normalizeStreamText/.test(aiSource), '流式屏显应走纯文本归一化，收敛推理模型杂散空白');
+  assert.ok(/requestAnimationFrame/.test(aiSource), '流式渲染应节流，避免逐 delta 高频回流');
+  assert.ok(/split\(\/\\r\\n\|\\r\|\\n\/\)/.test(aiSource), 'SSE 切行应兼容孤立回车，避免整行 JSON 解析失败丢 delta');
+  assert.ok(!/ai-debug|aiDebug/.test(aiSource), '临时定界诊断不得残留正式代码');
 }
 const appSource = readFileSync(path.join(__dirname, '../src/app.js'), 'utf8');
 assert.ok(/function saveDetailForm\s*\(\)\s*\{[\s\S]*?runtimeIndex\.update\(todo,\s*patch\)[\s\S]*?saveData\(\)/.test(appSource), 'app.js 应提供 saveDetailForm 统一保存详情改动');

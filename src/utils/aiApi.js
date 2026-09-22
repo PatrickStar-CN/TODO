@@ -18,10 +18,11 @@ export function resolveAiApiUrl(value) {
   return `${trimmedBase}${CHAT_COMPLETIONS_PATH}${suffix}`;
 }
 
-/* SSE 单行解析（纯函数）：data: 前缀兼容有/无空格；[DONE] 结束；
+/* SSE 单行解析（纯函数）：data: 前缀兼容前导空格、有/无空格；[DONE] 结束；
+ * 只取 delta.content（推理模型的 reasoning_content 等思考字段明确忽略，不上屏）；
  * 非 SSE 行返回空内容，由调用方忽略。 */
 export function parseSseLine(line) {
-  const text = String(line ?? '');
+  const text = String(line ?? '').trimStart();
   if (!text.startsWith('data:')) return { done: false, content: '' };
   const payload = text.slice(5).trim();
   if (!payload) return { done: false, content: '' };
@@ -49,4 +50,19 @@ export function extractCompleteContent(text) {
   } catch {
     return '';
   }
+}
+
+/* 纯文本流式归一化（纯函数，无 Markdown 渲染）：
+ * 推理模型 delta 自带随机杂散空白（句中空格、孤立换行），此处收敛为干净排版。
+ * 规则：剥 <think> 块；CRLF/孤立 CR 归一为 LF；去文首空行；
+ * 清除换行两侧杂散空格；连续空行压到最多 1 个；行内连续空格压到 1 个；去文尾空白。 */
+export function normalizeStreamText(text) {
+  let t = String(text ?? '').replace(/<think>[\s\S]*?<\/think>/gi, '');
+  t = t.replace(/\r\n?/g, '\n');
+  t = t.replace(/^(\s*\n)+/, '');
+  t = t.replace(/[ \t\u00a0\u3000]+\n/g, '\n');
+  t = t.replace(/\n[ \t\u00a0\u3000]+/g, '\n');
+  t = t.replace(/\n{3,}/g, '\n\n');
+  t = t.replace(/[ \t\u00a0\u3000]{2,}/g, ' ');
+  return t.replace(/\s+$/, '');
 }

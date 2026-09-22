@@ -2,7 +2,7 @@ import { toLocalDateInput, parseLocalDateInput, formatMonthDay, getMonthRange } 
 import { setDatePickerValue } from './datePicker.js';
 import { escapeHtml } from './utils/html.js';
 import { closeDetail } from './detail.js';
-import { extractCompleteContent, parseSseLine, resolveAiApiUrl } from './utils/aiApi.js';
+import { extractCompleteContent, normalizeStreamText, parseSseLine, resolveAiApiUrl } from './utils/aiApi.js';
 import { getUiMotionDuration } from './uiPreferences.js';
 
 export function getMonthlyReportRange(baseDate) {
@@ -221,7 +221,7 @@ export function initAiSummary({ data, saveData, showToast }) {
       if (!reader) {
         const json = await response.json();
         const content = json.choices?.[0]?.message?.content || json.choices?.[0]?.text || '';
-        summaryOutput.textContent = content || '接口未返回报告内容';
+        summaryOutput.textContent = normalizeStreamText(content) || '接口未返回报告内容';
         summaryFooter.classList.remove('hidden');
         summaryOutput.classList.remove('is-streaming');
         return;
@@ -230,6 +230,15 @@ export function initAiSummary({ data, saveData, showToast }) {
       let buffer = '';
       let streamDone = false;
       let streamedLength = 0;
+      /* 纯文本累积 + rAF 节流渲染：delta 原样拼入 fullText，屏显走归一化，
+         推理模型的随机杂散空白在此收敛，不污染屏显；复制与屏显一致 */
+      let fullText = '';
+      let renderQueued = false;
+      const renderStreamText = () => {
+        renderQueued = false;
+        summaryOutput.textContent = normalizeStreamText(fullText);
+        scrollSummaryToBottom();
+      };
       const consumeLines = (lines) => {
         for (const line of lines) {
           const { done, content } = parseSseLine(line);
@@ -238,9 +247,12 @@ export function initAiSummary({ data, saveData, showToast }) {
             break;
           }
           if (content) {
-            summaryOutput.textContent += content;
+            fullText += content;
             streamedLength += content.length;
-            scrollSummaryToBottom();
+            if (!renderQueued) {
+              renderQueued = true;
+              requestAnimationFrame(renderStreamText);
+            }
           }
         }
       };
@@ -249,7 +261,8 @@ export function initAiSummary({ data, saveData, showToast }) {
         const { done, value } = await reader.read();
         if (value) {
           buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split(/\r?\n/);
+          /* 切行兼容 CRLF / 孤立 CR / LF，避免孤立回车导致整行 JSON 解析失败丢 delta */
+          const lines = buffer.split(/\r\n|\r|\n/);
           buffer = lines.pop();
           consumeLines(lines);
         }
@@ -257,12 +270,17 @@ export function initAiSummary({ data, saveData, showToast }) {
       }
       /* 尾部 flush：最后一个不完整行此前被暂存，不能丢弃 */
       buffer += decoder.decode();
-      if (buffer) consumeLines(buffer.split(/\r?\n/));
+      if (buffer) consumeLines(buffer.split(/\r\n|\r|\n/));
+      if (renderQueued) renderStreamText();
+      else {
+        summaryOutput.textContent = normalizeStreamText(fullText);
+        scrollSummaryToBottom();
+      }
       summaryOutput.classList.remove('is-streaming');
       if (streamedLength === 0) {
         /* 网关整包返回（无视 stream:true）：从缓冲提取正文，仍为空才明示 */
         const fallback = extractCompleteContent(buffer);
-        summaryOutput.textContent = fallback || '接口未返回报告内容（已收到响应但无可解析正文）';
+        summaryOutput.textContent = normalizeStreamText(fallback) || '接口未返回报告内容（已收到响应但无可解析正文）';
       }
       summaryFooter.classList.remove('hidden');
     } catch (err) {
