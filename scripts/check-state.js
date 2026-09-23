@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { webcrypto, createHash } from 'node:crypto';
 import { countByList, countTagUndone, getFilteredTodos, sortByPriority, splitPendingDone } from '../src/selectors.js';
 import { DEFAULT_UI_STYLE, normalizeUiStyle } from '../src/uiPreferences.js';
-import { buildMonthActivityIndex, buildYearCompletionIndex, buildYearTaskIndex, getCompletedTodosForDate, getMonthTodos, getTaskTodosForDate, groupMonthTodos, paginateList, MONTH_TODOS_PAGE_SIZE } from '../src/calendar.js';
+import { buildMonthActivityIndex, buildMonthIndex, buildYearCompletionIndex, buildYearTaskIndex, getCompletedTodosForDate, getMonthTodos, getTaskTodosForDate, groupMonthTodos, paginateList, MONTH_TODOS_PAGE_SIZE } from '../src/calendar.js';
 import { initReminders, computeNextMonthlyReminder } from '../src/reminder.js';
 import { createRuntimeIndex } from '../src/runtimeIndex.js';
 import { encrypt, initCrypto, tryDecrypt } from '../src/utils/crypto.js';
@@ -215,6 +215,21 @@ const activity = buildMonthActivityIndex(2026, 0, {
 assert.deepEqual(activity.get('2026-01-02'), { created: 2, done: 0 });
 assert.deepEqual(activity.get('2026-01-03'), { created: 0, done: 2 });
 
+/* 性能回归：buildMonthIndex 内联统计已收敛到 buildMonthActivityIndex，两者必须一致 */
+{
+  const monthFixture = {
+    todos: [
+      { id: 'a', createdAt: '2026-01-02T08:00:00', doneAt: '2026-01-03T10:00:00' },
+      { id: 'b', createdAt: '2026-01-02T12:00:00', doneAt: null }
+    ]
+  };
+  const monthIdx = buildMonthIndex(2026, 0, monthFixture);
+  const monthActivity = buildMonthActivityIndex(2026, 0, monthFixture);
+  assert.deepEqual(monthIdx.activityIndex.get('2026-01-02'), monthActivity.get('2026-01-02'));
+  assert.deepEqual(monthIdx.activityIndex.get('2026-01-03'), monthActivity.get('2026-01-03'));
+  assert.deepEqual((monthIdx.get('2026-01-02') || []).map(t => t.id), ['b']);
+}
+
 const yearTaskActivity = buildYearTaskIndex(2026, {
   todos: [
     { createdAt: '2026-01-01T08:00:00', startTime: '2026-01-02T08:00:00', endTime: '2026-01-04T10:00:00' },
@@ -349,6 +364,24 @@ assert.deepEqual(indexedData._index.counts, { todo: 1, important: 1, all: 1, arc
 runtimeIndex.replaceTodos(indexedData.todos.filter(todo => todo.id !== 'a'));
 assert.equal(runtimeIndex.get('a'), undefined);
 assert.equal(runtimeIndex.get('c').title, 'New task');
+
+/* 性能回归：列表缓存键依赖 runtimeIndex 版本语义（add/update/remove 必 bump；
+   { calendar: false } 只 bump 列表版本，不碰日历版本） */
+{
+  const versioned = createRuntimeIndex({ todos: [{ id: 'v1', title: 'V', tag: '', todo: true, important: false, done: false, archived: false, createdAt: 1 }] });
+  const v0 = versioned.getVersion();
+  const c0 = versioned.getCalendarVersion();
+  versioned.update(versioned.get('v1'), { important: true }, { calendar: false });
+  assert.equal(versioned.getVersion(), v0 + 1);
+  assert.equal(versioned.getCalendarVersion(), c0);
+  versioned.update(versioned.get('v1'), { important: false });
+  assert.equal(versioned.getVersion(), v0 + 2);
+  assert.equal(versioned.getCalendarVersion(), c0 + 1);
+  versioned.add({ id: 'v2', title: 'W', tag: '', todo: true, important: false, done: false, archived: false, createdAt: 2 });
+  assert.equal(versioned.getVersion(), v0 + 3);
+  versioned.remove('v2');
+  assert.equal(versioned.getVersion(), v0 + 4);
+}
 
 const storage = new Map();
 globalThis.localStorage = {

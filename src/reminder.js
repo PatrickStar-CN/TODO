@@ -71,6 +71,23 @@ export function initReminders({ data, saveData, render, showToast, subscribeData
     }
   }
 
+  /* 同一轮到期的多个提醒合并为一条系统通知，避免串行 spawn 多个 powershell 进程 */
+  async function triggerRemindersBatch(dueTodos) {
+    if (dueTodos.length === 0) return;
+    if (dueTodos.length === 1) {
+      await triggerReminder(dueTodos[0]);
+      return;
+    }
+    const preview = dueTodos.slice(0, 3).map(t => t.title).join('、');
+    const suffix = dueTodos.length > 3 ? `等 ${dueTodos.length} 个任务` : `${dueTodos.length} 个任务`;
+    showToast(`提醒：${preview}${dueTodos.length > 3 ? '…' : ''}`);
+    try {
+      await sendSystemNotification('TODO 提醒', `${suffix}到期：${preview}${dueTodos.length > 3 ? '…' : ''}`);
+    } catch (err) {
+      console.warn('[reminder] system notification failed:', err);
+    }
+  }
+
   function scheduleNext(delayOverride = null) {
     if (timerId) clearTimeout(timerId);
     timerId = null;
@@ -98,12 +115,18 @@ export function initReminders({ data, saveData, render, showToast, subscribeData
     try {
       const now = new Date();
       let changed = false;
+      const dueTodos = [];
       for (const todo of data.todos) {
         if (!todo.reminder || todo.done) continue;
         const reminderTime = new Date(todo.reminder);
         if (!Number.isFinite(reminderTime.getTime()) || reminderTime > now) continue;
-
-        await triggerReminder(todo);
+        dueTodos.push(todo);
+      }
+      if (dueTodos.length > 0) {
+        await triggerRemindersBatch(dueTodos);
+      }
+      for (const todo of dueTodos) {
+        const reminderTime = new Date(todo.reminder);
         if (todo.reminderRepeat === 'daily') {
           const next = new Date(reminderTime);
           while (next <= now) next.setDate(next.getDate() + 1);
@@ -142,7 +165,15 @@ export function initReminders({ data, saveData, render, showToast, subscribeData
   }
 
   scheduleNext(2000);
-  const unsubscribe = subscribeDataChanges?.(() => scheduleNext());
+  /* 高频编辑时防抖重排，避免每次 saveData 都 clearTimeout + 全量 rescan O(N) */
+  let rescheduleTimer = null;
+  const unsubscribe = subscribeDataChanges?.(() => {
+    if (rescheduleTimer) clearTimeout(rescheduleTimer);
+    rescheduleTimer = setTimeout(() => {
+      rescheduleTimer = null;
+      scheduleNext();
+    }, 300);
+  });
 
   function pause() {
     paused = true;

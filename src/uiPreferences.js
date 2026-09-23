@@ -38,6 +38,7 @@ export function normalizeUiStyle(value) {
 
 export function applyUiStyle(value) {
   const style = normalizeUiStyle(value);
+  motionDurationCache = null;
   const root = document.documentElement;
 
   root.style.setProperty('--ui-radius', `${style.radius}px`);
@@ -68,11 +69,16 @@ export function applyUiStyle(value) {
   return style;
 }
 
+/* getComputedStyle 高频调用会强制样式计算：缓存持续时间，applyUiStyle 时失效 */
+let motionDurationCache = null;
 export function getUiMotionDuration(kind = 'panel') {
+  if (motionDurationCache?.[kind] != null) return motionDurationCache[kind];
   const fallback = kind === 'fast' ? 140 : kind === 'normal' ? 220 : 280;
   const raw = getComputedStyle(document.documentElement)
     .getPropertyValue(`--duration-${kind}`)
     .trim();
   const duration = Number.parseFloat(raw);
-  return Number.isFinite(duration) ? duration : fallback;
+  const value = Number.isFinite(duration) ? duration : fallback;
+  motionDurationCache = { ...(motionDurationCache || {}), [kind]: value };
+  return value;
 }

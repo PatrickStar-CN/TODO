@@ -22,7 +22,7 @@ import { createUpdater } from './updater.js';
 import { createRuntimeIndex } from './runtimeIndex.js';
 import { computeDonePanelMaxHeightFromRects, initDonePanelResize } from './donePanelResize.js';
 import { iconSvg, setIcon } from './icons.js';
-import { getTagDotStyle, getTagTaskCount, isNeutralinoEnv } from './shared.js';
+import { getTagColor, getTagTaskCount, isNeutralinoEnv } from './shared.js';
 
 const STORAGE_KEY = 'todo_app_data';
 const DATA_FILE = 'todo_data.json';
@@ -563,13 +563,16 @@ function reflowMotionEnabled() {
          typeof Element.prototype.animate === 'function';
 }
 
-function captureTodoPositions() {
+/* scopeListId 只采集指定列表：删除只会影响本列表内排布，跨列表采集纯属浪费强制布局 */
+function captureTodoPositions(scopeListId = null) {
   if (!reflowMotionEnabled()) return null;
   const positions = new Map();
   document.querySelectorAll('.todo-item[data-id]').forEach(el => {
     const listEl = el.closest('#todo-list, #done-list, #calendar-todo-list');
+    if (!listEl) return;
+    if (scopeListId && listEl.id !== scopeListId) return;
     const rect = el.getBoundingClientRect();
-    if (!listEl || rect.width <= 0 || rect.height <= 0) return;
+    if (rect.width <= 0 || rect.height <= 0) return;
     positions.set(el.dataset.id, {
       rect,
       listId: listEl.id
@@ -688,17 +691,38 @@ function renderSidebar() {
 
   const tagListEl = document.getElementById('tag-list');
   /* 显示所有标签：不再按 tagUndone 过滤已完成/已归档标签 */
-  tagListEl.innerHTML = data.tags.map(tag => {
+  /* keyed diff：复用已存在的 .tag-item 节点并按序归位，只增删改变化项。
+     全量 innerHTML 会重建所有标签 DOM，导致焦点/滚动丢失，标签多时抖动。 */
+  const existingTagEls = new Map();
+  tagListEl.querySelectorAll('.tag-item[data-tag]').forEach(el => {
+    if (!existingTagEls.has(el.dataset.tag)) existingTagEls.set(el.dataset.tag, el);
+  });
+  const tagFragment = document.createDocumentFragment();
+  data.tags.forEach(tag => {
     const undone = countTagUndone(data, tag);
     const label = `待完成 ${undone}`;
-    return `
-    <a href="#" class="tag-item ${currentTag === tag ? 'active' : ''}" data-tag="${escapeHtml(tag)}" draggable="false" title="${escapeHtml(label)}" aria-label="${escapeHtml(`${tag}，${label}`)}">
-      <span class="tag-dot" ${getTagDotStyle(tag, data.tags)}></span>
-      <span class="tag-label">${escapeHtml(tag)}</span>
-      <span class="nav-count">${undone}</span>
-    </a>
-  `;
-  }).join('');
+    let el = existingTagEls.get(tag);
+    if (!el) {
+      el = document.createElement('a');
+      el.href = '#';
+      el.className = 'tag-item';
+      el.draggable = false;
+      el.innerHTML = '<span class="tag-dot"></span><span class="tag-label"></span><span class="nav-count"></span>';
+    } else {
+      existingTagEls.delete(tag);
+    }
+    el.dataset.tag = tag;
+    el.classList.toggle('active', currentTag === tag);
+    el.title = label;
+    el.setAttribute('aria-label', `${tag}，${label}`);
+    el.querySelector('.tag-dot').style.background = getTagColor(tag, data.tags);
+    el.querySelector('.tag-label').textContent = tag;
+    el.querySelector('.nav-count').textContent = undone;
+    tagFragment.appendChild(el);
+  });
+  /* 删除已不存在的标签节点（重命名场景下旧名节点在此回收） */
+  existingTagEls.forEach(el => el.remove());
+  tagListEl.appendChild(tagFragment);
 
   document.querySelectorAll('.nav-item[data-list]').forEach(el => {
     el.classList.toggle('active', !currentTag && el.dataset.list === currentList);
@@ -707,13 +731,16 @@ function renderSidebar() {
 
 let listViewCache = { key: '', filtered: null, taskSorted: null, done: null };
 
-/* 视图管线缓存：按 (saveVersion + 视图状态) 缓存过滤/分组/排序结果。
+/* 视图管线缓存：按 (runtimeIndex 版本 + 视图状态) 缓存过滤/分组/排序结果。
    滚动增量加载、done 折叠切换等不改变数据的 re-render 直接复用，
-   避免每次对全量 data.todos 重扫 + 重排。saveVersion 只在提交变更时递增。 */
+   避免每次对全量 data.todos 重扫 + 重排。
+   用 runtimeIndex 版本而不用 saveVersion：主题/外观/AI 配置等保存只 bump saveVersion，
+   与任务列表无关，不应冲掉过滤排序缓存；任务变更必经 runtimeIndex（add/update/remove/
+   replaceTodos/rebuild 全 bump 版本），deleteTag 的直接数组改动后也调了 rebuildIndex。 */
 function getListView() {
   const timelineEnabled = data.timeline.enabled;
   const key = [
-    saveVersion,
+    runtimeIndex ? runtimeIndex.getVersion() : saveVersion,
     currentList,
     currentTag,
     searchKeyword,
@@ -1220,8 +1247,12 @@ function openDetail(id, triggerEl) {
 
 // --- Main init ---
 export async function initApp() {
-  await initCrypto();
-  data = await loadData();
+  /* initCrypto 只是预热加密密钥（loadData 解密走按需派生+缓存），两者可并行，省 ~100-300ms 启动 */
+  const [loadedData] = await Promise.all([
+    loadData(),
+    initCrypto().catch(err => console.warn('[initApp] crypto warmup failed:', err))
+  ]);
+  data = loadedData;
   normalizeData();
   runtimeIndex = createRuntimeIndex(data);
 
@@ -1248,14 +1279,20 @@ export async function initApp() {
   });
 
   let appConfig = {};
-  try {
-    const res = await fetch('./app.config.json');
-    if (res.ok) appConfig = await res.json();
-  } catch (e) { /* ignore */ }
-
-  /* 软件更新：启动时自检上次更新残留（回滚/清理），设置页提供检查更新入口 */
-  const updater = createUpdater({ showToast, appConfig });
-  updater.checkPendingStartup().catch(e => console.warn('[updater] startup check failed:', e));
+  /* 软件更新与配置加载延后到首屏渲染之后，避免阻塞首次 render */
+  let updater = null;
+  const initUpdaterDeferred = async () => {
+    try {
+      const res = await fetch('./app.config.json');
+      if (res.ok) appConfig = await res.json();
+    } catch (e) { /* ignore */ }
+    try {
+      updater = createUpdater({ showToast, appConfig });
+      await updater.checkPendingStartup();
+    } catch (e) {
+      console.warn('[updater] startup check failed:', e);
+    }
+  };
 
   applyTheme(data.theme);
   applyUiStyle(data.uiStyle);
@@ -1836,7 +1873,8 @@ export async function initApp() {
           .find(el => el.dataset.id === id);
 
       const removeTodo = () => {
-        const previousPositions = captureTodoPositions();
+        const scopeList = sourceEl?.closest('#todo-list, #done-list, #calendar-todo-list');
+        const previousPositions = captureTodoPositions(scopeList?.id || null);
         runtimeIndex.remove(id);
         saveData();
         closeDetail();
@@ -1916,12 +1954,24 @@ export async function initApp() {
   initAiSummary({ data, saveData, showToast });
 
   // --- Settings Panel ---
+  /* updater 延迟就绪：用稳定代理占位，面板打开时再按实际状态绑定，避免首屏被配置读取+自检阻塞 */
+  const updaterProxy = {
+    isAvailable: () => updater?.isAvailable() ?? false,
+    getCurrentVersion: () => updater?.getCurrentVersion?.(),
+    getState: () => updater?.getState?.() ?? { status: 'idle' },
+    onStatus: (fn) => updater?.onStatus?.(fn) ?? (() => {}),
+    resolveCurrentVersion: (...args) => updater?.resolveCurrentVersion?.(...args) ?? Promise.resolve(null),
+    checkForUpdates: (...args) => updater?.checkForUpdates?.(...args) ?? Promise.resolve(),
+    downloadAndPrepare: (...args) => updater?.downloadAndPrepare?.(...args) ?? Promise.reject(new Error('updater not ready')),
+    applyUpdate: (...args) => updater?.applyUpdate?.(...args) ?? Promise.reject(new Error('updater not ready')),
+    cancelDownload: (...args) => updater?.cancelDownload?.(...args)
+  };
   initSettings({
     data,
     saveData,
     showToast,
     render,
-    updater,
+    updater: updaterProxy,
     testNotification: reminders.testNotification,
     getNotificationStatus: reminders.getNotificationStatus,
     onTagRenamed: (oldTag, newTag) => {
@@ -1938,4 +1988,10 @@ export async function initApp() {
 
   // Init render
   render();
+  /* 首屏渲染后空闲时再做配置读取与更新自检，不阻塞首次绘制 */
+  const scheduleDeferred = (fn) => {
+    if (typeof requestIdleCallback === 'function') requestIdleCallback(() => fn(), { timeout: 1500 });
+    else setTimeout(fn, 0);
+  };
+  scheduleDeferred(initUpdaterDeferred);
 }

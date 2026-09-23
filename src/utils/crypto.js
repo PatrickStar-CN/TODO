@@ -19,14 +19,21 @@ const SALT_LENGTH = 16;
 const IV_LENGTH = 12;
 
 let cachedKey = null;
+let cachedSaltB64 = null;
+/* 同一 salt 的派生密钥缓存：避免每次解密/加密重复走 100k PBKDF2 */
+const derivedKeyCache = new Map();
 
 function getCrypto() {
   return (typeof window !== 'undefined' && window.crypto && window.crypto.subtle) ? window.crypto : null;
 }
 
 function bytesToBase64(bytes) {
+  /* 分块拼接：大文件不再逐字符累积导致 O(n²) 拷贝 */
+  const CHUNK = 0x8000;
   let s = '';
-  for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    s += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+  }
   return btoa(s);
 }
 
@@ -90,6 +97,9 @@ function generateNewSalt() {
 async function deriveKeyWithSalt(salt, legacyFingerprint = false) {
   const c = getCrypto();
   if (!c) throw new Error('Web Crypto API not available');
+  const cacheKey = `${bytesToBase64(salt)}|${legacyFingerprint ? `v1:${getDeviceFingerprint()}` : 'v2'}`;
+  const cached = derivedKeyCache.get(cacheKey);
+  if (cached) return cached;
   const enc = new TextEncoder();
   const material = enc.encode(
     legacyFingerprint
@@ -97,13 +107,17 @@ async function deriveKeyWithSalt(salt, legacyFingerprint = false) {
       : 'todo-tools::v2::local-data'
   );
   const baseKey = await c.subtle.importKey('raw', material, 'PBKDF2', false, ['deriveKey']);
-  return c.subtle.deriveKey(
+  const key = await c.subtle.deriveKey(
     { name: 'PBKDF2', salt, iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' },
     baseKey,
     { name: 'AES-GCM', length: 256 },
     false,
     ['encrypt', 'decrypt']
   );
+  /* 只缓存少量常用密钥，避免候选指纹遍历撑爆内存 */
+  if (derivedKeyCache.size > 8) derivedKeyCache.clear();
+  derivedKeyCache.set(cacheKey, key);
+  return key;
 }
 
 /* 解析文件内容，返回 { salt, encrypted } 或 null（旧格式） */
@@ -131,9 +145,11 @@ export async function initCrypto() {
   try {
     const salt = getOrCreateLocalSalt();
     cachedKey = await deriveKeyWithSalt(salt);
+    cachedSaltB64 = bytesToBase64(salt);
   } catch (err) {
     console.warn('[crypto] 初始化失败，将以明文保存:', err);
     cachedKey = null;
+    cachedSaltB64 = null;
   }
 }
 
@@ -162,8 +178,17 @@ export async function encrypt(plaintext) {
   out.set(iv, 0);
   out.set(ctBytes, iv.length);
 
-  /* 从 localStorage 取 salt 嵌入到输出中 */
-  const saltB64 = localStorage.getItem(STORAGE_KEY_SALT) || bytesToBase64(c.getRandomValues(new Uint8Array(SALT_LENGTH)));
+  /* 使用与 cachedKey 同源的 salt，避免 localStorage 被清理后密钥/salt 不一致 */
+  let saltB64 = cachedSaltB64 || null;
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY_SALT);
+    if (stored && stored === cachedSaltB64) saltB64 = stored;
+    else if (!saltB64) saltB64 = stored || null;
+  } catch { /* ignore */ }
+  if (!saltB64) {
+    saltB64 = bytesToBase64(c.getRandomValues(new Uint8Array(SALT_LENGTH)));
+    try { localStorage.setItem(STORAGE_KEY_SALT, saltB64); } catch { /* ignore */ }
+  }
   return saltB64 + '\n' + PREFIX + bytesToBase64(out);
 }
 
@@ -184,7 +209,9 @@ async function decryptWithSalt(encrypted, salt) {
       return new TextDecoder().decode(plainBuf);
     } catch {}
 
-    for (const fingerprint of getLegacyFingerprintCandidates()) {
+    /* 旧设备指纹候选只试最近 6 个大版本，且每轮让出主线程，避免换机文件打开时数秒假死 */
+    const candidates = getLegacyFingerprintCandidates().slice(0, 6);
+    for (const fingerprint of candidates) {
       try {
         const enc = new TextEncoder();
         const material = enc.encode(`todo-tools::v1::${fingerprint}`);
@@ -199,6 +226,7 @@ async function decryptWithSalt(encrypted, salt) {
         const plainBuf = await c.subtle.decrypt({ name: 'AES-GCM', iv }, legacyKey, ciphertext);
         return new TextDecoder().decode(plainBuf);
       } catch {}
+      await new Promise(resolve => setTimeout(resolve, 0));
     }
     throw stableError;
   }

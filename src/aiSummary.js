@@ -78,6 +78,9 @@ export function initAiSummary({ data, saveData, showToast }) {
   });
 
   document.getElementById('close-summary').addEventListener('click', () => {
+    /* 关闭即取消流式请求，避免后台继续累积 fullText 耗 CPU/内存 */
+    reportAborter?.abort();
+    reportAborter = null;
     summaryPanel.classList.add('hiding');
     summaryPanel.style.animation = 'modalShrinkOut var(--motion-normal) forwards';
     if (summaryOverlay) {
@@ -114,6 +117,14 @@ export function initAiSummary({ data, saveData, showToast }) {
       updateSummaryDateRange();
     });
   });
+
+  let reportAborter = null;
+  const MAX_REPORT_TODOS = 100;
+  const MAX_REPORT_CHARS = 15000;
+  function truncateReportList(text) {
+    if (text.length <= MAX_REPORT_CHARS) return text;
+    return `${text.slice(0, MAX_REPORT_CHARS)}\n- ……（内容过长已截断）`;
+  }
 
   generateReportBtn.addEventListener('click', async () => {
     if (isGeneratingReport) {
@@ -173,12 +184,11 @@ export function initAiSummary({ data, saveData, showToast }) {
 
     const typeLabel = summaryType === 'daily' ? '日报' : summaryType === 'monthly' ? '月报' : '周报';
     const planLabel = summaryType === 'daily' ? '明日计划' : summaryType === 'monthly' ? '下月计划' : '下周计划';
-    const doneList = doneTodos.length > 0
-      ? doneTodos.map(t => `- ${t.title}${t.priority !== 'none' ? `（优先级：${{high:'高',medium:'中',low:'低'}[t.priority]}）` : ''}${t.tag ? `（标签：${t.tag}）` : ''}${t.desc ? `\n  备注：${t.desc}` : ''}`).join('\n')
-      : '- 无';
-    const pendingList = pendingTodos.length > 0
-      ? pendingTodos.map(t => `- ${t.title}${t.priority !== 'none' ? `（优先级：${{high:'高',medium:'中',low:'低'}[t.priority]}）` : ''}${t.tag ? `（标签：${t.tag}）` : ''}${t.desc ? `\n  备注：${t.desc}` : ''}`).join('\n')
-      : '- 无';
+    /* 大月报截断输入：避免全量标题+备注拼接导致超长 prompt、POST 慢/超限 */
+    const formatReportTodos = (todos) => truncateReportList(todos.slice(0, MAX_REPORT_TODOS)
+      .map(t => `- ${t.title}${t.priority !== 'none' ? `（优先级：${{high:'高',medium:'中',low:'低'}[t.priority]}）` : ''}${t.tag ? `（标签：${t.tag}）` : ''}${t.desc ? `\n  备注：${t.desc.slice(0, 200)}` : ''}`).join('\n'));
+    const doneList = doneTodos.length > 0 ? formatReportTodos(doneTodos) : '- 无';
+    const pendingList = pendingTodos.length > 0 ? formatReportTodos(pendingTodos) : '- 无';
 
     const prompt = buildPrompt({ data, summaryType, typeLabel, planLabel, rangeLabel, doneList, pendingList });
 
@@ -192,6 +202,8 @@ export function initAiSummary({ data, saveData, showToast }) {
     summaryOutput.innerHTML = '<div class="summary-loading"><span class="summary-loading-indicator" aria-hidden="true"></span><strong>正在生成总结</strong><span>AI 正在整理任务进度，请稍候</span></div>';
 
     try {
+      reportAborter?.abort();
+      reportAborter = new AbortController();
       const response = await fetch(resolveAiApiUrl(data.aiConfig.apiUrl), {
         method: 'POST',
         headers: {
@@ -202,7 +214,8 @@ export function initAiSummary({ data, saveData, showToast }) {
           model: data.aiConfig.model,
           messages: [{ role: 'user', content: prompt }],
           stream: true
-        })
+        }),
+        signal: reportAborter.signal
       });
 
       if (!response.ok) {
@@ -215,7 +228,9 @@ export function initAiSummary({ data, saveData, showToast }) {
       /* 流式态：末尾闪烁光标 + 随内容自动滚到底，长月报也能感知进度 */
       summaryOutput.classList.add('is-streaming');
       const scrollSummaryToBottom = () => {
-        summaryOutput.scrollTop = summaryOutput.scrollHeight;
+        /* 用户已上翻查看时不劫持滚动，只在接近底部时自动跟随 */
+        const nearBottom = summaryOutput.scrollHeight - summaryOutput.scrollTop - summaryOutput.clientHeight < 120;
+        if (nearBottom) summaryOutput.scrollTop = summaryOutput.scrollHeight;
       };
       const reader = response.body?.getReader();
       if (!reader) {
@@ -284,8 +299,13 @@ export function initAiSummary({ data, saveData, showToast }) {
       }
       summaryFooter.classList.remove('hidden');
     } catch (err) {
-      summaryOutput.textContent = `请求出错: ${err.message}`;
+      if (err?.name === 'AbortError') {
+        summaryOutput.textContent += '\n\n（已取消生成）';
+      } else {
+        summaryOutput.textContent = `请求出错: ${err.message}`;
+      }
     } finally {
+      reportAborter = null;
       isGeneratingReport = false;
       generateReportBtn.disabled = false;
       generateReportBtn.classList.remove('is-loading');

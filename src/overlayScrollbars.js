@@ -197,7 +197,18 @@ export function initOverlayScrollbars() {
     if (autoHide) hide();
   }
 
-  document.addEventListener('pointerover', (event) => activate(findScrollable(event.target)), true);
+  /* pointerover 高频触发 + findScrollable 逐层 getComputedStyle：按帧节流，避免 hover 密集时强制样式计算 */
+  let hoverQueued = false;
+  let lastHoverTarget = null;
+  document.addEventListener('pointerover', (event) => {
+    lastHoverTarget = event.target;
+    if (hoverQueued) return;
+    hoverQueued = true;
+    window.requestAnimationFrame(() => {
+      hoverQueued = false;
+      activate(findScrollable(lastHoverTarget));
+    });
+  }, true);
   document.addEventListener('pointerout', (event) => {
     if (!activeScroller || activeScroller.contains(event.relatedTarget)) return;
     hide(LEAVE_HIDE_DELAY);

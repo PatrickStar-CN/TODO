@@ -111,18 +111,8 @@ export function buildMonthIndex(year, month, data) {
   const monthStartTime = monthStart.getTime();
   const monthEndTime = monthEnd.getTime();
   const index = new Map();
-  const activityIndex = new Map();
-
-  const addActivity = (value, field) => {
-    if (value === null || typeof value === 'undefined' || value === '') return;
-    const date = new Date(value);
-    const time = date.getTime();
-    if (!Number.isFinite(time) || time < monthStartTime || time >= monthEndTime) return;
-    const key = fmtYMD(date);
-    const activity = activityIndex.get(key) || { created: 0, done: 0 };
-    activity[field] += 1;
-    activityIndex.set(key, activity);
-  };
+  /* 复用 buildMonthActivityIndex，避免同文件内 created/done 统计逻辑复制两份 */
+  const activityIndex = buildMonthActivityIndex(year, month, data);
 
   const addToIndex = (date, todo) => {
     if (date.getTime() < monthStartTime || date.getTime() >= monthEndTime) return;
@@ -133,8 +123,6 @@ export function buildMonthIndex(year, month, data) {
   };
 
   for (const todo of data.todos || []) {
-    addActivity(todo.createdAt, 'created');
-    addActivity(todo.doneAt, 'done');
     const range = getTodoTaskDateRange(todo);
     if (!range) continue;
     let date = new Date(Math.max(range[0].getTime(), monthStartTime));
@@ -224,7 +212,11 @@ function renderYearHeatmap({ year, selectedDate, data, calendarDays, monthLabels
   const metricIndex = metric === 'completed'
     ? buildYearCompletionIndex(year, data)
     : buildYearTaskIndex(year, data);
-  const maxCount = Math.max(0, ...metricIndex.values());
+  /* 不用展开传参：大 Map 下 Math.max(...values) 有栈溢出/性能风险 */
+  let maxCount = 0;
+  for (const count of metricIndex.values()) {
+    if (count > maxCount) maxCount = count;
+  }
   const gridStart = new Date(year, 0, 1);
   gridStart.setDate(gridStart.getDate() - gridStart.getDay());
   const gridEnd = new Date(year, 11, 31);
