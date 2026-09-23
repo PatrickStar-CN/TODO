@@ -3,6 +3,7 @@ import { applyTheme } from './theme.js';
 import { closeDetail } from './detail.js';
 import { showConfirmDialog } from './overlay.js';
 import { DEFAULT_UI_STYLE, applyUiStyle, getUiMotionDuration, normalizeUiStyle } from './uiPreferences.js';
+import { createFocusTrap, enableRovingTablist } from './utils/focus.js';
 import { iconSvg } from './icons.js';
 import { normalizeTimelineSettings } from './timeline.js';
 import { getTagDotStyle, getTagTaskCount, TAG_COLORS } from './shared.js';
@@ -11,6 +12,9 @@ let data, saveData, showToast, render, testNotification, getNotificationStatus;
 let onTagRenamed = null;
 let onTagDeleted = null;
 let settingsOverlay = null;
+let settingsReleaseFocus = null;
+let settingsRovingCleanup = null;
+let settingsPreviouslyFocused = null;
 let updater = null;
 let updateStatusUnsub = null;
 
@@ -24,9 +28,20 @@ function closePanel() {
   if (modal) modal.style.animation = 'modalShrinkOut var(--motion-normal) forwards';
   settingsOverlay.classList.add('closing');
   const overlayRef = settingsOverlay;
+  const releaseFocus = settingsReleaseFocus;
+  const rovingCleanup = settingsRovingCleanup;
+  const previouslyFocused = settingsPreviouslyFocused;
   settingsOverlay = null;
+  settingsReleaseFocus = null;
+  settingsRovingCleanup = null;
+  settingsPreviouslyFocused = null;
+  if (typeof rovingCleanup === 'function') rovingCleanup();
   overlayRef.addEventListener('animationend', () => overlayRef.remove(), { once: true });
   setTimeout(() => { if (overlayRef.parentNode) overlayRef.remove(); }, getUiMotionDuration('normal') + 50);
+  setTimeout(() => {
+    if (typeof releaseFocus === 'function') releaseFocus();
+    else if (previouslyFocused && document.contains(previouslyFocused)) previouslyFocused.focus({ preventScroll: true });
+  }, getUiMotionDuration('normal') + 60);
 }
 
 function openPanel() {
@@ -62,14 +77,14 @@ function openPanel() {
         <button class="icon-btn settings-close-btn" id="close-settings" type="button" aria-label="关闭设置">${iconSvg('x')}</button>
       </div>
       <div class="settings-tabs" role="tablist" aria-label="设置分类">
-<button class="settings-tab active" type="button" role="tab" aria-selected="true" data-tab="appearance">${iconSvg('settings')}<span>外观</span></button>
-        <button class="settings-tab" type="button" role="tab" aria-selected="false" data-tab="ai">${iconSvg('document')}<span>AI 配置</span></button>
-        <button class="settings-tab" type="button" role="tab" aria-selected="false" data-tab="notifications">${iconSvg('bell')}<span>提醒</span></button>
-        <button class="settings-tab" type="button" role="tab" aria-selected="false" data-tab="tags">${iconSvg('tag')}<span>标签管理</span></button>
-        <button class="settings-tab" type="button" role="tab" aria-selected="false" data-tab="system">${iconSvg('settings')}<span>系统</span></button>
+        <button class="settings-tab active" type="button" role="tab" aria-selected="true" tabindex="0" aria-controls="settings-pane-appearance" id="settings-tab-appearance" data-tab="appearance">${iconSvg('settings')}<span>外观</span></button>
+        <button class="settings-tab" type="button" role="tab" aria-selected="false" tabindex="-1" aria-controls="settings-pane-ai" id="settings-tab-ai" data-tab="ai">${iconSvg('document')}<span>AI 配置</span></button>
+        <button class="settings-tab" type="button" role="tab" aria-selected="false" tabindex="-1" aria-controls="settings-pane-notifications" id="settings-tab-notifications" data-tab="notifications">${iconSvg('bell')}<span>提醒</span></button>
+        <button class="settings-tab" type="button" role="tab" aria-selected="false" tabindex="-1" aria-controls="settings-pane-tags" id="settings-tab-tags" data-tab="tags">${iconSvg('tag')}<span>标签管理</span></button>
+        <button class="settings-tab" type="button" role="tab" aria-selected="false" tabindex="-1" aria-controls="settings-pane-system" id="settings-tab-system" data-tab="system">${iconSvg('settings')}<span>系统</span></button>
       </div>
       <div class="settings-body">
-        <div class="settings-pane active" data-pane="appearance">
+        <div class="settings-pane active" data-pane="appearance" role="tabpanel" id="settings-pane-appearance" aria-labelledby="settings-tab-appearance" tabindex="0">
           <section class="settings-appearance-card" aria-labelledby="appearance-theme-title">
             <div class="settings-appearance-card-heading">
               <div>
@@ -121,7 +136,7 @@ function openPanel() {
             </div>
           </section>
         </div>
-        <div class="settings-pane" data-pane="ai">
+        <div class="settings-pane" data-pane="ai" role="tabpanel" id="settings-pane-ai" aria-labelledby="settings-tab-ai" tabindex="0">
           <section class="settings-content-card settings-ai-card" aria-labelledby="settings-ai-card-title">
             <div class="settings-content-card-heading">
               <div>
@@ -150,7 +165,7 @@ function openPanel() {
             <button class="btn-primary btn-sm settings-primary-action" id="set-save-ai" type="button">${iconSvg('check')}<span>保存 AI 配置</span></button>
           </section>
         </div>
-        <div class="settings-pane" data-pane="notifications">
+        <div class="settings-pane" data-pane="notifications" role="tabpanel" id="settings-pane-notifications" aria-labelledby="settings-tab-notifications" tabindex="0">
           <section class="settings-content-card settings-notification-card" aria-labelledby="settings-notification-title">
             <div class="notification-setting-card">
               <span class="notification-status-dot" id="notification-status-dot" aria-hidden="true"></span>
@@ -166,7 +181,7 @@ function openPanel() {
             </div>
           </section>
 </div>
-        <div class="settings-pane" data-pane="tags">
+        <div class="settings-pane" data-pane="tags" role="tabpanel" id="settings-pane-tags" aria-labelledby="settings-tab-tags" tabindex="0">
           <section class="settings-content-card settings-tags-card" aria-label="标签列表与新建标签">
             <div class="settings-tag-add-bar">
               <span class="tag-dot settings-tag-preview" id="settings-tag-preview" aria-hidden="true"></span>
@@ -176,7 +191,7 @@ function openPanel() {
             <div id="settings-tag-list" class="settings-tag-list"></div>
           </section>
         </div>
-        <div class="settings-pane" data-pane="system">
+        <div class="settings-pane" data-pane="system" role="tabpanel" id="settings-pane-system" aria-labelledby="settings-tab-system" tabindex="0">
           <section class="settings-content-card settings-update-card" aria-labelledby="settings-update-title">
             <div class="settings-content-card-heading">
               <div>
@@ -202,6 +217,13 @@ function openPanel() {
   `;
   document.body.appendChild(overlay);
   settingsOverlay = overlay;
+  settingsPreviouslyFocused = document.activeElement;
+  settingsReleaseFocus = createFocusTrap(overlay, {
+    previouslyFocused: settingsPreviouslyFocused,
+    initialFocus: overlay.querySelector('#close-settings') || undefined,
+  });
+  settingsRovingCleanup?.();
+  settingsRovingCleanup = enableRovingTablist(overlay.querySelector('.settings-tabs'), '.settings-tab');
 
   // 设置弹窗从触发按钮位置放大动画
   const modal = overlay.querySelector('.settings-modal');
@@ -353,6 +375,7 @@ function switchTab(overlay, tabName) {
     const active = t.dataset.tab === tabName;
     t.classList.toggle('active', active);
     t.setAttribute('aria-selected', String(active));
+    t.tabIndex = active ? 0 : -1;
   });
   overlay.querySelectorAll('.settings-pane').forEach(p => {
     p.classList.toggle('active', p.dataset.pane === tabName);
@@ -576,15 +599,42 @@ function createStyleSlider(key, label, min, max, unit, step = 1) {
 
 function bindUiStyleControls(overlay) {
   const controls = overlay.querySelectorAll('[data-style-key]');
+  let previewFrame = null;
+  let pendingPreview = null;
+
+  const flushPreview = () => {
+    previewFrame = null;
+    if (!pendingPreview || !overlay.isConnected) {
+      pendingPreview = null;
+      return;
+    }
+    const { key, value } = pendingPreview;
+    pendingPreview = null;
+    /* 高频 input 只在 rAF 内合并且落盘仍走 change：blur/字号等重排贵属性拖动不抖动 */
+    data.uiStyle = normalizeUiStyle({ ...data.uiStyle, [key]: value });
+    applyUiStyle(data.uiStyle);
+    updateUiStyleValue(overlay, key);
+  };
 
   controls.forEach(control => {
     control.addEventListener('input', () => {
+      pendingPreview = { key: control.dataset.styleKey, value: control.value };
+      updateUiStyleValue(overlay, control.dataset.styleKey);
+      if (previewFrame) return;
+      previewFrame = requestAnimationFrame(flushPreview);
+    });
+    control.addEventListener('change', () => {
+      if (previewFrame) {
+        cancelAnimationFrame(previewFrame);
+        previewFrame = null;
+      }
+      pendingPreview = null;
       const key = control.dataset.styleKey;
       data.uiStyle = normalizeUiStyle({ ...data.uiStyle, [key]: control.value });
       applyUiStyle(data.uiStyle);
       updateUiStyleValue(overlay, key);
+      saveData();
     });
-    control.addEventListener('change', () => saveData());
   });
 
   overlay.querySelector('#reset-ui-style').addEventListener('click', () => {

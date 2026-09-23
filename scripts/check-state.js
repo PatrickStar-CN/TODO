@@ -1328,6 +1328,34 @@ assert.ok(/btn-cancel-update/.test(settingsSource), '设置页应提供取消下
   assert.ok(/0x27/.test(miniSource), '窗框刷新必须带 SWP_FRAMECHANGED（0x27 = NOSIZE|NOMOVE|NOZORDER|FRAMECHANGED）');
 }
 
+/* 可访问性回归：焦点陷阱、键盘、读屏与窄窗口 */
+{
+  const focusSource = readFileSync(path.join(__dirname, '../src/utils/focus.js'), 'utf8');
+  const aiSummarySource = readFileSync(path.join(__dirname, '../src/aiSummary.js'), 'utf8');
+  const renderItemSource = readFileSync(path.join(__dirname, '../src/renderTodoItem.js'), 'utf8');
+  assert.ok(/createFocusTrap/.test(focusSource), '应提供 createFocusTrap 通用焦点陷阱');
+  assert.ok(/enableRovingTablist/.test(focusSource), '应提供 enableRovingTablist 页签方向键导航');
+  assert.ok(/createFocusTrap/.test(detailSource), 'detail.js 应使用焦点陷阱');
+  assert.ok(/createFocusTrap/.test(aiSummarySource), 'aiSummary.js 应使用焦点陷阱');
+  assert.ok(/createFocusTrap/.test(settingsSource), 'settings.js 应使用焦点陷阱');
+  assert.ok(/createFocusTrap|_releaseFocusTrap/.test(readFileSync(path.join(__dirname, '../src/overlay.js'), 'utf8')), 'overlay.js 应使用焦点陷阱并归还焦点');
+  assert.ok(/dataset\.action = 'edit'/.test(renderItemSource) && /setAttribute\('role', 'button'\)/.test(renderItemSource) && /tabIndex = 0/.test(renderItemSource), '任务正文应可键盘聚焦并打开详情');
+  assert.ok(/data-action="toggle".*data-action="edit"|data-action="edit"/.test(appSource), 'app.js 键盘处理应覆盖正文编辑行为');
+  assert.ok(/aria-current/.test(appSource), '侧栏导航应同步 aria-current');
+  assert.ok(/setAttribute\('role', 'status'\)/.test(appSource), 'toast 应带 role=status 供读屏播报');
+  const htmlA11y = readFileSync(path.join(__dirname, '../index.html'), 'utf8');
+  assert.ok(/aria-label="搜索任务"/.test(htmlA11y), '搜索框应有可访问名称');
+  assert.ok(/role="dialog".*detail-panel|detail-panel.*role="dialog"/s.test(htmlA11y), '详情面板应为 dialog 语义');
+  assert.ok(/aria-controls="settings-pane-/.test(settingsSource), '设置页签应有关联 aria-controls');
+  assert.ok(/tabindex="-1"/.test(htmlA11y) || /tabIndex = -1/.test(appSource), '页签应使用 roving tabindex');
+  assert.ok(/aria-busy/.test(aiSummarySource), 'AI 输出区应标记 aria-busy，播报走独立状态区');
+  assert.ok(/summary-live-status|summaryLiveStatus/.test(aiSummarySource), 'AI 应有独立 polite 状态区，避免流式刷屏');
+  assert.ok(/\.sr-only\s*\{/.test(styleSource), '应提供 .sr-only 供读屏专用文本');
+  assert.ok(/\.settings-tabs\s*\{[^}]*overflow-x:\s*auto/.test(styleSource), '设置页签窄窗下应可横向滚动');
+  assert.ok(/max-height:\s*560px/.test(styleSource), '矮屏应有日历图表让空间规则');
+  assert.ok(/prefers-reduced-motion:\s*reduce[\s\S]{0,500}?\*\s*,/.test(styleSource), '应有系统级减少动态全局兜底');
+}
+
 /* 其余动效收敛：transition/animation 声明不得含硬编码时长（涟漪按压物理时长、
    loading 无限循环、visibility 延迟除外），全部跟随全局动效设置 */
 {

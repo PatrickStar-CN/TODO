@@ -4,6 +4,7 @@ import { escapeHtml } from './utils/html.js';
 import { closeDetail } from './detail.js';
 import { extractCompleteContent, normalizeStreamText, parseSseLine, resolveAiApiUrl } from './utils/aiApi.js';
 import { getUiMotionDuration } from './uiPreferences.js';
+import { createFocusTrap, enableRovingTablist } from './utils/focus.js';
 
 export function getMonthlyReportRange(baseDate) {
   return getMonthRange(baseDate);
@@ -23,6 +24,24 @@ export function initAiSummary({ data, saveData, showToast }) {
 
   let summaryOverlay = null;
   const summaryDateRangeEl = document.getElementById('summary-date-range');
+  let summaryReleaseFocus = null;
+  let summaryRovingCleanup = null;
+  /* 流式正文每帧刷新会淹没读屏器：正文区只标记忙碌，播报走独立的 polite 状态区 */
+  let summaryLiveStatus = document.getElementById('summary-live-status');
+  if (!summaryLiveStatus) {
+    summaryLiveStatus = document.createElement('div');
+    summaryLiveStatus.id = 'summary-live-status';
+    summaryLiveStatus.className = 'sr-only';
+    summaryLiveStatus.setAttribute('role', 'status');
+    summaryLiveStatus.setAttribute('aria-live', 'polite');
+    summaryPanel.appendChild(summaryLiveStatus);
+  }
+  summaryOutput.setAttribute('aria-busy', 'false');
+  summaryRovingCleanup?.();
+  summaryRovingCleanup = enableRovingTablist(
+    summaryPanel.querySelector('.summary-type-tabs'),
+    '.summary-tab'
+  );
 
   summaryDateInput.addEventListener('change', updateSummaryDateRange);
 
@@ -66,6 +85,11 @@ export function initAiSummary({ data, saveData, showToast }) {
     summaryPanel.offsetHeight;
     summaryPanel.style.animation = 'modalExpandIn var(--motion-panel)';
 
+    if (summaryReleaseFocus) summaryReleaseFocus();
+    summaryReleaseFocus = createFocusTrap(summaryPanel, {
+      initialFocus: document.getElementById('close-summary') || undefined,
+    });
+
     if (!summaryOverlay) {
       summaryOverlay = document.createElement('div');
       summaryOverlay.className = 'summary-overlay';
@@ -83,6 +107,8 @@ export function initAiSummary({ data, saveData, showToast }) {
     reportAborter = null;
     summaryPanel.classList.add('hiding');
     summaryPanel.style.animation = 'modalShrinkOut var(--motion-normal) forwards';
+    const releaseFocus = summaryReleaseFocus;
+    summaryReleaseFocus = null;
     if (summaryOverlay) {
       summaryOverlay.classList.add('hiding');
       summaryOverlay.addEventListener('animationend', () => {
@@ -103,6 +129,16 @@ export function initAiSummary({ data, saveData, showToast }) {
         summaryPanel.style.animation = '';
       }
     }, getUiMotionDuration('normal') + 50);
+    setTimeout(() => {
+      if (typeof releaseFocus === 'function') releaseFocus();
+    }, getUiMotionDuration('normal') + 60);
+  });
+
+  summaryPanel.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !summaryPanel.classList.contains('hidden')) {
+      event.preventDefault();
+      document.getElementById('close-summary').click();
+    }
   });
 
   document.querySelectorAll('.summary-tab').forEach(tab => {
@@ -110,9 +146,11 @@ export function initAiSummary({ data, saveData, showToast }) {
       document.querySelectorAll('.summary-tab').forEach(t => {
         t.classList.remove('active');
         t.setAttribute('aria-selected', 'false');
+        t.tabIndex = -1;
       });
       tab.classList.add('active');
       tab.setAttribute('aria-selected', 'true');
+      tab.tabIndex = 0;
       summaryType = tab.dataset.type;
       updateSummaryDateRange();
     });
@@ -199,6 +237,8 @@ export function initAiSummary({ data, saveData, showToast }) {
     generateReportLabel.textContent = '生成中...';
     summaryOutput.textContent = '';
     summaryFooter.classList.add('hidden');
+    summaryOutput.setAttribute('aria-busy', 'true');
+    summaryLiveStatus.textContent = '正在生成总结，请稍候。';
     summaryOutput.innerHTML = '<div class="summary-loading"><span class="summary-loading-indicator" aria-hidden="true"></span><strong>正在生成总结</strong><span>AI 正在整理任务进度，请稍候</span></div>';
 
     try {
@@ -298,11 +338,14 @@ export function initAiSummary({ data, saveData, showToast }) {
         summaryOutput.textContent = normalizeStreamText(fallback) || '接口未返回报告内容（已收到响应但无可解析正文）';
       }
       summaryFooter.classList.remove('hidden');
+      summaryLiveStatus.textContent = '报告已生成。';
     } catch (err) {
       if (err?.name === 'AbortError') {
         summaryOutput.textContent += '\n\n（已取消生成）';
+        summaryLiveStatus.textContent = '已取消生成。';
       } else {
         summaryOutput.textContent = `请求出错: ${err.message}`;
+        summaryLiveStatus.textContent = `生成失败：${err.message}`;
       }
     } finally {
       reportAborter = null;
@@ -312,6 +355,7 @@ export function initAiSummary({ data, saveData, showToast }) {
       generateReportBtn.removeAttribute('aria-busy');
       generateReportLabel.textContent = '生成报告';
       summaryOutput.classList.remove('is-streaming');
+      summaryOutput.setAttribute('aria-busy', 'false');
     }
   });
 

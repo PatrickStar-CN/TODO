@@ -71,7 +71,8 @@
           </div>
         </div>
         <div class="search-bar hidden" id="search-bar">
-          <input type="text" id="search-input" placeholder="搜索任务..." autocomplete="off">
+          <label class="sr-only" for="search-input">搜索任务</label>
+          <input type="text" id="search-input" placeholder="搜索任务..." autocomplete="off" aria-label="搜索任务">
           <button class="icon-btn" id="btn-search-close" title="关闭搜索" aria-label="关闭搜索"><span data-icon="x"></span></button>
         </div>
         <div class="task-scroll-area">
@@ -121,9 +122,9 @@
         <div class="calendar-container">
           <div class="calendar-toolbar">
             <div class="calendar-mode-switch" role="tablist" aria-label="日历视图模式">
-              <button class="calendar-mode-btn active" type="button" role="tab" aria-selected="true" data-calendar-mode="month">月历</button>
-              <button class="calendar-mode-btn" type="button" role="tab" aria-selected="false" data-calendar-mode="tasks">任务量</button>
-              <button class="calendar-mode-btn" type="button" role="tab" aria-selected="false" data-calendar-mode="completed">完成量</button>
+              <button class="calendar-mode-btn active" type="button" role="tab" aria-selected="true" tabindex="0" aria-controls="calendar-chart-body calendar-detail" data-calendar-mode="month">月历</button>
+              <button class="calendar-mode-btn" type="button" role="tab" aria-selected="false" tabindex="-1" aria-controls="calendar-chart-body calendar-detail" data-calendar-mode="tasks">任务量</button>
+              <button class="calendar-mode-btn" type="button" role="tab" aria-selected="false" tabindex="-1" aria-controls="calendar-chart-body calendar-detail" data-calendar-mode="completed">完成量</button>
             </div>
             <div class="calendar-nav">
               <button class="icon-btn" id="prev-month" aria-label="上一个月"><span data-icon="chevron-left"></span></button>
@@ -161,7 +162,7 @@
   </div>
 
   <!-- 任务详情面板 -->
-  <div id="detail-panel" class="detail-panel hidden">
+  <div id="detail-panel" class="detail-panel hidden" role="dialog" aria-modal="true" aria-label="编辑任务">
     <div class="detail-header">
       <h3>编辑任务</h3>
       <button class="icon-btn" id="close-detail" aria-label="关闭任务详情"><span data-icon="x"></span></button>
@@ -261,7 +262,7 @@
   </div>
 
   <!-- AI 总结面板 -->
-  <div id="summary-panel" class="summary-panel hidden">
+  <div id="summary-panel" class="summary-panel hidden" role="dialog" aria-modal="true" aria-label="AI 总结">
     <div class="summary-header">
       <div class="summary-heading">
         <span class="summary-heading-icon" data-icon="document" aria-hidden="true"></span>
@@ -277,9 +278,9 @@
     <div class="summary-controls">
       <div class="summary-config-card">
         <div class="summary-type-tabs" role="tablist" aria-label="报告类型">
-          <button class="summary-tab active" type="button" role="tab" aria-selected="true" data-type="daily">日报</button>
-          <button class="summary-tab" type="button" role="tab" aria-selected="false" data-type="weekly">周报</button>
-          <button class="summary-tab" type="button" role="tab" aria-selected="false" data-type="monthly">月报</button>
+          <button class="summary-tab active" type="button" role="tab" aria-selected="true" tabindex="0" aria-controls="summary-output" data-type="daily">日报</button>
+          <button class="summary-tab" type="button" role="tab" aria-selected="false" tabindex="-1" aria-controls="summary-output" data-type="weekly">周报</button>
+          <button class="summary-tab" type="button" role="tab" aria-selected="false" tabindex="-1" aria-controls="summary-output" data-type="monthly">月报</button>
         </div>
         <div class="summary-date-row">
           <label for="summary-date">报告日期</label>
@@ -294,7 +295,7 @@
         </button>
       </div>
     </div>
-    <div class="summary-output" id="summary-output" role="status" aria-live="polite">
+    <div class="summary-output" id="summary-output" role="status" aria-live="polite" aria-busy="false" aria-atomic="false">
       <div class="summary-placeholder">
         <span class="summary-placeholder-icon" data-icon="document" aria-hidden="true"></span>
         <strong>准备生成总结</strong>

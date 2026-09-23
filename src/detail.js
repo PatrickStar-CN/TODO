@@ -2,11 +2,14 @@ import { formatDateTime, toLocalDatetime } from './utils/date.js';
 import { initDatePicker, closeDatePicker, setDatePickerValue } from './datePicker.js';
 import { escapeAttr, escapeHtml } from './utils/html.js';
 import { getUiMotionDuration } from './uiPreferences.js';
+import { createFocusTrap } from './utils/focus.js';
 import { getTagDotStyle } from './shared.js';
 
 let onDoneTimeChange = null;
 let onBeforeDetailClose = null;
 let detailData = null;
+let detailReleaseFocus = null;
+let detailPreviouslyFocused = null;
 
 /* 优先级选项配置 */
 const PRIORITY_OPTIONS = [
@@ -219,6 +222,12 @@ export function openDetail(todo, triggerEl) {
   detailPanel.offsetHeight;
   detailPanel.style.animation = 'modalExpandIn var(--motion-panel)';
   closeDetailDropdowns();
+  if (typeof detailReleaseFocus === 'function') detailReleaseFocus();
+  detailPreviouslyFocused = el && document.contains(el) ? el : document.activeElement;
+  detailReleaseFocus = createFocusTrap(detailPanel, {
+    previouslyFocused: detailPreviouslyFocused,
+    initialFocus: document.getElementById('detail-title') || undefined,
+  });
 
   document.getElementById('detail-id').value = todo.id;
   document.getElementById('detail-title').value = todo.title;
@@ -281,6 +290,10 @@ export function closeDetail() {
   closeDetailDropdowns();
   const panel = document.getElementById('detail-panel');
   if (panel.classList.contains('hidden')) return;
+  const releaseFocus = detailReleaseFocus;
+  const previouslyFocused = detailPreviouslyFocused;
+  detailReleaseFocus = null;
+  detailPreviouslyFocused = null;
 
   const overlay = document.querySelector('.detail-overlay');
   if (overlay) {
@@ -305,6 +318,10 @@ export function closeDetail() {
       panel.style.animation = '';
     }
   }, getUiMotionDuration('normal') + 50);
+  setTimeout(() => {
+    if (typeof releaseFocus === 'function') releaseFocus();
+    else if (previouslyFocused && document.contains(previouslyFocused)) previouslyFocused.focus({ preventScroll: true });
+  }, getUiMotionDuration('normal') + 60);
 }
 
 function enterDoneTimeEdit(todo) {

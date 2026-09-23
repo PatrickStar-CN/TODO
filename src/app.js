@@ -23,6 +23,7 @@ import { createRuntimeIndex } from './runtimeIndex.js';
 import { computeDonePanelMaxHeightFromRects, initDonePanelResize } from './donePanelResize.js';
 import { iconSvg, setIcon } from './icons.js';
 import { getTagColor, getTagTaskCount, isNeutralinoEnv } from './shared.js';
+import { enableRovingTablist } from './utils/focus.js';
 
 const STORAGE_KEY = 'todo_app_data';
 const DATA_FILE = 'todo_data.json';
@@ -300,6 +301,8 @@ let taskLoadFrame = null;
 function showToast(msg) {
   const toast = document.createElement('div');
   toast.className = 'toast-msg';
+  toast.setAttribute('role', 'status');
+  toast.setAttribute('aria-live', 'polite');
   toast.textContent = msg;
   document.body.appendChild(toast);
   requestAnimationFrame(() => toast.classList.add('show'));
@@ -725,7 +728,10 @@ function renderSidebar() {
   tagListEl.appendChild(tagFragment);
 
   document.querySelectorAll('.nav-item[data-list]').forEach(el => {
-    el.classList.toggle('active', !currentTag && el.dataset.list === currentList);
+    const active = !currentTag && el.dataset.list === currentList;
+    el.classList.toggle('active', active);
+    if (active) el.setAttribute('aria-current', 'page');
+    else el.removeAttribute('aria-current');
   });
 }
 
@@ -993,6 +999,7 @@ function syncCalendarViewState() {
     const active = button.dataset.calendarMode === calendarMode;
     button.classList.toggle('active', active);
     button.setAttribute('aria-selected', String(active));
+    button.tabIndex = active ? 0 : -1;
   });
 
   todayButton?.classList.toggle('hidden', calendarMode !== 'month');
@@ -1455,6 +1462,22 @@ export async function initApp() {
     render();
   });
 
+  /* 侧栏 <a href="#"> 按空格会滚动页面：拦截并转为点击，保持应用内控件语义 */
+  document.querySelector('.sidebar-nav').addEventListener('keydown', (e) => {
+    if (e.key !== ' ' && e.key !== 'Spacebar') return;
+    const item = e.target.closest('.nav-item[data-list]');
+    if (!item) return;
+    e.preventDefault();
+    item.click();
+  });
+  document.getElementById('tag-list').addEventListener('keydown', (e) => {
+    if (e.key !== ' ' && e.key !== 'Spacebar') return;
+    const item = e.target.closest('.tag-item');
+    if (!item) return;
+    e.preventDefault();
+    item.click();
+  });
+
   // Tag clicks
   document.getElementById('tag-list').addEventListener('click', (e) => {
     const item = e.target.closest('.tag-item');
@@ -1588,8 +1611,9 @@ export async function initApp() {
 
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Enter' && e.key !== ' ') return;
-    const target = e.target.closest('[data-action="toggle"]');
+    const target = e.target.closest('[data-action="toggle"], [data-action="edit"]');
     if (!target) return;
+    /* 任务正文回车/空格打开详情；复选框保持原有切换行为 */
     e.preventDefault();
     handleTodoAction(target);
   });
@@ -1683,6 +1707,7 @@ export async function initApp() {
   });
 
   // Calendar nav
+  enableRovingTablist(document.querySelector('.calendar-mode-switch'), '.calendar-mode-btn');
   document.querySelector('.calendar-mode-switch').addEventListener('click', (event) => {
     const button = event.target.closest('.calendar-mode-btn');
     if (!button || button.dataset.calendarMode === calendarMode) return;

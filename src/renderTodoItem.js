@@ -29,6 +29,9 @@ export function createTodoItemEl(t, { currentList, tags, spanText = '' }) {
   body.className = 'todo-body';
   body.dataset.action = 'edit';
   body.dataset.id = t.id;
+  body.setAttribute('role', 'button');
+  body.tabIndex = 0;
+  body.setAttribute('aria-label', `编辑任务：${t.title}`);
 
   const title = document.createElement('div');
   title.className = 'todo-title';

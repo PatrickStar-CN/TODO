@@ -1,7 +1,11 @@
 import { escapeHtml } from './utils/html.js';
 import { getUiMotionDuration } from './uiPreferences.js';
+import { createFocusTrap } from './utils/focus.js';
 
 export function createOverlay(title, content, actions, triggerEl) {
+  const previouslyFocused = triggerEl && document.contains(triggerEl)
+    ? triggerEl
+    : document.activeElement;
   const overlay = document.createElement('div');
   overlay.className = 'tag-input-overlay';
   overlay.setAttribute('role', 'dialog');
@@ -26,12 +30,22 @@ export function createOverlay(title, content, actions, triggerEl) {
   box.style.animation = 'modalExpandIn var(--motion-panel)';
 
   const firstBtn = overlay.querySelector('button');
+  overlay._releaseFocusTrap = createFocusTrap(overlay, {
+    previouslyFocused,
+    initialFocus: firstBtn || undefined,
+  });
   if (firstBtn) firstBtn.focus();
   return overlay;
 }
 
 export function closeOverlay(overlay) {
   if (overlay) {
+    if (typeof overlay._releaseFocusTrap === 'function') {
+      const release = overlay._releaseFocusTrap;
+      overlay._releaseFocusTrap = null;
+      /* 等关闭动画结束再归还焦点，避免焦点跳动 */
+      setTimeout(release, getUiMotionDuration('normal') + 60);
+    }
     const box = overlay.querySelector('.tag-input-box');
     if (box) box.style.animation = 'modalShrinkOut var(--motion-normal) forwards';
     overlay.classList.add('closing');
