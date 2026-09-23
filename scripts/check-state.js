@@ -9,7 +9,7 @@ import { encrypt, initCrypto, tryDecrypt } from '../src/utils/crypto.js';
 import { escapeAttr, escapeHtml } from '../src/utils/html.js';
 import { parseLocalDateInput, toLocalDateInput, toLocalDatetime, isToday, getMonthRange } from '../src/utils/date.js';
 import { animateWindowRect, cancelWindowRectAnimation, centerRect, computeCollapsedY, easeOutCubic, ensureDisplayHz, framesPerApply, isNearScreenTop, rectAt, WINDOW_ANIM_MAX_HZ } from '../src/miniSnap.js';
-import { buildCurlProxyPs, buildDownloadCurlPs, buildDownloadWebRequestPs, buildFetchCurlPs, buildFetchWebRequestPs, buildProxyAssignPs, buildTlsPs, buildUpdateTaskRun, compareVersions, createUpdater, normalizeTargetDir, psQuote, sanitizeNetDetail, toEncodedCommand } from '../src/updater.js';
+import { buildCurlProxyPs, buildDownloadCurlPs, buildDownloadWebRequestPs, buildFetchCurlPs, buildFetchWebRequestPs, buildProxyAssignPs, buildTlsPs, buildUpdateLauncherVbs, buildUpdateTaskRun, buildUpdateTaskRunVbs, compareVersions, createUpdater, normalizeTargetDir, psQuote, sanitizeNetDetail, toEncodedCommand } from '../src/updater.js';
 import { INSTANCE_LOCK_DIR, INSTANCE_LOCK_FILE, getNextTagDotStyle, getTagTaskCount } from '../src/shared.js';
 import { extractCompleteContent, normalizeStreamText, parseSseLine, resolveAiApiUrl } from '../src/utils/aiApi.js';
 import { DEFAULT_TIMELINE_SETTINGS, formatTimelineTime, getTimelineDateParts, normalizeTimelineSettings, sortTimelineTodos } from '../src/timeline.js';
@@ -600,6 +600,28 @@ assert.ok(
   buildUpdateTaskRun('C:\\Temp\\x.ps1').includes('-WindowStyle Hidden'),
   '计划任务更新命令必须隐藏控制台窗口'
 );
+/* 重启无闪现：计划任务必须经 wscript VBS 中转（GUI 无控制台），不得直启 powershell；
+ * VBS 仅 ASCII 且按自身位置推导 ps1，中文用户名也不存在编码问题 */
+assert.equal(
+  buildUpdateTaskRunVbs('C:\\Temp\\todo-tools-update\\apply-update.vbs'),
+  'wscript.exe //B //Nologo "C:\\Temp\\todo-tools-update\\apply-update.vbs"'
+);
+assert.equal(
+  buildUpdateTaskRunVbs('C:\\Users\\John Doe\\Temp\\todo-tools-update\\apply-update.vbs'),
+  'wscript.exe //B //Nologo "C:\\Users\\John Doe\\Temp\\todo-tools-update\\apply-update.vbs"'
+);
+{
+  const launcher = buildUpdateLauncherVbs();
+  assert.ok(/WScript\.Shell/.test(launcher), 'VBS 启动器应经 WScript.Shell 拉起');
+  assert.ok(/sh\.Run cmd, 0, False/.test(launcher), 'VBS 必须以隐藏方式拉起 powershell（Run ...,0,False）');
+  assert.ok(/apply-update\.ps1/.test(launcher), 'VBS 应推导同目录 apply-update.ps1');
+  assert.ok(!/[^\x00-\x7F]/.test(launcher), 'VBS 应仅含 ASCII，避免中文路径编码问题');
+}
+/* 替换脚本自删任务不得裸调 schtasks.exe（控制台子进程会闪黑框），必须隐藏拉起 */
+assert.ok(/Start-Process.*schtasks\.exe.*-WindowStyle Hidden/.test(updaterSource), '替换脚本自删任务必须隐藏启动 schtasks，避免二次闪窗');
+assert.ok(!/^\s*schtasks \/Delete/m.test(updaterSource), '替换脚本不得再裸调 schtasks /Delete');
+assert.ok(/apply-update\.vbs/.test(updaterSource), 'applyUpdate 应落盘 VBS 无窗口启动器');
+assert.ok(/buildUpdateTaskRunVbs/.test(updaterSource), '计划任务 /TR 应走 VBS 无闪现链路');
 
 assert.ok(/--max-time/.test(updaterSource), 'curl 兜底应带 --max-time 总超时');
 assert.ok(/setTimeout\(r, 150\)/.test(updaterSource), '下载进度轮询应 150ms 采样，快网小包才有中间态');
@@ -609,7 +631,7 @@ assert.ok(/existingFill\.style\.width/.test(settingsSource), '进度条应原地
 assert.ok(/cancelDownload/.test(updaterSource), 'updater 应支持取消下载');
 assert.ok(/if \(!expected\) throw/.test(updaterSource), 'SHA-256 取不到期望哈希时必须直接失败');
 assert.ok(/r\.stdErr/.test(updaterSource) && !/r\.stderr/.test(updaterSource), '应使用 stdErr 字段取进程错误输出');
-assert.ok(/\/TR '\$\{buildUpdateTaskRun\(scriptPath\)\}'/.test(updaterSource), '计划任务 /TR 应整体加引号');
+assert.ok(/\/TR '\$\{buildUpdateTaskRunVbs\(launcherPath\)\}'/.test(updaterSource), '计划任务 /TR 应整体加引号并走 VBS 无闪现链路');
 assert.ok(/runResult\.exitCode/.test(updaterSource), 'schtasks /Run 结果必须检查');
 assert.ok(/DefaultCredentials/.test(updaterSource), '更新请求应携带系统代理默认凭证，避免 407');
 assert.ok(/IsBypassed/.test(updaterSource), '更新请求应判断代理旁路，直连地址不走代理');

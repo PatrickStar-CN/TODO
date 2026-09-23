@@ -8,9 +8,10 @@
  *     GitHub 资产无 CORS 头，fetch 不可用；下载支持逻辑取消，取消后回到可重试态）；
  *  3. SHA-256 校验（发布附带的 .sha256 asset；取不到期望哈希则直接失败，绝不跳过）
  *     → Expand-Archive 解压 → 核对文件大小；
- *  4. 写 pending.json 与替换脚本（.ps1），注册一次性计划任务，
+ *  4. 写 pending.json、替换脚本（.ps1）与无窗口启动器（.vbs），注册一次性计划任务，
  *     释放单实例锁后退出应用（否则新版本因锁新鲜而误判重复实例静默退出）;
- *  5. 计划任务（独立进程树，不随主进程回收）等主进程退出 → 备份 exe/resources.neu → 替换 → 拉起新版本；
+ *  5. 计划任务经 wscript（GUI 无控制台）隐藏拉起 powershell（独立进程树，不随主进程回收）
+ *     等主进程退出 → 备份 exe/resources.neu → 替换 → 拉起新版本（全程无 cmd 黑框闪现）；
  *  6. 下次启动自检：按 pending.version 与运行版本比对判定成败——成功清理备份，
  *     失败成对回滚（避免 exe 新 + res 旧混搭）并清理标记。
  *
@@ -62,6 +63,7 @@ const ZIP_NAME = 'todo-tools-win_x64.zip';
 const SHA256_NAME = 'todo-tools-win_x64.zip.sha256';
 const PENDING_NAME = 'pending.json';
 const SCRIPT_NAME = 'apply-update.ps1';
+const LAUNCHER_NAME = 'apply-update.vbs';
 const RES_NAME = 'resources.neu';
 
 /* PowerShell 单引号字面量转义：路径含 ' 时双写，避免 -Command 解析断裂 */
@@ -159,10 +161,36 @@ export function toEncodedCommand(ps) {
  * schtasks.exe 收到时外层单引号已由 PowerShell 去掉，内层双引号原样保留，
  * 任务计划程序启动时 -File 参数可正确解析含空格/中文路径。
  * 必须带 -WindowStyle Hidden：powershell.exe 是控制台子系统程序，计划任务默认以前台可见方式
- * 启动，不隐藏会在重启更新阶段弹出黑框（与 windowsToast.js 的隐藏启动保持一致）。 */
+ * 启动，不隐藏会在重启更新阶段弹出黑框（与 windowsToast.js 的隐藏启动保持一致）。
+ * 注意：-WindowStyle Hidden 只能隐藏 PowerShell 窗体，conhost 仍会闪现一下，
+ * 真正无闪现的重启链路请走 buildUpdateTaskRunVbs（wscript GUI 启动，无控制台）。 */
 export function buildUpdateTaskRun(scriptPath) {
   const safe = String(scriptPath).replace(/'/g, "''");
   return `powershell.exe -NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "${safe}"`;
+}
+
+/* 无窗口启动器 VBS：内容仅 ASCII，按自身位置推导同目录 apply-update.ps1，
+ * 不内嵌任何本地路径，TEMP 含中文用户名时也不存在编码问题。
+ * 由 wscript.exe（GUI 子系统，无控制台）启动，再以 Run(...,0,False) 隐藏拉起
+ * powershell 全程无 conhost 落地，根治重启更新阶段的 cmd 黑框闪一下。 */
+export function buildUpdateLauncherVbs() {
+  return [
+    'Dim sh, fso, dir, ps1, cmd',
+    'Set sh = CreateObject("WScript.Shell")',
+    'Set fso = CreateObject("Scripting.FileSystemObject")',
+    'dir = fso.GetParentFolderName(WScript.ScriptFullName)',
+    `ps1 = fso.BuildPath(dir, "${SCRIPT_NAME}")`,
+    'cmd = "powershell.exe -NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File """ & ps1 & """"',
+    'sh.Run cmd, 0, False'
+  ].join('\r\n');
+}
+
+/* 计划任务 /TR 值（无闪现版）：wscript.exe 是 GUI 子系统程序，任务调度器启动时
+ * 不分配控制台；再由 VBS 以隐藏方式拉起 powershell，全程无黑框。
+ * 路径整体加双引号兼容空格；Windows 路径不会含双引号，无需额外转义。 */
+export function buildUpdateTaskRunVbs(launcherPath) {
+  const safe = String(launcherPath).replace(/"/g, '""');
+  return `wscript.exe //B //Nologo "${safe}"`;
 }
 
 export function createUpdater({ showToast, appConfig = {} }) {
@@ -621,12 +649,15 @@ export function createUpdater({ showToast, appConfig = {} }) {
     return true;
   }
 
-  /* 替换脚本：由计划任务以 -File 启动，$PSScriptRoot 即更新目录。
+  /* 替换脚本：由计划任务经 VBS 无窗口拉起（wscript → powershell hidden，全程无 conhost），
+     $PSScriptRoot 即更新目录。
      参数从同目录 pending.json 读取（UTF-8，用 .NET ReadAllText 避免 PowerShell 5.1 按 ANSI 解码中文乱码），
      从而 schtasks /TR 只需一条短命令（/TR 值不能超过 261 字符）。
       流程：解析并归一化目标目录（记日志备查）→ 校验新文件存在
       → 等待主进程退出（独占打开探测，最长 20s；超时则继续，靠后续复制重试与回滚兜底）
-      → 备份 → 复制（被锁重试）→ 拉起新版本；失败自动恢复备份；最后自删任务。 */
+      → 备份 → 复制（被锁重试）→ 拉起新版本；失败自动恢复备份；最后自删任务。
+      自删任务必须走 Start-Process Hidden：裸 schtasks.exe 是控制台子系统程序，
+      在无控制台的隐藏父进程下直接调用仍会闪现黑框。 */
   function buildApplyScript() {
     return [
       `$ErrorActionPreference = 'Stop'`,
@@ -683,11 +714,12 @@ export function createUpdater({ showToast, appConfig = {} }) {
       `  if ((Test-Path -LiteralPath $bakRes) -and -not (Test-Path -LiteralPath $resPath)) { Move-Item -LiteralPath $bakRes -Destination $resPath -Force }`,
       `}`,
       `Log 'done'`,
-      `schtasks /Delete /TN TODO-Tools-Update /F | Out-Null`
+      `Start-Process -FilePath "$env:SystemRoot\\System32\\schtasks.exe" -ArgumentList '/Delete','/TN','TODO-Tools-Update','/F' -WindowStyle Hidden -Wait | Out-Null`
     ].join('\r\n');
   }
 
-  /* PowerShell -EncodedCommand 编码与计划任务 /TR 构造见模块顶层 toEncodedCommand / buildUpdateTaskRun */
+  /* PowerShell -EncodedCommand 编码与计划任务 /TR 构造见模块顶层
+   * toEncodedCommand / buildUpdateTaskRun / buildUpdateTaskRunVbs（无闪现版） */
 
   /** 应用更新并退出重启：写标记与脚本 → 注册一次性计划任务 → 退出主进程。
       Neutralino 的 execCommand 子进程会随主进程退出被回收，替换必须由
@@ -719,8 +751,10 @@ export function createUpdater({ showToast, appConfig = {} }) {
       };
       const pendingPath = joinPath(dir, PENDING_NAME);
       const scriptPath = joinPath(dir, SCRIPT_NAME);
+      const launcherPath = joinPath(dir, LAUNCHER_NAME);
       await Neutralino.filesystem.writeFile(pendingPath, JSON.stringify(pending));
       await Neutralino.filesystem.writeFile(scriptPath, buildApplyScript());
+      await Neutralino.filesystem.writeFile(launcherPath, buildUpdateLauncherVbs());
       /* 往返校验：曾出现 pending.json 落盘后路径分隔符损坏（替换脚本报找不到路径），
        * 注册任务前把读回的值与写入值比对，不一致直接失败，绝不调度注定失败的任务 */
       let roundTrip = null;
@@ -734,11 +768,13 @@ export function createUpdater({ showToast, appConfig = {} }) {
       }
       /* schtasks /ST 仅分钟精度：先注册 +1 分钟兜底计划，再立即 /Run 触发。
          任务进程由 Task Scheduler 托管，独立于应用进程树，主进程退出后照常执行。
-         /TR 值不能超过 261 字符：直接以 -File 启动替换脚本，参数由脚本从
-         pending.json 自读，避免 .cmd 中转的中文编码与长命令超限问题。 */
+         /TR 经 wscript VBS 中转隐藏拉起 powershell（GUI 子系统无控制台，全程无黑框闪现）：
+         若直接以 powershell.exe 为 /TR，即使带 -WindowStyle Hidden，conhost 在
+         PowerShell 解析参数前仍会闪现一下。VBS 按自身位置推导 ps1 路径，
+         /TR 仅含短 launcher 路径，不存在 261 字符超限与中文编码问题。 */
       const startAt = new Date(Date.now() + 60000);
       const hhmm = `${String(startAt.getHours()).padStart(2, '0')}:${String(startAt.getMinutes()).padStart(2, '0')}`;
-      const innerCreate = `schtasks /Create /F /TN 'TODO-Tools-Update' /SC ONCE /ST ${hhmm} /TR '${buildUpdateTaskRun(scriptPath)}'`;
+      const innerCreate = `schtasks /Create /F /TN 'TODO-Tools-Update' /SC ONCE /ST ${hhmm} /TR '${buildUpdateTaskRunVbs(launcherPath)}'`;
       const r = await Neutralino.os.execCommand(
         `powershell -NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -EncodedCommand ${toEncodedCommand(innerCreate)}`
       );
