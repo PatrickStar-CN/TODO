@@ -4,6 +4,7 @@ import { escapeHtml } from './utils/html.js';
 import { closeDetail } from './detail.js';
 import { extractCompleteContent, normalizeStreamText, parseSseLine, resolveAiApiUrl } from './utils/aiApi.js';
 import { getUiMotionDuration } from './uiPreferences.js';
+import { createDismissal, cancelPanelDismiss, dismissPanel } from './utils/dismiss.js';
 import { createFocusTrap, enableRovingTablist } from './utils/focus.js';
 import { t, getLanguage, getAiTypeLabels, buildAiPrompt } from './i18n/index.js';
 
@@ -31,6 +32,7 @@ export function initAiSummary({ data, saveData, showToast }) {
   setDatePickerValue(summaryDateInput, toLocalDateInput(new Date()));
 
   let summaryOverlay = null;
+  let summaryCloseState = null;
   const summaryDateRangeEl = document.getElementById('summary-date-range');
   let summaryReleaseFocus = null;
   let summaryRovingCleanup = null;
@@ -97,21 +99,17 @@ export function initAiSummary({ data, saveData, showToast }) {
   document.getElementById('btn-open-summary').addEventListener('click', () => {
     closeDetail();
 
+    /* 重开前撤销上一次关闭的收尾：否则过期回调会在展开动画结束时
+     * 再次隐藏面板或移除遮罩，留下无法关闭的模糊遮罩 */
+    summaryCloseState?.cancel();
+    summaryCloseState = null;
+    cancelPanelDismiss(summaryPanel);
+
     // 记录触发按钮位置，用于弹窗从点击处放大动画
     const btn = document.getElementById('btn-open-summary');
     const rect = btn.getBoundingClientRect();
     summaryPanel.style.setProperty('--origin-x', `${rect.left + rect.width / 2 - window.innerWidth / 2}px`);
     summaryPanel.style.setProperty('--origin-y', `${rect.top + rect.height / 2 - window.innerHeight / 2}px`);
-
-    summaryPanel.classList.remove('hidden', 'hiding');
-    summaryPanel.style.animation = 'none';
-    summaryPanel.offsetHeight;
-    summaryPanel.style.animation = 'modalExpandIn var(--motion-panel)';
-
-    if (summaryReleaseFocus) summaryReleaseFocus();
-    summaryReleaseFocus = createFocusTrap(summaryPanel, {
-      initialFocus: document.getElementById('close-summary') || undefined,
-    });
 
     if (!summaryOverlay) {
       summaryOverlay = document.createElement('div');
@@ -122,39 +120,46 @@ export function initAiSummary({ data, saveData, showToast }) {
       document.body.appendChild(summaryOverlay);
     }
     summaryOverlay.classList.remove('hiding');
+
+    summaryPanel.classList.remove('hidden', 'hiding');
+    summaryPanel.style.animation = 'none';
+    summaryPanel.offsetHeight;
+    summaryPanel.style.animation = 'modalExpandIn var(--motion-panel)';
+
+    if (summaryReleaseFocus) summaryReleaseFocus();
+    summaryReleaseFocus = createFocusTrap(summaryPanel, {
+      initialFocus: document.getElementById('close-summary') || undefined,
+    });
   });
 
   document.getElementById('close-summary').addEventListener('click', () => {
     /* 关闭即取消流式请求，避免后台继续累积 fullText 耗 CPU/内存 */
     reportAborter?.abort();
     reportAborter = null;
-    summaryPanel.classList.add('hiding');
-    summaryPanel.style.animation = 'modalShrinkOut var(--motion-normal) forwards';
+    const overlay = summaryOverlay;
     const releaseFocus = summaryReleaseFocus;
     summaryReleaseFocus = null;
-    if (summaryOverlay) {
-      summaryOverlay.classList.add('hiding');
-      summaryOverlay.addEventListener('animationend', () => {
-        summaryOverlay.remove();
-        summaryOverlay = null;
-      }, { once: true });
-      setTimeout(() => { if (summaryOverlay && summaryOverlay.parentNode) { summaryOverlay.remove(); summaryOverlay = null; } }, getUiMotionDuration('normal') + 50);
+    const duration = getUiMotionDuration('normal');
+
+    summaryCloseState?.cancel();
+    const dismissal = createDismissal();
+    summaryCloseState = dismissal;
+    const removeOverlay = () => {
+      overlay?.remove();
+      if (summaryOverlay === overlay) summaryOverlay = null;
+      if (summaryCloseState === dismissal) summaryCloseState = null;
+    };
+
+    if (overlay) {
+      overlay.classList.add('hiding');
+      dismissal.onEnd(overlay, removeOverlay);
     }
-    summaryPanel.addEventListener('animationend', () => {
-      summaryPanel.classList.add('hidden');
-      summaryPanel.classList.remove('hiding');
-      summaryPanel.style.animation = '';
-    }, { once: true });
-    setTimeout(() => {
-      if (summaryPanel.classList.contains('hiding')) {
-        summaryPanel.classList.add('hidden');
-        summaryPanel.classList.remove('hiding');
-        summaryPanel.style.animation = '';
-      }
-    }, getUiMotionDuration('normal') + 50);
-    setTimeout(() => {
+    /* 面板收起与遮罩移除同一套收尾：动画不触发时由定时器兜底 */
+    dismissPanel(summaryPanel);
+    dismissal.after(removeOverlay, duration + 50);
+    dismissal.after(() => {
       if (typeof releaseFocus === 'function') releaseFocus();
-    }, getUiMotionDuration('normal') + 60);
+    }, duration + 60);
   });
 
   summaryPanel.addEventListener('keydown', (event) => {

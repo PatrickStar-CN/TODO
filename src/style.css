@@ -1648,6 +1648,8 @@ body::before {
 
 .detail-overlay.hiding {
   animation: overlayFadeOut var(--motion-fast) forwards;
+  /* 淡出中的遮罩不再拦截点击，避免收尾竞态时界面被整层挡住 */
+  pointer-events: none;
 }
 
 .summary-overlay {
@@ -1665,6 +1667,7 @@ body::before {
 
 .summary-overlay.hiding {
   animation: overlayFadeOut var(--motion-fast) forwards;
+  pointer-events: none;
 }
 
 .detail-header {
@@ -2120,7 +2123,7 @@ body::before {
   z-index: 900;
   animation: overlayFadeIn var(--motion-normal);
 }
-.settings-overlay.closing { animation: overlayFadeOut var(--motion-fast) forwards; }
+.settings-overlay.closing { animation: overlayFadeOut var(--motion-fast) forwards; pointer-events: none; }
 
 .settings-modal {
   position: fixed;
@@ -4172,6 +4175,7 @@ body::before {
 
 .tag-input-overlay.closing {
   animation: overlayFadeOut var(--motion-fast) forwards;
+  pointer-events: none;
 }
 
 .tag-input-box {

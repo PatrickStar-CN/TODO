@@ -1,9 +1,14 @@
 import { escapeHtml } from './utils/html.js';
 import { getUiMotionDuration } from './uiPreferences.js';
+import { createDismissal } from './utils/dismiss.js';
 import { createFocusTrap } from './utils/focus.js';
 import { t } from './i18n/index.js';
 
 export function createOverlay(title, content, actions, triggerEl) {
+  /* 通用遮罩同一时间只应存在一层：先收尾可能残留的旧遮罩，
+   * 否则两层叠加时只会移除后创建的那层，旧的一层会永久挡住界面 */
+  document.querySelectorAll('.tag-input-overlay').forEach(el => closeOverlay(el, { restoreFocus: false }));
+
   const previouslyFocused = triggerEl && document.contains(triggerEl)
     ? triggerEl
     : document.activeElement;
@@ -39,20 +44,31 @@ export function createOverlay(title, content, actions, triggerEl) {
   return overlay;
 }
 
-export function closeOverlay(overlay) {
-  if (overlay) {
-    if (typeof overlay._releaseFocusTrap === 'function') {
-      const release = overlay._releaseFocusTrap;
-      overlay._releaseFocusTrap = null;
-      /* 等关闭动画结束再归还焦点，避免焦点跳动 */
-      setTimeout(release, getUiMotionDuration('normal') + 60);
-    }
-    const box = overlay.querySelector('.tag-input-box');
-    if (box) box.style.animation = 'modalShrinkOut var(--motion-normal) forwards';
-    overlay.classList.add('closing');
-    overlay.addEventListener('animationend', () => overlay.remove(), { once: true });
-    setTimeout(() => { if (overlay.parentNode) overlay.remove(); }, getUiMotionDuration('normal') + 50);
+export function closeOverlay(overlay, { restoreFocus = true } = {}) {
+  if (!overlay) return;
+  overlay._dismissal?.cancel();
+  const dismissal = createDismissal();
+  overlay._dismissal = dismissal;
+  const duration = getUiMotionDuration('normal');
+  const finish = () => {
+    if (overlay._dismissal !== dismissal) return;
+    overlay._dismissal = null;
+    overlay.remove();
+  };
+  const release = typeof overlay._releaseFocusTrap === 'function' ? overlay._releaseFocusTrap : null;
+  overlay._releaseFocusTrap = null;
+  if (release) {
+    /* 等关闭动画结束再归还焦点，避免焦点跳动；被新弹层顶替时立即归还 */
+    if (restoreFocus) setTimeout(release, duration + 60);
+    else release();
   }
+  const box = overlay.querySelector('.tag-input-box');
+  if (box) box.style.animation = 'modalShrinkOut var(--motion-normal) forwards';
+  overlay.classList.add('closing');
+  dismissal.onEnd(overlay, finish);
+  /* 盒子与遮罩各自淡出，先结束的那个负责收尾 */
+  if (box) dismissal.onEnd(box, finish);
+  dismissal.after(finish, duration + 50);
 }
 
 export function createManagedOverlay(title, content, actions, triggerEl) {

@@ -1,9 +1,11 @@
 import { escapeHtml } from './utils/html.js';
 import { applyTheme } from './theme.js';
 import { closeDetail } from './detail.js';
+import { closeDatePicker } from './datePicker.js';
 import { showConfirmDialog } from './overlay.js';
 import { exportData, EXPORT_FORMATS } from './dataExport.js';
 import { DEFAULT_UI_STYLE, applyUiStyle, getUiMotionDuration, normalizeUiStyle } from './uiPreferences.js';
+import { createDismissal, dismissPanel } from './utils/dismiss.js';
 import { createFocusTrap, enableRovingTablist } from './utils/focus.js';
 import { iconSvg } from './icons.js';
 import { normalizeTimelineSettings } from './timeline.js';
@@ -18,6 +20,7 @@ let settingsOverlay = null;
 let settingsReleaseFocus = null;
 let settingsRovingCleanup = null;
 let settingsPreviouslyFocused = null;
+let settingsCloseState = null;
 let updater = null;
 let updateStatusUnsub = null;
 /* 面板当前已渲染的语言：语言变化事件可能与调用方兜底重复触发，据此跳过多余的重建 */
@@ -32,10 +35,11 @@ function closePanel() {
   updateStatusUnsub?.();
   updateStatusUnsub = null;
   if (!settingsOverlay) return;
-  const modal = settingsOverlay.querySelector('.settings-modal');
-  if (modal) modal.style.animation = 'modalShrinkOut var(--motion-normal) forwards';
-  settingsOverlay.classList.add('closing');
+  closeDatePicker();
   const overlayRef = settingsOverlay;
+  const modal = overlayRef.querySelector('.settings-modal');
+  if (modal) modal.style.animation = 'modalShrinkOut var(--motion-normal) forwards';
+  overlayRef.classList.add('closing');
   const releaseFocus = settingsReleaseFocus;
   const rovingCleanup = settingsRovingCleanup;
   const previouslyFocused = settingsPreviouslyFocused;
@@ -44,32 +48,30 @@ function closePanel() {
   settingsRovingCleanup = null;
   settingsPreviouslyFocused = null;
   if (typeof rovingCleanup === 'function') rovingCleanup();
-  overlayRef.addEventListener('animationend', () => overlayRef.remove(), { once: true });
-  setTimeout(() => { if (overlayRef.parentNode) overlayRef.remove(); }, getUiMotionDuration('normal') + 50);
-  setTimeout(() => {
+
+  /* 与其他弹层同一套收尾：动画事件只认遮罩/面板自身，重新打开时整体撤销 */
+  const dismissal = createDismissal();
+  settingsCloseState?.cancel();
+  settingsCloseState = dismissal;
+  const duration = getUiMotionDuration('normal');
+  const finish = () => {
+    overlayRef.remove();
+    if (settingsCloseState === dismissal) settingsCloseState = null;
+  };
+  dismissal.onEnd(overlayRef, finish);
+  if (modal) dismissal.onEnd(modal, finish);
+  dismissal.after(finish, duration + 50);
+  dismissal.after(() => {
     if (typeof releaseFocus === 'function') releaseFocus();
     else if (previouslyFocused && document.contains(previouslyFocused)) previouslyFocused.focus({ preventScroll: true });
-  }, getUiMotionDuration('normal') + 60);
+  }, duration + 60);
 }
 
 function openPanel(opts = {}) {
   if (settingsOverlay) return;
 
   // 关闭详情面板和 AI 总结面板
-  const summaryPanel = document.getElementById('summary-panel');
-  if (summaryPanel && !summaryPanel.classList.contains('hidden')) {
-    summaryPanel.classList.add('hiding');
-    summaryPanel.addEventListener('animationend', () => {
-      summaryPanel.classList.add('hidden');
-      summaryPanel.classList.remove('hiding');
-    }, { once: true });
-    setTimeout(() => {
-      if (summaryPanel.classList.contains('hiding')) {
-        summaryPanel.classList.add('hidden');
-        summaryPanel.classList.remove('hiding');
-      }
-    }, 300);
-  }
+  dismissPanel(document.getElementById('summary-panel'));
   closeDetail();
 
   // 创建弹窗
@@ -540,6 +542,8 @@ function teardownPanelInstant() {
   settingsRovingCleanup = null;
   /* 立即重建：不播放关闭动画、不归还焦点（焦点由重建后恢复），旧节点直接移除 */
   settingsReleaseFocus = null;
+  settingsCloseState?.cancel();
+  settingsCloseState = null;
   if (settingsOverlay && settingsOverlay.parentNode) {
     settingsOverlay.parentNode.removeChild(settingsOverlay);
   }

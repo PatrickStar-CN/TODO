@@ -508,6 +508,75 @@ assert.ok(/setDatePickerValue/.test(detailSource), 'detail.js 应在 openDetail 
 const datePickerSource = readFileSync(path.join(__dirname, '../src/datePicker.js'), 'utf8');
 assert.ok(/syncValue\(value\)/.test(datePickerSource), 'datePicker.js 应提供 syncValue 同步触发器、输入值与清除按钮');
 assert.ok(/export function setDatePickerValue/.test(datePickerSource), 'datePicker.js 应导出 setDatePickerValue');
+
+/* 回归：弹层收尾句柄必须只认元素自身的 animationend，且能在重新打开时整体撤销。
+ * 否则子元素动画冒泡会提前收尾，关闭动画途中重开又会被过期回调把面板/遮罩
+ * 撤掉，界面卡在一层无法关闭的模糊遮罩上（点击任何位置都无响应）。 */
+{
+  const { createDismissal } = await import('../src/utils/dismiss.js');
+  const createFakeElement = () => {
+    const handlers = new Map();
+    return {
+      handlers,
+      addEventListener(type, handler) {
+        if (!handlers.has(type)) handlers.set(type, []);
+        handlers.get(type).push(handler);
+      },
+      removeEventListener(type, handler) {
+        const list = handlers.get(type) || [];
+        const index = list.indexOf(handler);
+        if (index !== -1) list.splice(index, 1);
+      },
+      fire(target, type = 'animationend') {
+        [...(handlers.get(type) || [])].forEach(handler => handler({ type, target }));
+      }
+    };
+  };
+
+  const el = createFakeElement();
+  const child = createFakeElement();
+  let ended = 0;
+  createDismissal().onEnd(el, () => { ended += 1; });
+  el.fire(child);
+  assert.equal(ended, 0, 'animationend 从子元素冒泡时不得触发收尾');
+  el.fire(el);
+  assert.equal(ended, 1, '元素自身动画结束应触发一次收尾');
+
+  const reopened = createFakeElement();
+  const dismissal = createDismissal();
+  let stale = 0;
+  dismissal.onEnd(reopened, () => { stale += 1; });
+  dismissal.after(() => { stale += 1; }, 0);
+  dismissal.cancel();
+  reopened.fire(reopened);
+  assert.equal(stale, 0, '重新打开时应撤销 animationend 收尾');
+  assert.equal(reopened.handlers.get('animationend').length, 0, 'cancel 应移除已登记的 animationend 监听');
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(stale, 0, 'cancel 应清掉兜底定时器');
+
+  const fallback = createFakeElement();
+  const timed = createDismissal();
+  let byTimer = 0;
+  timed.onEnd(fallback, () => { byTimer += 1; });
+  timed.after(() => { byTimer += 1; }, 0);
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(byTimer, 1, '动画事件不触发时应由兜底定时器收尾');
+}
+
+/* 各弹层关闭流程统一走收尾句柄：重开前撤销，收尾只认自身动画事件 */
+for (const [file, label] of [
+  ['../src/detail.js', 'detail.js'],
+  ['../src/overlay.js', 'overlay.js'],
+  ['../src/settings.js', 'settings.js'],
+  ['../src/aiSummary.js', 'aiSummary.js']
+]) {
+  const source = readFileSync(path.join(__dirname, file), 'utf8');
+  assert.ok(/createDismissal/.test(source), `${label} 应使用 createDismissal 统一弹层收尾`);
+  assert.ok(!/addEventListener\('animationend',\s*\(\)\s*=>/.test(source), `${label} 不应再使用无 target 校验的 animationend 收尾`);
+}
+const overlaySource = readFileSync(path.join(__dirname, '../src/overlay.js'), 'utf8');
+assert.ok(/querySelectorAll\('\.tag-input-overlay'\)/.test(overlaySource), 'createOverlay 应先收尾可能残留的旧通用遮罩，避免两层叠加时旧遮罩永久挡住界面');
+assert.ok(/closeDatePicker\(\)/.test(detailSource), '关闭任务详情应收尾日期选择浮层，避免浮层残留在界面上');
 /* 报告流式链路：flush 尾行、DONE 终结外层、整包兜底、自动滚动、流式态清理 */
 {
   const aiSource = readFileSync(path.join(__dirname, '../src/aiSummary.js'), 'utf8');

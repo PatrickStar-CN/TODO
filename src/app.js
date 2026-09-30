@@ -1781,7 +1781,14 @@ export async function initApp() {
       const newEl = document.querySelector(`.todo-item[data-id="${todo.id}"]`);
       if (newEl) {
         newEl.classList.add('entering');
-        newEl.addEventListener('animationend', () => newEl.classList.remove('entering'), { once: true });
+        /* 动画事件只认元素自身，且补一个兜底：事件不触发时 leaving/entering
+         * 残留会让列表项保持动画初值（透明、位移） */
+        const clearEntering = (event) => {
+          if (event && event.target !== newEl) return;
+          newEl.classList.remove('entering');
+        };
+        newEl.addEventListener('animationend', clearEntering, { once: true });
+        setTimeout(() => clearEntering(), getUiMotionDuration('normal') + 60);
       }
       showToast(t('toast.taskAdded'));
     }
@@ -2022,7 +2029,12 @@ export async function initApp() {
 
   // Keyboard
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') closeDetail();
+    if (e.key === 'Escape') {
+      /* 确认框/月年选择/设置各自处理 Escape（一次只关最上层），
+       * 这里只收尾任务详情，避免一次按键连带关掉多层弹窗 */
+      const topModal = document.querySelector('.tag-input-overlay, .settings-overlay, .date-picker');
+      if (!topModal) closeDetail();
+    }
     if ((e.ctrlKey || e.metaKey) && e.key === 's') {
       const detailPanel = document.getElementById('detail-panel');
       if (detailPanel && !detailPanel.classList.contains('hidden')) {

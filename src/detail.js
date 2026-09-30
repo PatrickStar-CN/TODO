@@ -2,6 +2,7 @@ import { formatDateTime, toLocalDatetime } from './utils/date.js';
 import { initDatePicker, closeDatePicker, setDatePickerValue } from './datePicker.js';
 import { escapeAttr, escapeHtml } from './utils/html.js';
 import { getUiMotionDuration } from './uiPreferences.js';
+import { createDismissal, cancelPanelDismiss, dismissPanel } from './utils/dismiss.js';
 import { createFocusTrap } from './utils/focus.js';
 import { getTagDotStyle } from './shared.js';
 import { t, getPriorityLabel, getRepeatLabel } from './i18n/index.js';
@@ -11,6 +12,45 @@ let onBeforeDetailClose = null;
 let detailData = null;
 let detailReleaseFocus = null;
 let detailPreviouslyFocused = null;
+let detailOverlay = null;
+let detailCloseState = null;
+
+/* 重新打开详情前必须撤销上一次关闭的收尾（动画事件与兜底定时器），
+ * 否则展开动画结束时会触发上一次的收尾，把刚打开的面板再次隐藏，
+ * 而遮罩仍显示——整层模糊遮罩就此永久挡住所有点击。 */
+function cancelDetailClose() {
+  detailCloseState?.cancel();
+  detailCloseState = null;
+  cancelPanelDismiss(document.getElementById('detail-panel'));
+}
+
+function startDetailClose(overlay, releaseFocus, previouslyFocused) {
+  cancelDetailClose();
+  const dismissal = createDismissal();
+  detailCloseState = dismissal;
+  const removeOverlay = () => {
+    if (overlay?.parentNode) overlay.remove();
+    if (detailCloseState === dismissal) detailCloseState = null;
+  };
+
+  if (overlay) {
+    overlay.classList.add('hiding');
+    dismissal.onEnd(overlay, removeOverlay);
+  }
+  /* 面板收起与遮罩移除同一套收尾：动画不触发时由定时器兜底 */
+  dismissPanel(document.getElementById('detail-panel'));
+  dismissal.after(removeOverlay, getUiMotionDuration('normal') + 50);
+  dismissal.after(() => {
+    if (typeof releaseFocus === 'function') releaseFocus();
+    else if (previouslyFocused && document.contains(previouslyFocused)) previouslyFocused.focus({ preventScroll: true });
+  }, getUiMotionDuration('normal') + 60);
+}
+
+function getDetailOverlay() {
+  if (detailOverlay?.isConnected) return detailOverlay;
+  detailOverlay = document.querySelector('.detail-overlay');
+  return detailOverlay;
+}
 
 /* 优先级选项配置 */
 function getPriorityOptions() {
@@ -184,22 +224,14 @@ export function initDetailEditor(callbacks) {
 export function openDetail(todo, triggerEl) {
   if (!todo) return;
 
-  const summaryPanel = document.getElementById('summary-panel');
-  if (summaryPanel && !summaryPanel.classList.contains('hidden')) {
-    summaryPanel.classList.add('hiding');
-    summaryPanel.addEventListener('animationend', () => {
-      summaryPanel.classList.add('hidden');
-      summaryPanel.classList.remove('hiding');
-    }, { once: true });
-    setTimeout(() => {
-      if (summaryPanel.classList.contains('hiding')) {
-        summaryPanel.classList.add('hidden');
-        summaryPanel.classList.remove('hiding');
-      }
-    }, 300);
-  }
+  /* 打开详情时顺带收起 AI 面板：走统一收尾，动画事件只认面板自身 */
+  dismissPanel(document.getElementById('summary-panel'));
 
   const detailPanel = document.getElementById('detail-panel');
+
+  /* 重开前撤销上一次关闭的收尾，避免遗留的 animationend/定时器
+   * 在展开动画结束后把面板再次隐藏，留下无法关闭的遮罩 */
+  cancelDetailClose();
 
   // 记录触发位置，用于弹窗从点击处放大动画
   // 优先使用透传的触发元素，避免 querySelector 命中隐藏的重复元素（如日历视图下主列表的隐藏项）
@@ -212,15 +244,15 @@ export function openDetail(todo, triggerEl) {
     detailPanel.style.setProperty('--origin-y', `${originY}px`);
   }
 
-  let overlay = document.querySelector('.detail-overlay');
+  let overlay = getDetailOverlay();
   if (!overlay) {
     overlay = document.createElement('div');
     overlay.className = 'detail-overlay';
     overlay.addEventListener('click', () => closeDetail());
     document.body.appendChild(overlay);
-  } else {
-    overlay.classList.remove('hiding');
   }
+  overlay.classList.remove('hiding');
+  detailOverlay = overlay;
 
   detailPanel.classList.remove('hidden', 'hiding');
   detailPanel.style.animation = 'none';
@@ -270,18 +302,28 @@ export function openDetail(todo, triggerEl) {
 
   const doneRow = document.getElementById('detail-done-row');
   const doneTimeEl = document.getElementById('detail-done-time');
+  /* 编辑完成时间时该节点会被日期输入框取代，重开详情前先复位成展示节点，
+   * 否则这里会抛错并中断 openDetail 后续赋值 */
+  let doneTimeValue = doneTimeEl;
+  if (doneTimeValue?.tagName === 'INPUT') {
+    const span = document.createElement('span');
+    span.id = 'detail-done-time';
+    span.className = 'detail-done-value';
+    (doneTimeValue.closest('.dp-wrapper') || doneTimeValue).replaceWith(span);
+    doneTimeValue = span;
+  }
   if (todo.done && todo.doneAt) {
     doneRow.classList.remove('hidden');
-    doneTimeEl.textContent = formatDateTime(todo.doneAt);
-    doneTimeEl.style.cursor = 'pointer';
-    doneTimeEl.title = t('detail.clickEditDone');
-    doneTimeEl.onclick = () => enterDoneTimeEdit(todo);
+    doneTimeValue.textContent = formatDateTime(todo.doneAt);
+    doneTimeValue.style.cursor = 'pointer';
+    doneTimeValue.title = t('detail.clickEditDone');
+    doneTimeValue.onclick = () => enterDoneTimeEdit(todo);
   } else {
     doneRow.classList.add('hidden');
-    doneTimeEl.textContent = '';
-    doneTimeEl.style.cursor = '';
-    doneTimeEl.title = '';
-    doneTimeEl.onclick = null;
+    doneTimeValue.textContent = '';
+    doneTimeValue.style.cursor = '';
+    doneTimeValue.title = '';
+    doneTimeValue.onclick = null;
   }
   document.getElementById('detail-created-time').textContent =
     (todo.createdAt && !Number.isNaN(new Date(todo.createdAt).getTime()))
@@ -336,40 +378,20 @@ export function closeDetail() {
     onBeforeDetailClose();
   }
   closeDetailDropdowns();
+  closeDatePicker();
   const panel = document.getElementById('detail-panel');
-  if (panel.classList.contains('hidden')) return;
+  if (!panel || panel.classList.contains('hidden')) {
+    /* 面板已隐藏但遮罩仍在时立即收尾：残留遮罩会永久拦截全部点击，
+     * 而后续 closeDetail 都会走上面的提前返回，只能在这里兜底 */
+    if (!detailCloseState) getDetailOverlay()?.remove();
+    return;
+  }
   const releaseFocus = detailReleaseFocus;
   const previouslyFocused = detailPreviouslyFocused;
   detailReleaseFocus = null;
   detailPreviouslyFocused = null;
 
-  const overlay = document.querySelector('.detail-overlay');
-  if (overlay) {
-    overlay.classList.add('hiding');
-    overlay.addEventListener('animationend', () => {
-      overlay.remove();
-    }, { once: true });
-    setTimeout(() => { if (overlay.parentNode) overlay.remove(); }, getUiMotionDuration('normal') + 50);
-  }
-
-  panel.classList.add('hiding');
-  panel.style.animation = 'modalShrinkOut var(--motion-normal) forwards';
-  panel.addEventListener('animationend', () => {
-    panel.classList.add('hidden');
-    panel.classList.remove('hiding');
-    panel.style.animation = '';
-  }, { once: true });
-  setTimeout(() => {
-    if (panel.classList.contains('hiding')) {
-      panel.classList.add('hidden');
-      panel.classList.remove('hiding');
-      panel.style.animation = '';
-    }
-  }, getUiMotionDuration('normal') + 50);
-  setTimeout(() => {
-    if (typeof releaseFocus === 'function') releaseFocus();
-    else if (previouslyFocused && document.contains(previouslyFocused)) previouslyFocused.focus({ preventScroll: true });
-  }, getUiMotionDuration('normal') + 60);
+  startDetailClose(getDetailOverlay(), releaseFocus, previouslyFocused);
 }
 
 function enterDoneTimeEdit(todo) {
