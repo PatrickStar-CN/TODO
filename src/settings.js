@@ -8,7 +8,7 @@ import { createFocusTrap, enableRovingTablist } from './utils/focus.js';
 import { iconSvg } from './icons.js';
 import { normalizeTimelineSettings } from './timeline.js';
 import { getTagDotStyle, getTagTaskCount, TAG_COLORS } from './shared.js';
-import { t, getLanguage, getSupportedLanguages, normalizeLanguage } from './i18n/index.js';
+import { t, getLanguage, getSupportedLanguages, normalizeLanguage, onLanguageChange } from './i18n/index.js';
 
 let data, saveData, showToast, render, testNotification, getNotificationStatus;
 let applyLanguageFn = null;
@@ -20,6 +20,8 @@ let settingsRovingCleanup = null;
 let settingsPreviouslyFocused = null;
 let updater = null;
 let updateStatusUnsub = null;
+/* 面板当前已渲染的语言：语言变化事件可能与调用方兜底重复触发，据此跳过多余的重建 */
+let panelLang = null;
 /* 导出选项存模块级：语言切换会原地重建面板，存在这里才能在重建后回填 */
 let exportFormat = 'json';
 let exportIncludeKey = false;
@@ -261,6 +263,7 @@ function openPanel(opts = {}) {
   `;
   document.body.appendChild(overlay);
   settingsOverlay = overlay;
+  panelLang = getLanguage();
   const preservedFocus = opts.previouslyFocused && document.contains(opts.previouslyFocused)
     ? opts.previouslyFocused
     : document.activeElement;
@@ -343,14 +346,19 @@ function openPanel(opts = {}) {
         }
         data.language = next;
         saveData();
-        if (typeof applyLanguageFn === 'function') {
-          applyLanguageFn(next);
-        } else {
-          render?.();
+        try {
+          if (typeof applyLanguageFn === 'function') {
+            applyLanguageFn(next);
+          } else {
+            render?.();
+          }
+        } finally {
+          /* 先关闭菜单再重建，避免重建时残留展开态；
+           * 面板重建由 onLanguageChange 订阅负责，此处仅兜底未注入 applyLanguage 的降级路径，
+           * 且放在 finally 中：调用方链路即使抛错也不会让面板停留在旧语言 */
+          closeLangMenu();
+          refreshSettingsLanguage();
         }
-        // 先关闭菜单再重建，避免重建时残留展开态
-        closeLangMenu();
-        refreshSettingsLanguage();
       });
     });
     // 点击设置弹窗其他区域关闭语言菜单
@@ -543,6 +551,8 @@ function teardownPanelInstant() {
 function refreshSettingsLanguage() {
   const prev = settingsOverlay;
   if (!prev || !prev.isConnected) return;
+  /* 事件订阅与调用方兜底可能先后触发，已按当前语言重建过就直接返回，避免二次重建丢焦点 */
+  if (panelLang === getLanguage()) return;
   const activeTab = prev.querySelector('.settings-tab.active')?.dataset.tab || 'appearance';
   const body = prev.querySelector('.settings-body');
   const scrollTop = body ? body.scrollTop : 0;
@@ -574,7 +584,7 @@ function refreshSettingsLanguage() {
 }
 
 function updateNotificationStatus(overlay) {
-  const status = getNotificationStatus?.() || { state: 'unavailable', label: '系统通知不可用' };
+  const status = getNotificationStatus?.() || { state: 'unavailable', label: t('reminder.unsupported') };
   const dot = overlay.querySelector('#notification-status-dot');
   const text = overlay.querySelector('#notification-status-text');
   if (dot) dot.dataset.state = status.state;
@@ -654,6 +664,13 @@ function updatePhaseText(phase) {
   return typeof v === 'function' ? v() : (v || '');
 }
 
+/* 更新状态文案优先用 i18n key 在渲染时翻译：updater 只记录 key/参数，
+ * 这样切换语言后重建面板能拿到当前语言的提示，而不是发射时缓存的旧语言文本 */
+function resolveUpdateText(key, params, fallback) {
+  if (key) return t(key, params || {});
+  return fallback || '';
+}
+
 function renderUpdateStatus(overlay, s) {
   if (!overlay.isConnected) return;
   const statusArea = overlay.querySelector('#update-status-area');
@@ -673,14 +690,16 @@ function renderUpdateStatus(overlay, s) {
   btnCheck.setAttribute('aria-busy', String(s.phase === 'checking'));
   btnDownload.setAttribute('aria-busy', String(s.phase === 'downloading' || s.phase === 'verifying'));
 
-  if (s.error) {
-    statusArea.innerHTML = `<span class="update-status-error">${escapeHtml(s.error)}</span>`;
+  const errorText = resolveUpdateText(s.errorKey, s.errorParams, s.error);
+  if (errorText) {
+    statusArea.innerHTML = `<span class="update-status-error">${escapeHtml(errorText)}</span>`;
     return;
   }
 
   let html = '';
-  if (s.notice) {
-    html += `<span class="update-status-text">${escapeHtml(s.notice)}</span>`;
+  const noticeText = resolveUpdateText(s.noticeKey, s.noticeParams, s.notice);
+  if (noticeText) {
+    html += `<span class="update-status-text">${escapeHtml(noticeText)}</span>`;
   }
   if (s.phase === 'available' && s.version) {
     html += `<div class="update-status-version">${t('update.found')} <strong>v${escapeHtml(s.version)}</strong></div>`;
@@ -968,6 +987,10 @@ export function initSettings(deps) {
 
   // 打开
   document.getElementById('btn-settings').addEventListener('click', openPanel);
+
+  /* 语言变化即重建已开面板：不依赖调用方在切换后主动回调，
+   * 避免主应用切换链路中途抛错时设置窗口停留在旧语言 */
+  onLanguageChange(() => refreshSettingsLanguage());
 
   // Escape 关闭
   document.addEventListener('keydown', (e) => {

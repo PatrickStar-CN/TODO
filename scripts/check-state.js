@@ -15,6 +15,15 @@ import { extractCompleteContent, normalizeStreamText, parseSseLine, resolveAiApi
 import { DEFAULT_TIMELINE_SETTINGS, formatTimelineTime, getTimelineDateParts, normalizeTimelineSettings, sortTimelineTodos } from '../src/timeline.js';
 import { clampDonePanelHeight, computeDonePanelHeightFromPointer, computeDonePanelMaxHeightFromRects } from '../src/donePanelResize.js';
 import { EXPORT_FORMATS, EXPORT_SCHEMA_VERSION, buildExportFileName, buildExportPayload, buildMarkdownExport, exportData } from '../src/dataExport.js';
+import { t as translate, setLanguage as setI18nLanguage } from '../src/i18n/index.js';
+
+/* updater 的失败/提示文案以 i18n key + 参数记录，由界面在渲染时翻译（切换语言后文案跟随）。
+ * 断言时统一走这里解析，等价于设置系统页签 renderUpdateStatus 的行为。 */
+function resolveUpdaterStateText(state) {
+  if (state.errorKey) return translate(state.errorKey, state.errorParams || {});
+  if (state.noticeKey) return translate(state.noticeKey, state.noticeParams || {});
+  return state.error || state.notice || '';
+}
 
 assert.equal(resolveAiApiUrl('https://api.openai.com/v1'), 'https://api.openai.com/v1/chat/completions');
 assert.equal(resolveAiApiUrl('https://api.openai.com/v1/'), 'https://api.openai.com/v1/chat/completions');
@@ -848,7 +857,7 @@ assert.ok(/btn-cancel-update/.test(settingsSource), '设置页应提供取消下
   const authUpdater = createUpdater({ showToast: () => {} });
   await authUpdater.checkForUpdates();
   assert.equal(authUpdater.getState().phase, 'failed');
-  assert.ok(/407/.test(authUpdater.getState().error), '407 应提示代理认证');
+  assert.ok(/407/.test(resolveUpdaterStateText(authUpdater.getState())), '407 应提示代理认证');
   const errMem = new Map();
   globalThis.Neutralino.os.execCommand = async (cmd) => {
     /* 模拟 PowerShell 首错落盘：fetchJson 启动时会先清临时文件，此处在失败时写回 */
@@ -861,8 +870,13 @@ assert.ok(/btn-cancel-update/.test(settingsSource), '设置页应提供取消下
   const netUpdater = createUpdater({ showToast: () => {} });
   await netUpdater.checkForUpdates();
   assert.equal(netUpdater.getState().phase, 'failed');
-  assert.ok(/网络连接异常/.test(netUpdater.getState().error), '纯网络失败应报网络连接异常');
-  assert.ok(/proxy connect failed/.test(netUpdater.getState().error), '网络失败文案应携带诊断细节');
+  assert.ok(/网络连接异常/.test(resolveUpdaterStateText(netUpdater.getState())), '纯网络失败应报网络连接异常');
+  assert.ok(/proxy connect failed/.test(resolveUpdaterStateText(netUpdater.getState())), '网络失败文案应携带诊断细节');
+  /* 同一失败状态在切换语言后应能渲染出另一种语言，而不是缓存发射时的旧文案 */
+  setI18nLanguage('en');
+  assert.ok(/network error/i.test(resolveUpdaterStateText(netUpdater.getState())), '更新失败文案应随语言切换重新翻译');
+  setI18nLanguage('zh');
+  assert.ok(/网络连接异常/.test(resolveUpdaterStateText(netUpdater.getState())), '切回中文后文案应恢复');
   delete globalThis.Neutralino;
   delete globalThis.NL_PORT;
 }
@@ -1000,7 +1014,7 @@ assert.ok(/btn-cancel-update/.test(settingsSource), '设置页应提供取消下
     await u.downloadAndPrepare();
     await u.applyUpdate();
     assert.equal(u.getState().phase, 'failed');
-    assert.ok(/路径校验失败/.test(u.getState().error), '写坏 pending 应报路径校验失败');
+    assert.ok(/路径校验失败/.test(resolveUpdaterStateText(u.getState())), '写坏 pending 应报路径校验失败');
     assert.equal(createdTasks(cmds), 0, '校验失败不得注册计划任务');
     assert.equal(wasExited(), false);
     teardown();
@@ -1014,7 +1028,7 @@ assert.ok(/btn-cancel-update/.test(settingsSource), '设置页应提供取消下
     await u.downloadAndPrepare();
     await u.applyUpdate();
     assert.equal(u.getState().phase, 'failed');
-    assert.ok(/无写入权限/.test(u.getState().error), '不可写目录应提示提权');
+    assert.ok(/无写入权限/.test(resolveUpdaterStateText(u.getState())), '不可写目录应提示提权');
     assert.equal(createdTasks(cmds), 0, '无权限不得注册计划任务');
     assert.equal(wasExited(), false);
     teardown();
@@ -1641,6 +1655,21 @@ assert.ok(/btn-cancel-update/.test(settingsSource), '设置页应提供取消下
   assert.ok(/settings-lang-trigger|settings-lang-menu/.test(settingsSource), '设置头部应提供语言下拉（关闭按钮旁）');
   assert.ok(/settings-lang-option/.test(settingsSource), '语言下拉应提供可扩展的选项列表');
   assert.ok(/refreshSettingsLanguage|teardownPanelInstant/.test(settingsSource), '切换语言应重建已开设置面板以刷新静态文案（原地无动画重建）');
+  /* 历史故障：面板只靠语言下拉点击回调里的一句 refreshSettingsLanguage() 重建，
+   * 而该调用排在 applyLanguageFn() 之后；主应用切换链路（render/日历/弹窗收敛）中途抛错时
+   * 整条语句被跳过，全局语言已变、设置窗口却停留在旧语言。
+   * 修复：settings.js 订阅 onLanguageChange 自主重建，点击回调里的兜底调用放进 finally。 */
+  assert.ok(/onLanguageChange\(\s*\(\)\s*=>\s*refreshSettingsLanguage\(\)\s*\)/.test(settingsSource), '设置面板应订阅语言变化事件自主重建，不依赖调用方回调');
+  assert.ok(/finally\s*\{[\s\S]{0,400}?refreshSettingsLanguage\(\)/.test(settingsSource), '语言下拉切换的兜底重建应放在 finally 中，调用方抛错也要刷新面板');
+  assert.ok(/panelLang === getLanguage\(\)/.test(settingsSource), '面板重建应按语言去重，避免事件与兜底重复重建丢焦点');
+  assert.ok(!/系统通知不可用/.test(settingsSource), '设置面板不得硬编码中文通知状态文案，应走 i18n');
+  /* 更新状态文案同样不能冻结在旧语言：updater 只记录 key/参数，由面板在渲染时翻译 */
+  const updaterSourceI18n = readFileSync(path.join(__dirname, '../src/updater.js'), 'utf8');
+  assert.ok(/errorKey: 'update\./.test(updaterSourceI18n) && /noticeKey: 'update\./.test(updaterSourceI18n), 'updater 应记录 i18n key 而非预翻译文案');
+  assert.ok(!/启动更新失败：/.test(updaterSourceI18n), 'updater 不得硬编码中文失败文案，应走 i18n');
+  assert.ok(/resolveUpdateText/.test(settingsSource), '设置面板应在渲染时按当前语言解析更新状态文案');
+  assert.equal(tr('update.applyFailed', { msg: 'x' }, 'zh'), '启动更新失败：x');
+  assert.equal(tr('update.applyFailed', { msg: 'x' }, 'en'), 'Failed to start the update: x');
   const calendarSourceI18n = readFileSync(path.join(__dirname, '../src/calendar.js'), 'utf8');
   assert.ok(!/WEEKDAY_NAMES = \['日'/.test(calendarSourceI18n), 'calendar.js 不得硬编码中文星期数组，应走 i18n');
   assert.ok(/getTrayMenuItems|onLanguageChange/.test(readFileSync(path.join(__dirname, '../src/main.js'), 'utf8')), '托盘菜单应随语言重建');

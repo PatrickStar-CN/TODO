@@ -298,6 +298,7 @@ export const en = {
   'update.unzipFailed': 'Failed to extract update package',
   'update.incomplete': 'Update package content incomplete',
   'update.downloadFailed': 'Failed to download update',
+  'update.applyFailed': 'Failed to start the update: {msg}',
   'export.mdTitle': 'Task list',
   'export.mdExportedAt': 'Exported at',
   'export.mdTotal': 'Total tasks',

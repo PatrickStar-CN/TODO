@@ -551,7 +551,7 @@ export function createUpdater({ showToast, appConfig = {} }) {
       return;
     }
     if (state.phase === 'checking' || state.phase === 'downloading' || state.phase === 'verifying') return;
-    setState({ phase: 'checking', error: null, notice: null, version: null, body: '', progress: 0, assets: null });
+    setState({ phase: 'checking', error: null, notice: null, errorKey: null, errorParams: null, noticeKey: null, noticeParams: null, version: null, body: '', progress: 0, assets: null });
     /* 先解析本地版本：404 等失败分支也要能展示当前版本，而不是空 */
     const cur = await resolveCurrentVersion();
     try {
@@ -566,18 +566,18 @@ export function createUpdater({ showToast, appConfig = {} }) {
     } catch (e) {
       if (e?.status === 404) {
         /* 仓库从未创建 Release（仅有 git tag）→ 无发布版本，而非网络故障 */
-        setState({ phase: 'latest', version: cur || currentVersion, notice: t('update.noRelease') });
+        setState({ phase: 'latest', version: cur || currentVersion, noticeKey: 'update.noRelease' });
       } else if (e?.status === 403 || e?.status === 429) {
-        setState({ phase: 'failed', error: t('update.rateLimited', { status: e.status }) });
+        setState({ phase: 'failed', errorKey: 'update.rateLimited', errorParams: { status: e.status } });
       } else if (e?.status === 407) {
         const d = e?.detail ? sanitizeNetDetail(e.detail) : '';
-        setState({ phase: 'failed', error: d ? t('update.proxyAuthDetail', { detail: d }) : t('update.proxyAuth') });
+        setState({ phase: 'failed', errorKey: d ? 'update.proxyAuthDetail' : 'update.proxyAuth', errorParams: { detail: d } });
       } else if (e?.status) {
-        setState({ phase: 'failed', error: t('update.httpError', { status: e.status }) });
+        setState({ phase: 'failed', errorKey: 'update.httpError', errorParams: { status: e.status } });
       } else {
         const d = e?.detail ? sanitizeNetDetail(e.detail) : '';
         console.warn('[updater] check failed:', e?.message || e, d);
-        setState({ phase: 'failed', error: d ? t('update.netErrorDetail', { detail: d }) : t('update.netError') });
+        setState({ phase: 'failed', errorKey: d ? 'update.netErrorDetail' : 'update.netError', errorParams: { detail: d } });
       }
     }
   }
@@ -634,10 +634,10 @@ export function createUpdater({ showToast, appConfig = {} }) {
       setState({ phase: 'ready', version, progress: 1, dirs: { dir, unzipDir } });
     } catch (e) {
       if (e?.cancelled) {
-        setState({ phase: 'available', version, body, assets: assets || [], error: null, notice: null, progress: 0 });
+        setState({ phase: 'available', version, body, assets: assets || [], error: null, notice: null, errorKey: null, errorParams: null, noticeKey: null, noticeParams: null, progress: 0 });
         return;
       }
-      setState({ phase: 'failed', error: e?.message || t('update.downloadFailed') });
+      setState({ phase: 'failed', error: e?.message || t('update.downloadFailed'), errorKey: null, errorParams: null });
     }
   }
 
@@ -646,7 +646,7 @@ export function createUpdater({ showToast, appConfig = {} }) {
     if (state.phase !== 'downloading' && state.phase !== 'verifying') return false;
     cancelRequested = true;
     const { version, body, assets } = state;
-    setState({ phase: 'available', version, body, assets: assets || [], error: null, notice: null, progress: 0 });
+    setState({ phase: 'available', version, body, assets: assets || [], error: null, notice: null, errorKey: null, errorParams: null, noticeKey: null, noticeParams: null, progress: 0 });
     return true;
   }
 
@@ -797,7 +797,7 @@ export function createUpdater({ showToast, appConfig = {} }) {
       } catch {}
       await Neutralino.app.exit();
     } catch (e) {
-      setState({ phase: 'failed', error: `启动更新失败：${e?.message || e}` });
+      setState({ phase: 'failed', errorKey: 'update.applyFailed', errorParams: { msg: e?.message || e } });
     }
   }
 

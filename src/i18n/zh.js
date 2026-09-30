@@ -298,6 +298,7 @@ export const zh = {
   'update.unzipFailed': '更新包解压失败',
   'update.incomplete': '更新包内容不完整',
   'update.downloadFailed': '下载更新失败',
+  'update.applyFailed': '启动更新失败：{msg}',
   'export.mdTitle': '待办任务清单',
   'export.mdExportedAt': '导出时间',
   'export.mdTotal': '任务总数',
