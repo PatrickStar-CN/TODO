@@ -1,6 +1,7 @@
 import { toLocalDatetime } from './utils/date.js';
 import { showWindowsToast } from './windowsToast.js';
 import { isNeutralinoEnv } from './shared.js';
+import { t } from './i18n/index.js';
 
 function lastDayOfMonth(date) {
   return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
@@ -20,15 +21,15 @@ export function computeNextMonthlyReminder(reminderTime, now) {
 
 function getBrowserNotificationStatus() {
   if (typeof Notification === 'undefined') {
-    return { state: 'unavailable', label: '当前环境不支持系统通知' };
+    return { state: 'unavailable', label: t('reminder.unsupported') };
   }
   if (Notification.permission === 'granted') {
-    return { state: 'ready', label: '浏览器系统通知已启用' };
+    return { state: 'ready', label: t('reminder.browserReady') };
   }
   if (Notification.permission === 'denied') {
-    return { state: 'blocked', label: '浏览器系统通知已被阻止' };
+    return { state: 'blocked', label: t('reminder.blocked') };
   }
-  return { state: 'pending', label: '浏览器系统通知等待授权' };
+  return { state: 'pending', label: t('reminder.pending') };
 }
 
 export function initReminders({ data, saveData, render, showToast, subscribeDataChanges }) {
@@ -41,8 +42,8 @@ export function initReminders({ data, saveData, render, showToast, subscribeData
       const isWindows = typeof NL_OS === 'string' && NL_OS === 'Windows';
       const available = isWindows && typeof Neutralino?.os?.execCommand === 'function';
       return available
-        ? { state: 'ready', label: 'Windows 原生通知可用' }
-        : { state: 'unavailable', label: 'Windows 原生通知不可用' };
+        ? { state: 'ready', label: t('reminder.winReady') }
+        : { state: 'unavailable', label: t('reminder.winUnavailable') };
     }
     return getBrowserNotificationStatus();
   }
@@ -63,9 +64,9 @@ export function initReminders({ data, saveData, render, showToast, subscribeData
   }
 
   async function triggerReminder(todo) {
-    showToast(`提醒：${todo.title}`);
+    showToast(t('reminder.prefix', { text: todo.title }));
     try {
-      await sendSystemNotification('TODO 提醒', todo.title);
+      await sendSystemNotification(t('reminder.title'), todo.title);
     } catch (err) {
       console.warn('[reminder] system notification failed:', err);
     }
@@ -79,10 +80,10 @@ export function initReminders({ data, saveData, render, showToast, subscribeData
       return;
     }
     const preview = dueTodos.slice(0, 3).map(t => t.title).join('、');
-    const suffix = dueTodos.length > 3 ? `等 ${dueTodos.length} 个任务` : `${dueTodos.length} 个任务`;
-    showToast(`提醒：${preview}${dueTodos.length > 3 ? '…' : ''}`);
+    const suffix = dueTodos.length > 3 ? t('reminder.batchSuffixMore', { count: dueTodos.length }) : t('reminder.batchSuffix', { count: dueTodos.length });
+    showToast(t('reminder.prefix', { text: `${preview}${dueTodos.length > 3 ? '…' : ''}` }));
     try {
-      await sendSystemNotification('TODO 提醒', `${suffix}到期：${preview}${dueTodos.length > 3 ? '…' : ''}`);
+      await sendSystemNotification(t('reminder.title'), t('reminder.batchBody', { suffix, preview: `${preview}${dueTodos.length > 3 ? '…' : ''}` }));
     } catch (err) {
       console.warn('[reminder] system notification failed:', err);
     }
@@ -154,12 +155,12 @@ export function initReminders({ data, saveData, render, showToast, subscribeData
 
   async function testNotification() {
     try {
-      const sent = await sendSystemNotification('TODO Tools', '系统通知工作正常', true);
-      showToast(sent ? '测试通知已发送' : '系统通知未授权');
+      const sent = await sendSystemNotification(t('reminder.appTitle'), t('reminder.working'), true);
+      showToast(sent ? t('toast.testSent') : t('toast.testUnauthorized'));
       return sent;
     } catch (err) {
       console.warn('[reminder] test notification failed:', err);
-      showToast('系统通知发送失败');
+      showToast(t('toast.testFailed'));
       return false;
     }
   }

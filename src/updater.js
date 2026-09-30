@@ -25,6 +25,7 @@
  */
 
 import { INSTANCE_LOCK_DIR, INSTANCE_LOCK_FILE, isNeutralinoEnv } from './shared.js';
+import { t } from './i18n/index.js';
 
 /** semver 逐段比较：忽略 v 前缀；数字段与文本段混合时数字段更新（如 1.1.1-beta < 1.1.1）。
  *  空版本视为最旧（本地版本未知时允许提示更新）；
@@ -546,7 +547,7 @@ export function createUpdater({ showToast, appConfig = {} }) {
   /** 检查更新：拉取最新 release 并与当前版本比对 */
   async function checkForUpdates() {
     if (!isNeutralinoEnv()) {
-      showToast?.('桌面版支持自动更新');
+      showToast?.(t('update.desktopOnly'));
       return;
     }
     if (state.phase === 'checking' || state.phase === 'downloading' || state.phase === 'verifying') return;
@@ -565,18 +566,18 @@ export function createUpdater({ showToast, appConfig = {} }) {
     } catch (e) {
       if (e?.status === 404) {
         /* 仓库从未创建 Release（仅有 git tag）→ 无发布版本，而非网络故障 */
-        setState({ phase: 'latest', version: cur || currentVersion, notice: 'GitHub 上暂无已发布版本，发布后再检查更新' });
+        setState({ phase: 'latest', version: cur || currentVersion, notice: t('update.noRelease') });
       } else if (e?.status === 403 || e?.status === 429) {
-        setState({ phase: 'failed', error: `检查更新失败：GitHub 接口限流（HTTP ${e.status}），请稍后再试` });
+        setState({ phase: 'failed', error: t('update.rateLimited', { status: e.status }) });
       } else if (e?.status === 407) {
         const d = e?.detail ? sanitizeNetDetail(e.detail) : '';
-        setState({ phase: 'failed', error: d ? `检查更新失败：代理需要认证（HTTP 407），请检查系统代理设置（${d}）` : '检查更新失败：代理需要认证（HTTP 407），请检查系统代理设置' });
+        setState({ phase: 'failed', error: d ? t('update.proxyAuthDetail', { detail: d }) : t('update.proxyAuth') });
       } else if (e?.status) {
-        setState({ phase: 'failed', error: `检查更新失败：GitHub API 返回 HTTP ${e.status}` });
+        setState({ phase: 'failed', error: t('update.httpError', { status: e.status }) });
       } else {
         const d = e?.detail ? sanitizeNetDetail(e.detail) : '';
         console.warn('[updater] check failed:', e?.message || e, d);
-        setState({ phase: 'failed', error: d ? `检查更新失败：网络连接异常（${d}）` : '检查更新失败：网络连接异常，请检查网络或系统代理后重试' });
+        setState({ phase: 'failed', error: d ? t('update.netErrorDetail', { detail: d }) : t('update.netError') });
       }
     }
   }
@@ -590,8 +591,8 @@ export function createUpdater({ showToast, appConfig = {} }) {
     try {
       const zipAsset = findAsset(ZIP_NAME);
       const shaAsset = findAsset(SHA256_NAME);
-      if (!zipAsset) throw new Error('发布中缺少更新包（zip）');
-      if (!shaAsset) throw new Error('发布中缺少校验文件（sha256）');
+      if (!zipAsset) throw new Error(t('update.noZip'));
+      if (!shaAsset) throw new Error(t('update.noSha'));
       const dir = await updateDir();
       const zipPath = joinPath(dir, ZIP_NAME);
       const shaPath = joinPath(dir, SHA256_NAME);
@@ -610,23 +611,23 @@ export function createUpdater({ showToast, appConfig = {} }) {
         await downloadFileExec(shaAsset.browser_download_url, shaPath, 'dl-sha');
       } catch (e) {
         if (e?.cancelled) throw e;
-        throw new Error(`下载校验文件失败（${e?.message || e}）`);
+        throw new Error(t('update.shaDownloadFailed', { msg: e?.message || e }));
       }
 
       setState({ phase: 'verifying', version });
       const expected = await readSha256Text(shaPath);
       /* fail-closed：取不到期望哈希绝不跳过校验 */
-      if (!expected) throw new Error('校验文件格式异常（未找到 SHA-256 哈希），已停止替换');
+      if (!expected) throw new Error(t('update.shaBadFormat'));
       const actual = await sha256Of(zipPath);
-      if (actual !== expected) throw new Error('更新包校验失败（SHA-256 不匹配），已停止替换');
+      if (actual !== expected) throw new Error(t('update.shaMismatch'));
 
       const expand = await Neutralino.os.execCommand(
         `powershell -NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -Command "Expand-Archive -LiteralPath '${zipPath}' -DestinationPath '${unzipDir}' -Force"`
       );
-      if (expand.exitCode !== 0) throw new Error('更新包解压失败');
+      if (expand.exitCode !== 0) throw new Error(t('update.unzipFailed'));
       const exeSize = await fileSize(joinPath(unzipDir, exeName));
       const resSize = await fileSize(joinPath(unzipDir, RES_NAME));
-      if (!exeSize || !resSize) throw new Error('更新包内容不完整');
+      if (!exeSize || !resSize) throw new Error(t('update.incomplete'));
 
       /* 下载/校验段均可被取消：在进入 ready 前统一检查，避免取消后仍被覆盖为就绪态 */
       if (cancelRequested) throw cancelledError();
@@ -636,7 +637,7 @@ export function createUpdater({ showToast, appConfig = {} }) {
         setState({ phase: 'available', version, body, assets: assets || [], error: null, notice: null, progress: 0 });
         return;
       }
-      setState({ phase: 'failed', error: e?.message || '下载更新失败' });
+      setState({ phase: 'failed', error: e?.message || t('update.downloadFailed') });
     }
   }
 

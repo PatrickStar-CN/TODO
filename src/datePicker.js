@@ -1,6 +1,7 @@
 import { isSameDay, isToday, formatDate, formatDateTime } from './utils/date.js';
 import { renderGlassSelect, initGlassSelectGroup } from './glassSelect.js';
 import { iconSvg, setIcon } from './icons.js';
+import { t } from './i18n/index.js';
 
 let activePicker = null;
 let _insideClick = false;
@@ -67,7 +68,7 @@ function toInputValue(date, mode) {
 
 function displayText(value, mode) {
   const d = parseValue(value, mode);
-  if (!d) return mode === 'datetime' ? '选择日期时间' : '选择日期';
+  if (!d) return mode === 'datetime' ? t('datepicker.selectDatetime') : t('datepicker.selectDate');
   return mode === 'datetime' ? formatDateTime(d.toISOString()) : formatDate(d.toISOString());
 }
 
@@ -97,8 +98,8 @@ class DatePicker {
     const clearBtn = document.createElement('button');
     clearBtn.className = 'dp-clear-btn';
     setIcon(clearBtn, 'x');
-    clearBtn.setAttribute('aria-label', '清除');
-    clearBtn.title = '清除';
+    clearBtn.setAttribute('aria-label', t('datepicker.clear'));
+    clearBtn.title = t('datepicker.clear');
     clearBtn.style.display = this.input.value ? '' : 'none';
     clearBtn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -255,37 +256,37 @@ class DatePicker {
 
     const timeRowHtml = this.mode === 'datetime' ? `
       <div class="dp-time-row">
-        <label>时</label>
+        <label>${t('datepicker.hour')}</label>
         ${renderGlassSelect({
           id: 'dp-hour-select',
           className: 'dp-hour',
           value: this.pickHour,
           options: Array.from({ length: 24 }, (_, h) => ({ value: h, label: String(h).padStart(2, '0') })),
-          ariaLabel: '选择小时',
+          ariaLabel: t('datepicker.selectHour'),
         })}
-        <label>分</label>
+        <label>${t('datepicker.minute')}</label>
         ${renderGlassSelect({
           id: 'dp-minute-select',
           className: 'dp-minute',
           value: this.pickMinute,
           options: Array.from({ length: 60 }, (_, m) => ({ value: m, label: String(m).padStart(2, '0') })),
-          ariaLabel: '选择分钟',
+          ariaLabel: t('datepicker.selectMinute'),
         })}
       </div>` : '';
 
     this.panel.innerHTML = `
       <div class="dp-header">
-        <button type="button" class="dp-nav-btn" data-nav="prev" aria-label="上一个月">${iconSvg('chevron-left')}</button>
-        <button type="button" class="dp-title" data-action="pick-month">${year}\u5E74${month + 1}\u6708</button>
-        <button type="button" class="dp-nav-btn" data-nav="next" aria-label="下一个月">${iconSvg('chevron-right')}</button>
-        ${isToday(todayDate) ? `<button type="button" class="icon-btn dp-today-btn today-jump-btn" title="\u56DE\u5230\u4ECA\u5929" aria-label="\u56DE\u5230\u4ECA\u5929">${iconSvg('today')}</button>` : ''}
+        <button type="button" class="dp-nav-btn" data-nav="prev" aria-label="${t('datepicker.prevMonth')}">${iconSvg('chevron-left')}</button>
+        <button type="button" class="dp-title" data-action="pick-month">${t('calendar.monthTitle', { year, month: month + 1 })}</button>
+        <button type="button" class="dp-nav-btn" data-nav="next" aria-label="${t('datepicker.nextMonth')}">${iconSvg('chevron-right')}</button>
+        ${isToday(todayDate) ? `<button type="button" class="icon-btn dp-today-btn today-jump-btn" title="${t('datepicker.backToday')}" aria-label="${t('datepicker.backToday')}">${iconSvg('today')}</button>` : ''}
       </div>
-      <div class="dp-weekdays"><span>\u65E5</span><span>\u4E00</span><span>\u4E8C</span><span>\u4E09</span><span>\u56DB</span><span>\u4E94</span><span>\u516D</span></div>
+      <div class="dp-weekdays"><span>${t('weekday.0')}</span><span>${t('weekday.1')}</span><span>${t('weekday.2')}</span><span>${t('weekday.3')}</span><span>${t('weekday.4')}</span><span>${t('weekday.5')}</span><span>${t('weekday.6')}</span></div>
       <div class="dp-grid">${dayCells}</div>
       ${timeRowHtml}
       <div class="dp-actions">
-        <button type="button" class="dp-btn dp-btn-confirm">\u786E\u5B9A</button>
-        <button type="button" class="dp-btn dp-btn-clear">\u6E05\u9664</button>
+        <button type="button" class="dp-btn dp-btn-confirm">${t('datepicker.confirm')}</button>
+        <button type="button" class="dp-btn dp-btn-clear">${t('datepicker.clear')}</button>
       </div>
     `;
 

@@ -6,6 +6,7 @@ import { iconSvg } from './icons.js';
 import { animateWindowRect, cancelWindowRectAnimation, centerRect, ensureDisplayHz, initMiniSnap } from './miniSnap.js';
 import { getUiMotionDuration } from './uiPreferences.js';
 import { getTagDotStyle, getTagBadgeStyle, isNeutralinoEnv } from './shared.js';
+import { t, getPriorityLabel, getRepeatLabel } from './i18n/index.js';
 
 export function initMiniMode({ data, saveData, render, showToast, showContextMenu, closeWindow, reminders, appConfig, todoStore }) {
   let isMiniMode = false;
@@ -111,14 +112,14 @@ export function initMiniMode({ data, saveData, render, showToast, showContextMen
     const items = sorted.slice(0, 8);
     miniList.classList.toggle('is-empty', items.length === 0);
     miniList.innerHTML = items.length === 0
-      ? `<div class="mini-empty-state">${iconSvg('inbox')}<strong>暂无待办</strong><span>点击右上角添加任务</span></div>`
+      ? `<div class="mini-empty-state">${iconSvg('inbox')}<strong>${t('mini.empty')}</strong><span>${t('mini.emptyHint')}</span></div>`
       : items.map(t => {
         const prioCls = t.priority && t.priority !== 'none' ? t.priority : '';
         const tagChip = t.tag
           ? `<span class="mini-item-tag" ${getTagBadgeStyle(t.tag, data.tags)}><span class="tag-dot" aria-hidden="true"></span><span class="mini-item-tag-label">${escapeHtml(t.tag)}</span></span>`
           : '';
         return `<div class="mini-todo-item${prioCls ? ` p-${prioCls}` : ''}" data-id="${t.id}">
-          <button class="mini-checkbox" type="button" data-mini-toggle="${t.id}" aria-label="完成任务：${escapeHtml(t.title)}"></button>
+          <button class="mini-checkbox" type="button" data-mini-toggle="${t.id}" aria-label="${t('todo.completeTask', { title: escapeHtml(t.title) })}"></button>
           <span class="mini-todo-title">${escapeHtml(t.title)}</span>
           ${tagChip}
         </div>`;
@@ -141,7 +142,7 @@ export function initMiniMode({ data, saveData, render, showToast, showContextMen
       html += `<div class="mini-tooltip-row">${escapeHtml(todo.desc)}</div>`;
     }
     if (todo.priority && todo.priority !== 'none') {
-      const label = { high: '高优先级', medium: '中优先级', low: '低优先级' }[todo.priority];
+      const label = { high: t('mini.prioHigh'), medium: t('mini.prioMedium'), low: t('mini.prioLow') }[todo.priority];
       html += `<div class="mini-tooltip-row">${iconSvg('circle', `icon-priority-${todo.priority}`)}<span>${label}</span></div>`;
     }
     if (todo.tag) {
@@ -151,7 +152,7 @@ export function initMiniMode({ data, saveData, render, showToast, showContextMen
       html += `<div class="mini-tooltip-row">${iconSvg('calendar')}<span>${formatDateTime(todo.endTime)}</span></div>`;
     }
     if (todo.startTime) {
-      html += `<div class="mini-tooltip-row">${iconSvg('clock')}<span>开始: ${formatDateTime(todo.startTime)}</span></div>`;
+      html += `<div class="mini-tooltip-row">${iconSvg('clock')}<span>${t('mini.startPrefix', { time: formatDateTime(todo.startTime) })}</span></div>`;
     }
     miniTooltip.innerHTML = html;
     miniTooltip.classList.remove('hidden');
@@ -190,7 +191,7 @@ export function initMiniMode({ data, saveData, render, showToast, showContextMen
 
   /* ---- 任务详情卡：点击任务打开完整信息，窗口空间不足时内部滚动 ---- */
   function getMiniPriorityLabel(todo) {
-    return { high: '高', medium: '中', low: '低', none: '无' }[todo.priority || 'none'] || '无';
+    return getPriorityLabel(todo.priority || 'none');
   }
 
   function getMiniPriorityDotClass(todo) {
@@ -203,21 +204,21 @@ export function initMiniMode({ data, saveData, render, showToast, showContextMen
       rows.push(`<div class="mini-detail-meta-item"><span class="mini-detail-meta-icon">${iconSvg(icon)}</span><span class="mini-detail-meta-label">${label}</span><span class="mini-detail-meta-value">${valueHtml}</span></div>`);
     };
     const dotClass = getMiniPriorityDotClass(todo);
-    addRow('flag', '优先级', `<span class="mini-priority-dot ${dotClass}" aria-hidden="true"></span>${getMiniPriorityLabel(todo)}`);
+    addRow('flag', t('mini.rowPriority'), `<span class="mini-priority-dot ${dotClass}" aria-hidden="true"></span>${getMiniPriorityLabel(todo)}`);
     if (todo.tag) {
-      addRow('tag', '标签', `<span class="tag-dot" ${getTagDotStyle(todo.tag, data.tags)} aria-hidden="true"></span>${escapeHtml(todo.tag)}`);
+      addRow('tag', t('mini.rowTag'), `<span class="tag-dot" ${getTagDotStyle(todo.tag, data.tags)} aria-hidden="true"></span>${escapeHtml(todo.tag)}`);
     }
     if (todo.startTime) {
-      addRow('clock', '开始', escapeHtml(formatDateTime(todo.startTime)));
+      addRow('clock', t('mini.rowStart'), escapeHtml(formatDateTime(todo.startTime)));
     }
     if (todo.endTime) {
-      addRow('calendar', '截止', escapeHtml(formatDateTime(todo.endTime)));
+      addRow('calendar', t('mini.rowEnd'), escapeHtml(formatDateTime(todo.endTime)));
     }
     if (todo.reminder) {
-      const repeatLabel = { daily: '每天', weekly: '每周', monthly: '每月' }[todo.reminderRepeat] || '';
-      addRow('bell', '提醒', `${escapeHtml(formatDateTime(todo.reminder))}${repeatLabel ? `（${repeatLabel}）` : ''}`);
+      const repeatLabel = getRepeatLabel(todo.reminderRepeat) === getRepeatLabel('none') ? '' : getRepeatLabel(todo.reminderRepeat);
+      addRow('bell', t('mini.rowReminder'), `${escapeHtml(formatDateTime(todo.reminder))}${repeatLabel ? `（${repeatLabel}）` : ''}`);
     }
-    addRow('plus', '创建', escapeHtml(formatDateTime(todo.createdAt)));
+    addRow('plus', t('mini.rowCreate'), escapeHtml(formatDateTime(todo.createdAt)));
     return rows.join('');
   }
 
@@ -226,7 +227,7 @@ export function initMiniMode({ data, saveData, render, showToast, showContextMen
     currentMiniDetailId = todo.id;
     miniDetailTitle.textContent = todo.title;
     miniDetailTitle.title = todo.title;
-    miniDetailToggleLabel.textContent = todo.done ? '取消完成' : '标记完成';
+    miniDetailToggleLabel.textContent = todo.done ? t('mini.unDone') : t('mini.markDone');
     let html = '';
     if (todo.desc) {
       html += `<div class="mini-detail-desc">${escapeHtml(todo.desc)}</div>`;
@@ -692,9 +693,9 @@ if ($script:hwnd -ne [IntPtr]::Zero) { $GWL_EXSTYLE = -20; $style = ([TbToggle]:
   miniPanel.addEventListener('contextmenu', (e) => {
     e.preventDefault();
     showContextMenu(e.clientX, e.clientY, [
-      { icon: 'undo', label: '退出迷你模式', action: exitMiniMode },
+      { icon: 'undo', label: t('mini.exitMini'), action: exitMiniMode },
       { separator: true },
-      { icon: 'x', label: '关闭窗口', action: closeWindow }
+      { icon: 'x', label: t('common.closeWindow'), action: closeWindow }
     ], { className: 'context-menu--mini' });
   });
 

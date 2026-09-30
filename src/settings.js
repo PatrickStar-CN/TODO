@@ -7,8 +7,10 @@ import { createFocusTrap, enableRovingTablist } from './utils/focus.js';
 import { iconSvg } from './icons.js';
 import { normalizeTimelineSettings } from './timeline.js';
 import { getTagDotStyle, getTagTaskCount, TAG_COLORS } from './shared.js';
+import { t, getLanguage, getSupportedLanguages, normalizeLanguage } from './i18n/index.js';
 
 let data, saveData, showToast, render, testNotification, getNotificationStatus;
+let applyLanguageFn = null;
 let onTagRenamed = null;
 let onTagDeleted = null;
 let settingsOverlay = null;
@@ -44,7 +46,7 @@ function closePanel() {
   }, getUiMotionDuration('normal') + 60);
 }
 
-function openPanel() {
+function openPanel(opts = {}) {
   if (settingsOverlay) return;
 
   // 关闭详情面板和 AI 总结面板
@@ -69,70 +71,86 @@ function openPanel() {
   overlay.className = 'settings-overlay';
   overlay.setAttribute('role', 'dialog');
   overlay.setAttribute('aria-modal', 'true');
-  overlay.setAttribute('aria-label', '设置');
+  overlay.setAttribute('aria-label', t('settings.title'));
+  const curLang = normalizeLanguage(data.language || getLanguage());
+  const curEntry = getSupportedLanguages().find((l) => l.code === curLang) || getSupportedLanguages()[0];
+  const langMenuItems = getSupportedLanguages().map((l) => {
+    const active = l.code === curLang;
+    return `<button class="settings-lang-option${active ? ' active' : ''}" type="button" role="option" data-lang-value="${l.code}" aria-selected="${String(active)}">${iconSvg('globe')}<span>${l.label}</span><span class="lang-code-sm" aria-hidden="true">${l.code.toUpperCase()}</span>${active ? iconSvg('check', 'settings-lang-check') : ''}</button>`;
+  }).join('');
   overlay.innerHTML = `
     <div class="settings-modal">
       <div class="settings-header">
-        <h3>设置</h3>
-        <button class="icon-btn settings-close-btn" id="close-settings" type="button" aria-label="关闭设置">${iconSvg('x')}</button>
+        <h3>${t('settings.title')}</h3>
+        <div class="settings-header-actions">
+          <div class="settings-lang-switch" id="settings-lang-switch">
+            <button class="settings-lang-trigger" id="settings-lang-trigger" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="${t('settings.languageTitle')}">
+              ${iconSvg('globe', 'settings-lang-trigger-icon')}<span>${curEntry.label}</span><span class="settings-lang-trigger-arrow">${iconSvg('chevron-down')}</span>
+            </button>
+            <div class="settings-lang-menu hidden" id="settings-lang-menu" role="listbox" aria-label="${t('settings.languageTitle')}">
+              ${langMenuItems}
+            </div>
+          </div>
+          <button class="icon-btn settings-close-btn" id="close-settings" type="button" aria-label="${t('settings.close')}">${iconSvg('x')}</button>
+        </div>
       </div>
-      <div class="settings-tabs" role="tablist" aria-label="设置分类">
-        <button class="settings-tab active" type="button" role="tab" aria-selected="true" tabindex="0" aria-controls="settings-pane-appearance" id="settings-tab-appearance" data-tab="appearance">${iconSvg('settings')}<span>外观</span></button>
-        <button class="settings-tab" type="button" role="tab" aria-selected="false" tabindex="-1" aria-controls="settings-pane-ai" id="settings-tab-ai" data-tab="ai">${iconSvg('document')}<span>AI 配置</span></button>
-        <button class="settings-tab" type="button" role="tab" aria-selected="false" tabindex="-1" aria-controls="settings-pane-notifications" id="settings-tab-notifications" data-tab="notifications">${iconSvg('bell')}<span>提醒</span></button>
-        <button class="settings-tab" type="button" role="tab" aria-selected="false" tabindex="-1" aria-controls="settings-pane-tags" id="settings-tab-tags" data-tab="tags">${iconSvg('tag')}<span>标签管理</span></button>
-        <button class="settings-tab" type="button" role="tab" aria-selected="false" tabindex="-1" aria-controls="settings-pane-system" id="settings-tab-system" data-tab="system">${iconSvg('settings')}<span>系统</span></button>
+      <div class="settings-tabs" role="tablist" aria-label="${t('settings.category')}">
+        <button class="settings-tab active" type="button" role="tab" aria-selected="true" tabindex="0" aria-controls="settings-pane-appearance" id="settings-tab-appearance" data-tab="appearance">${iconSvg('settings')}<span>${t('settings.tabAppearance')}</span></button>
+        <button class="settings-tab" type="button" role="tab" aria-selected="false" tabindex="-1" aria-controls="settings-pane-ai" id="settings-tab-ai" data-tab="ai">${iconSvg('document')}<span>${t('settings.tabAi')}</span></button>
+        <button class="settings-tab" type="button" role="tab" aria-selected="false" tabindex="-1" aria-controls="settings-pane-notifications" id="settings-tab-notifications" data-tab="notifications">${iconSvg('bell')}<span>${t('settings.tabNotifications')}</span></button>
+        <button class="settings-tab" type="button" role="tab" aria-selected="false" tabindex="-1" aria-controls="settings-pane-tags" id="settings-tab-tags" data-tab="tags">${iconSvg('tag')}<span>${t('settings.tabTags')}</span></button>
+        <button class="settings-tab" type="button" role="tab" aria-selected="false" tabindex="-1" aria-controls="settings-pane-system" id="settings-tab-system" data-tab="system">${iconSvg('settings')}<span>${t('settings.tabSystem')}</span></button>
       </div>
       <div class="settings-body">
         <div class="settings-pane active" data-pane="appearance" role="tabpanel" id="settings-pane-appearance" aria-labelledby="settings-tab-appearance" tabindex="0">
           <section class="settings-appearance-card" aria-labelledby="appearance-theme-title">
             <div class="settings-appearance-card-heading">
               <div>
-                <strong id="appearance-theme-title">主题模式</strong>
-                <span>选择适合当前环境的显示方式</span>
+                <strong id="appearance-theme-title">${t('settings.themeTitle')}</strong>
+                <span>${t('settings.themeSub')}</span>
               </div>
             </div>
             <div class="theme-options">
-              <button class="theme-opt" type="button" aria-pressed="false" data-theme-value="auto">${iconSvg('monitor')}<span>跟随系统</span></button>
-              <button class="theme-opt" type="button" aria-pressed="false" data-theme-value="light">${iconSvg('sun')}<span>白天</span></button>
-              <button class="theme-opt" type="button" aria-pressed="false" data-theme-value="dark">${iconSvg('moon')}<span>夜间</span></button>
+              <button class="theme-opt" type="button" aria-pressed="false" data-theme-value="auto">${iconSvg('monitor')}<span>${t('settings.themeAuto')}</span></button>
+              <button class="theme-opt" type="button" aria-pressed="false" data-theme-value="light">${iconSvg('sun')}<span>${t('settings.themeLight')}</span></button>
+              <button class="theme-opt" type="button" aria-pressed="false" data-theme-value="dark">${iconSvg('moon')}<span>${t('settings.themeDark')}</span></button>
             </div>
           </section>
           <section class="settings-style-section settings-appearance-card" aria-labelledby="appearance-style-title">
             <div class="settings-style-heading">
               <div>
-                <strong id="appearance-style-title">界面细节</strong>
-                <span>微调圆角、透明度、字号、模糊与动画速度</span>
+                <strong id="appearance-style-title">${t('settings.styleTitle')}</strong>
+                <span>${t('settings.styleSub')}</span>
               </div>
-              <button class="btn-secondary btn-sm settings-secondary-action" id="reset-ui-style" type="button">${iconSvg('undo')}<span>恢复默认</span></button>
+              <button class="btn-secondary btn-sm settings-secondary-action" id="reset-ui-style" type="button">${iconSvg('undo')}<span>${t('settings.resetStyle')}</span></button>
             </div>
             <div class="settings-style-grid">
-              ${createStyleSlider('radius', '圆角', 6, 20, 'px')}
-              ${createStyleSlider('glassOpacity', '玻璃透明度', 35, 100, '%')}
-              ${createStyleSlider('fontScale', '字体大小', 90, 115, '%')}
-              ${createStyleSlider('blur', '模糊强度', 8, 28, 'px')}
-              ${createStyleSlider('motionSpeed', '动画速度', 0, 200, '%', 50)}
+              ${createStyleSlider('radius', t('settings.radius'), 6, 20, 'px')}
+              ${createStyleSlider('glassOpacity', t('settings.glass'), 35, 100, '%')}
+              ${createStyleSlider('fontScale', t('settings.font'), 90, 115, '%')}
+              ${createStyleSlider('blur', t('settings.blur'), 8, 28, 'px')}
+              ${createStyleSlider('motionSpeed', t('settings.motion'), 0, 200, '%', 50)}
             </div>
           </section>
           <section class="settings-content-card settings-timeline-card" aria-labelledby="settings-timeline-title">
             <div class="timeline-setting-row">
               <div class="settings-content-card-heading">
                 <div>
-                  <strong id="settings-timeline-title">任务时间线</strong>
-                  <span>在主任务列表右侧显示创建与完成时间</span>
+                  <strong id="settings-timeline-title">${t('settings.timelineTitle')}</strong>
+                  <span>${t('settings.timelineSub')}</span>
                 </div>
               </div>
-              <button class="settings-switch" id="set-timeline-enabled" type="button" role="switch" aria-checked="false" aria-label="开启任务时间线">
+              <button class="settings-switch" id="set-timeline-enabled" type="button" role="switch" aria-checked="false" aria-label="${t('settings.timelineSwitch')}">
                 <span aria-hidden="true"></span>
               </button>
             </div>
             <div class="timeline-sort-settings" id="timeline-sort-settings">
-              <span class="timeline-sort-label">排序依据</span>
-              <div class="timeline-sort-options" role="group" aria-label="时间线排序依据">
-                <button type="button" data-timeline-sort="created" aria-pressed="false">创建时间</button>
-                <button type="button" data-timeline-sort="completed" aria-pressed="false">完成时间</button>
+              <span class="timeline-sort-label">${t('settings.sortBy')}</span>
+              <div class="timeline-sort-options" role="group" aria-label="${t('settings.sortGroup')}">
+                <button type="button" data-timeline-sort="created" aria-pressed="false">${t('settings.sortCreated')}</button>
+                <button type="button" data-timeline-sort="completed" aria-pressed="false">${t('settings.sortCompleted')}</button>
               </div>
-              <p>开启时间线后生效；按完成时间排序时隐藏未完成任务，所有模式均为最新在上。</p>
+              <p>${t('settings.sortHint')}</p>
             </div>
           </section>
         </div>
@@ -140,29 +158,29 @@ function openPanel() {
           <section class="settings-content-card settings-ai-card" aria-labelledby="settings-ai-card-title">
             <div class="settings-content-card-heading">
               <div>
-                <strong id="settings-ai-card-title">连接信息</strong>
-                <span>配置信息仅保存在当前设备</span>
+                <strong id="settings-ai-card-title">${t('settings.aiTitle')}</strong>
+                <span>${t('settings.aiSub')}</span>
               </div>
             </div>
             <div class="settings-form-grid">
               <div class="settings-row settings-field-wide">
-                <label for="set-api-url">API 地址</label>
+                <label for="set-api-url">${t('settings.apiUrl')}</label>
                 <input type="text" id="set-api-url" placeholder="https://api.openai.com/v1">
               </div>
               <div class="settings-row">
-                <label for="set-api-key">API Key</label>
+                <label for="set-api-key">${t('settings.apiKey')}</label>
                 <input type="password" id="set-api-key" placeholder="sk-...">
               </div>
               <div class="settings-row">
-                <label for="set-model">模型</label>
+                <label for="set-model">${t('settings.model')}</label>
                 <input type="text" id="set-model" placeholder="gpt-4o-mini">
               </div>
               <div class="settings-row settings-field-wide">
-                <label for="set-prompt">自定义提示词</label>
-                <textarea id="set-prompt" rows="3" placeholder="留空使用默认提示词"></textarea>
+                <label for="set-prompt">${t('settings.prompt')}</label>
+                <textarea id="set-prompt" rows="3" placeholder="${t('settings.promptPlaceholder')}"></textarea>
               </div>
             </div>
-            <button class="btn-primary btn-sm settings-primary-action" id="set-save-ai" type="button">${iconSvg('check')}<span>保存 AI 配置</span></button>
+            <button class="btn-primary btn-sm settings-primary-action" id="set-save-ai" type="button">${iconSvg('check')}<span>${t('settings.saveAi')}</span></button>
           </section>
         </div>
         <div class="settings-pane" data-pane="notifications" role="tabpanel" id="settings-pane-notifications" aria-labelledby="settings-tab-notifications" tabindex="0">
@@ -170,23 +188,23 @@ function openPanel() {
             <div class="notification-setting-card">
               <span class="notification-status-dot" id="notification-status-dot" aria-hidden="true"></span>
               <div class="notification-setting-copy">
-                <strong id="settings-notification-title">系统通知</strong>
+                <strong id="settings-notification-title">${t('settings.notifyTitle')}</strong>
                 <span id="notification-status-text"></span>
               </div>
-              <button class="btn-secondary btn-sm settings-secondary-action" id="test-notification" type="button">${iconSvg('bell')}<span>发送测试通知</span></button>
+              <button class="btn-secondary btn-sm settings-secondary-action" id="test-notification" type="button">${iconSvg('bell')}<span>${t('settings.testNotify')}</span></button>
             </div>
             <div class="settings-notification-note">
               ${iconSvg('clock')}
-              <span>带提醒时间的任务会在应用运行时触发通知。</span>
+              <span>${t('settings.notifyHint')}</span>
             </div>
           </section>
 </div>
         <div class="settings-pane" data-pane="tags" role="tabpanel" id="settings-pane-tags" aria-labelledby="settings-tab-tags" tabindex="0">
-          <section class="settings-content-card settings-tags-card" aria-label="标签列表与新建标签">
+          <section class="settings-content-card settings-tags-card" aria-label="${t('settings.tagListLabel')}">
             <div class="settings-tag-add-bar">
               <span class="tag-dot settings-tag-preview" id="settings-tag-preview" aria-hidden="true"></span>
-              <input type="text" id="set-add-tag-input" placeholder="添加新标签..." maxlength="20" autocomplete="off" spellcheck="false" aria-label="新标签名称">
-              <button class="icon-btn settings-tag-add-btn" id="set-add-tag-btn" type="button" title="添加标签" aria-label="添加标签">${iconSvg('plus')}</button>
+              <input type="text" id="set-add-tag-input" placeholder="${t('settings.addTagPlaceholder')}" maxlength="20" autocomplete="off" spellcheck="false" aria-label="${t('settings.newTagAria')}">
+              <button class="icon-btn settings-tag-add-btn" id="set-add-tag-btn" type="button" title="${t('settings.addTag')}" aria-label="${t('settings.addTag')}">${iconSvg('plus')}</button>
             </div>
             <div id="settings-tag-list" class="settings-tag-list"></div>
           </section>
@@ -195,20 +213,20 @@ function openPanel() {
           <section class="settings-content-card settings-update-card" aria-labelledby="settings-update-title">
             <div class="settings-content-card-heading">
               <div>
-                <strong id="settings-update-title">软件更新</strong>
-                <span>从 GitHub Releases 获取最新版本，替换后自动重启</span>
+                <strong id="settings-update-title">${t('settings.updateTitle')}</strong>
+                <span>${t('settings.updateSub')}</span>
               </div>
             </div>
             <div class="update-version-row">
-              <span>当前版本</span>
+              <span>${t('settings.currentVersion')}</span>
               <strong id="update-current-version"></strong>
             </div>
             <div id="update-status-area" class="update-status-area" aria-live="polite"></div>
             <div class="update-actions">
-              <button class="btn-primary btn-sm settings-primary-action" id="btn-check-update" type="button">${iconSvg('refresh')}<span>检查更新</span></button>
-              <button class="btn-primary btn-sm settings-primary-action hidden" id="btn-download-update" type="button">${iconSvg('download')}<span>下载更新</span></button>
-              <button class="btn-secondary btn-sm settings-secondary-action hidden" id="btn-cancel-update" type="button">${iconSvg('x')}<span>取消下载</span></button>
-              <button class="btn-primary btn-sm settings-primary-action hidden" id="btn-restart-update" type="button">${iconSvg('refresh')}<span>立即重启</span></button>
+              <button class="btn-primary btn-sm settings-primary-action" id="btn-check-update" type="button">${iconSvg('refresh')}<span>${t('settings.checkUpdate')}</span></button>
+              <button class="btn-primary btn-sm settings-primary-action hidden" id="btn-download-update" type="button">${iconSvg('download')}<span>${t('settings.downloadUpdate')}</span></button>
+              <button class="btn-secondary btn-sm settings-secondary-action hidden" id="btn-cancel-update" type="button">${iconSvg('x')}<span>${t('settings.cancelDownload')}</span></button>
+              <button class="btn-primary btn-sm settings-primary-action hidden" id="btn-restart-update" type="button">${iconSvg('refresh')}<span>${t('settings.restartNow')}</span></button>
             </div>
           </section>
         </div>
@@ -217,7 +235,10 @@ function openPanel() {
   `;
   document.body.appendChild(overlay);
   settingsOverlay = overlay;
-  settingsPreviouslyFocused = document.activeElement;
+  const preservedFocus = opts.previouslyFocused && document.contains(opts.previouslyFocused)
+    ? opts.previouslyFocused
+    : document.activeElement;
+  settingsPreviouslyFocused = preservedFocus;
   settingsReleaseFocus = createFocusTrap(overlay, {
     previouslyFocused: settingsPreviouslyFocused,
     initialFocus: overlay.querySelector('#close-settings') || undefined,
@@ -225,7 +246,7 @@ function openPanel() {
   settingsRovingCleanup?.();
   settingsRovingCleanup = enableRovingTablist(overlay.querySelector('.settings-tabs'), '.settings-tab');
 
-  // 设置弹窗从触发按钮位置放大动画
+  // 设置弹窗从触发按钮位置放大动画（语言切换原地重建时跳过，避免闪烁）
   const modal = overlay.querySelector('.settings-modal');
   const triggerBtn = document.getElementById('btn-settings');
   if (triggerBtn) {
@@ -233,7 +254,12 @@ function openPanel() {
     modal.style.setProperty('--origin-x', `${rect.left + rect.width / 2 - window.innerWidth / 2}px`);
     modal.style.setProperty('--origin-y', `${rect.top + rect.height / 2 - window.innerHeight / 2}px`);
   }
-  modal.style.animation = 'modalExpandIn var(--motion-panel)';
+  if (opts.suppressAnimation) {
+    modal.style.animation = 'none';
+    overlay.style.animation = 'none';
+  } else {
+    modal.style.animation = 'modalExpandIn var(--motion-panel)';
+  }
 
   // 点击遮罩关闭（点击 modal 内部不触发）
   overlay.addEventListener('click', (e) => {
@@ -251,7 +277,7 @@ function openPanel() {
   });
 
   // 主题切换
-  overlay.querySelectorAll('.theme-opt').forEach(btn => {
+  overlay.querySelectorAll('.theme-opt[data-theme-value]').forEach(btn => {
     btn.addEventListener('click', () => {
       data.theme = btn.dataset.themeValue;
       saveData();
@@ -260,6 +286,82 @@ function openPanel() {
     });
   });
 
+  // 语言切换：关闭按钮旁下拉，选择后全应用即时更新（面板原地重建）
+  const langTrigger = overlay.querySelector('#settings-lang-trigger');
+  const langMenu = overlay.querySelector('#settings-lang-menu');
+  const setLangMenuOpen = (open) => {
+    if (!langTrigger || !langMenu) return;
+    langTrigger.setAttribute('aria-expanded', String(open));
+    langMenu.classList.toggle('hidden', !open);
+  };
+  const closeLangMenu = () => setLangMenuOpen(false);
+  if (langTrigger && langMenu) {
+    langTrigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const open = langMenu.classList.contains('hidden');
+      // 关闭其他可能打开的菜单后切换
+      setLangMenuOpen(open);
+      if (open) {
+        const active = langMenu.querySelector('.settings-lang-option.active');
+        (active || langMenu.querySelector('.settings-lang-option'))?.focus({ preventScroll: true });
+      }
+    });
+    langMenu.querySelectorAll('.settings-lang-option').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const next = normalizeLanguage(btn.dataset.langValue);
+        if (next === normalizeLanguage(data.language)) {
+          closeLangMenu();
+          langTrigger.focus({ preventScroll: true });
+          return;
+        }
+        data.language = next;
+        saveData();
+        if (typeof applyLanguageFn === 'function') {
+          applyLanguageFn(next);
+        } else {
+          render?.();
+        }
+        // 先关闭菜单再重建，避免重建时残留展开态
+        closeLangMenu();
+        refreshSettingsLanguage();
+      });
+    });
+    // 点击设置弹窗其他区域关闭语言菜单
+    overlay.addEventListener('click', (e) => {
+      if (!e.target.closest('#settings-lang-switch') && !langMenu.classList.contains('hidden')) {
+        closeLangMenu();
+      }
+    });
+    langMenu.addEventListener('keydown', (e) => {
+      const opts = [...langMenu.querySelectorAll('.settings-lang-option')];
+      const idx = opts.indexOf(document.activeElement);
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        const dir = e.key === 'ArrowDown' ? 1 : -1;
+        const next = opts[(idx + dir + opts.length) % opts.length];
+        next?.focus();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        closeLangMenu();
+        langTrigger.focus({ preventScroll: true });
+      } else if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        document.activeElement?.click();
+      }
+    });
+    langTrigger.addEventListener('keydown', (e) => {
+      if ((e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') && langMenu.classList.contains('hidden')) {
+        e.preventDefault();
+        setLangMenuOpen(true);
+        langMenu.querySelector('.settings-lang-option.active')?.focus({ preventScroll: true });
+      } else if (e.key === 'Escape' && !langMenu.classList.contains('hidden')) {
+        e.preventDefault();
+        closeLangMenu();
+      }
+    });
+  }
+
   // AI 配置保存
   overlay.querySelector('#set-save-ai').addEventListener('click', () => {
     data.aiConfig.apiUrl = overlay.querySelector('#set-api-url').value.trim();
@@ -267,7 +369,7 @@ function openPanel() {
     data.aiConfig.model = overlay.querySelector('#set-model').value.trim();
     data.aiConfig.customPrompt = overlay.querySelector('#set-prompt').value.trim();
     saveData();
-    showToast('AI 配置已保存');
+    showToast(t('toast.aiSaved'));
   });
 
   // 新建标签
@@ -294,7 +396,7 @@ function openPanel() {
     button.disabled = true;
     button.classList.add('is-loading');
     button.setAttribute('aria-busy', 'true');
-    if (label) label.textContent = '发送中';
+    if (label) label.textContent = t('toast.testSending');
     try {
       await testNotification?.();
       updateNotificationStatus(overlay);
@@ -302,7 +404,7 @@ function openPanel() {
       button.disabled = false;
       button.classList.remove('is-loading');
       button.removeAttribute('aria-busy');
-      if (label) label.textContent = '发送测试通知';
+      if (label) label.textContent = t('settings.testNotify');
     }
   });
 
@@ -336,7 +438,7 @@ function openPanel() {
         return;
       }
       if (data.tags.includes(newName)) {
-        showToast('标签名已存在');
+        showToast(t('settings.tagExists'));
         input.focus();
         return;
       }
@@ -348,7 +450,7 @@ function openPanel() {
       saveData();
       render();
       renderTagList(overlay);
-      showToast('标签已重命名');
+      showToast(t('toast.tagRenamed'));
     };
 
     input.addEventListener('blur', doRename);
@@ -393,6 +495,56 @@ function renderContent(overlay) {
   renderTagList(overlay);
 }
 
+function teardownPanelInstant() {
+  updateStatusUnsub?.();
+  updateStatusUnsub = null;
+  if (typeof settingsRovingCleanup === 'function') {
+    try { settingsRovingCleanup(); } catch { /* ignore */ }
+  }
+  settingsRovingCleanup = null;
+  /* 立即重建：不播放关闭动画、不归还焦点（焦点由重建后恢复），旧节点直接移除 */
+  settingsReleaseFocus = null;
+  if (settingsOverlay && settingsOverlay.parentNode) {
+    settingsOverlay.parentNode.removeChild(settingsOverlay);
+  }
+  settingsOverlay = null;
+}
+
+/* 语言切换后面板原地重建：同步交换文案，无关闭/展开动画；
+ * 保留当前 Tab、滚动位置、AI 表单与标签输入框的未保存输入，标签重命名先提交 */
+function refreshSettingsLanguage() {
+  const prev = settingsOverlay;
+  if (!prev || !prev.isConnected) return;
+  const activeTab = prev.querySelector('.settings-tab.active')?.dataset.tab || 'appearance';
+  const body = prev.querySelector('.settings-body');
+  const scrollTop = body ? body.scrollTop : 0;
+  const trigger = (settingsPreviouslyFocused && document.contains(settingsPreviouslyFocused))
+    ? settingsPreviouslyFocused
+    : document.getElementById('btn-settings');
+  const renameInput = prev.querySelector('.tag-rename-input');
+  if (renameInput) renameInput.blur();
+  const saved = {};
+  ['set-api-url', 'set-api-key', 'set-model', 'set-prompt', 'set-add-tag-input'].forEach((id) => {
+    const el = prev.querySelector(`#${id}`);
+    if (el) saved[id] = el.value;
+  });
+  teardownPanelInstant();
+  openPanel({ previouslyFocused: trigger, suppressAnimation: true });
+  const overlay = settingsOverlay;
+  if (!overlay) return;
+  if (activeTab !== 'appearance') switchTab(overlay, activeTab);
+  Object.keys(saved).forEach((id) => {
+    const el = overlay.querySelector(`#${id}`);
+    if (el && typeof saved[id] === 'string') el.value = saved[id];
+  });
+  const nextBody = overlay.querySelector('.settings-body');
+  if (nextBody) nextBody.scrollTop = scrollTop;
+  // 重建后将焦点还给语言触发器（便于继续操作），初始的 #close-settings 聚焦在 rAF 后被覆盖
+  requestAnimationFrame(() => {
+    overlay.querySelector('#settings-lang-trigger')?.focus({ preventScroll: true });
+  });
+}
+
 function updateNotificationStatus(overlay) {
   const status = getNotificationStatus?.() || { state: 'unavailable', label: '系统通知不可用' };
   const dot = overlay.querySelector('#notification-status-dot');
@@ -402,7 +554,7 @@ function updateNotificationStatus(overlay) {
 }
 
 function updateThemeSelection(overlay) {
-  overlay.querySelectorAll('.theme-opt').forEach(btn => {
+  overlay.querySelectorAll('.theme-opt[data-theme-value]').forEach(btn => {
     const active = btn.dataset.themeValue === data.theme;
     btn.classList.toggle('active', active);
     btn.setAttribute('aria-pressed', String(active));
@@ -460,14 +612,19 @@ function updateTimelineControls(overlay) {
 
 const UPDATE_PHASE_TEXT = {
   idle: '',
-  checking: '正在检查更新…',
-  latest: '已是最新版本',
+  checking: () => t('update.checking'),
+  latest: () => t('update.latest'),
   available: '',
-  downloading: '正在下载更新…',
-  verifying: '正在校验更新包…',
-  ready: '更新包已就绪，重启后完成更新',
+  downloading: () => t('update.downloading'),
+  verifying: () => t('update.verifying'),
+  ready: () => t('update.ready'),
   failed: ''
 };
+
+function updatePhaseText(phase) {
+  const v = UPDATE_PHASE_TEXT[phase];
+  return typeof v === 'function' ? v() : (v || '');
+}
 
 function renderUpdateStatus(overlay, s) {
   if (!overlay.isConnected) return;
@@ -498,7 +655,7 @@ function renderUpdateStatus(overlay, s) {
     html += `<span class="update-status-text">${escapeHtml(s.notice)}</span>`;
   }
   if (s.phase === 'available' && s.version) {
-    html += `<div class="update-status-version">发现新版本 <strong>v${escapeHtml(s.version)}</strong></div>`;
+    html += `<div class="update-status-version">${t('update.found')} <strong>v${escapeHtml(s.version)}</strong></div>`;
     if (s.body) {
       const brief = s.body.replace(/\r?\n/g, ' ').slice(0, 240);
       html += `<div class="update-status-body">${escapeHtml(brief)}${s.body.length > 240 ? '…' : ''}</div>`;
@@ -517,9 +674,9 @@ function renderUpdateStatus(overlay, s) {
       return;
     }
     html += `<div class="update-progress" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><span style="width:${pct}%"></span></div>`;
-    html += `<span class="update-status-text">${UPDATE_PHASE_TEXT[s.phase]}<span data-progress-pct>${s.phase === 'downloading' ? ` ${pct}%` : ''}</span></span>`;
-  } else if (UPDATE_PHASE_TEXT[s.phase]) {
-    html += `<span class="update-status-text">${UPDATE_PHASE_TEXT[s.phase]}${s.phase === 'latest' && s.version ? `（v${escapeHtml(s.version)}）` : ''}</span>`;
+    html += `<span class="update-status-text">${updatePhaseText(s.phase)}<span data-progress-pct>${s.phase === 'downloading' ? ` ${pct}%` : ''}</span></span>`;
+  } else if (updatePhaseText(s.phase)) {
+    html += `<span class="update-status-text">${updatePhaseText(s.phase)}${s.phase === 'latest' && s.version ? `（v${escapeHtml(s.version)}）` : ''}</span>`;
   }
   statusArea.innerHTML = html;
 }
@@ -542,7 +699,7 @@ function bindUpdateControls(overlay) {
   const statusArea = overlay.querySelector('#update-status-area');
 
   if (!updater || !updater.isAvailable()) {
-    if (statusArea) statusArea.textContent = '浏览器端不支持自动更新，请使用桌面版。';
+    if (statusArea) statusArea.textContent = t('settings.webNoUpdate');
     if (btnCheck) btnCheck.disabled = true;
     if (btnDownload) btnDownload.disabled = true;
     if (btnCancel) btnCancel.disabled = true;
@@ -563,7 +720,7 @@ function bindUpdateControls(overlay) {
     });
   });
   btnRestart?.addEventListener('click', () => {
-    showConfirmDialog('更新包已就绪，应用将退出并自动完成替换和重启？', () => updater.applyUpdate());
+    showConfirmDialog(t('update.applyConfirm'), () => updater.applyUpdate());
   });
   btnCancel?.addEventListener('click', () => updater.cancelDownload());
 }
@@ -574,7 +731,7 @@ function renderTagList(overlay) {
   const container = overlay.querySelector('#settings-tag-list');
   updateTagCreatePreview(overlay);
   if (data.tags.length === 0) {
-    container.innerHTML = '<div class="settings-tag-empty">暂无标签</div>';
+    container.innerHTML = `<div class="settings-tag-empty">${t('settings.noTags')}</div>`;
     return;
   }
   container.innerHTML = data.tags.map(tag => `
@@ -582,7 +739,7 @@ function renderTagList(overlay) {
       <span class="tag-dot" ${getTagDotStyle(tag, data.tags)}></span>
       <span class="tag-manage-name" data-role="rename-tag">${escapeHtml(tag)}</span>
       <span class="tag-manage-count">${getTagTaskCount(data, tag)}</span>
-      <button class="tag-delete-btn" data-role="delete-tag" data-tag="${escapeHtml(tag)}" title="删除标签" aria-label="删除标签">${iconSvg('x')}</button>
+      <button class="tag-delete-btn" data-role="delete-tag" data-tag="${escapeHtml(tag)}" title="${t('settings.deleteTag')}" aria-label="${t('settings.deleteTag')}">${iconSvg('x')}</button>
     </div>
   `).join('');
 }
@@ -642,7 +799,7 @@ function bindUiStyleControls(overlay) {
     applyUiStyle(data.uiStyle);
     updateUiStyleControls(overlay);
     saveData();
-    showToast('界面风格已恢复默认');
+    showToast(t('toast.uiReset'));
   });
 }
 
@@ -659,7 +816,7 @@ function updateUiStyleValue(overlay, key) {
   const output = overlay.querySelector(`[data-style-value="${key}"]`);
   if (control && output) {
     output.textContent = key === 'motionSpeed' && Number(control.value) === 0
-      ? '关闭'
+      ? t('settings.motionOff')
       : `${control.value}${control.dataset.styleUnit}`;
   }
 }
@@ -677,7 +834,7 @@ function createTag(overlay) {
     return;
   }
   if (data.tags.includes(name)) {
-    showToast('标签已存在');
+    showToast(t('toast.tagExists'));
     input.focus();
     input.select();
     return;
@@ -689,14 +846,14 @@ function createTag(overlay) {
   input.value = '';
   renderTagList(overlay);
   input.focus();
-  showToast('标签创建成功');
+  showToast(t('toast.tagCreated'));
 }
 
 function deleteTag(tag, overlay) {
   const count = getTagTaskCount(data, tag);
   const message = count > 0
-    ? `标签"${tag}"下还有 ${count} 个任务，删除后这些任务会变成无标签，确定继续吗？`
-    : `确定要删除标签"${tag}"吗？`;
+    ? t('confirm.deleteTagWithCount', { tag, count })
+    : t('confirm.deleteTag', { tag });
 
   showConfirmDialog(message, () => {
     data.tags = data.tags.filter(t => t !== tag);
@@ -706,7 +863,7 @@ function deleteTag(tag, overlay) {
     saveData();
     render();
     renderTagList(overlay);
-    showToast('标签已删除');
+    showToast(t('toast.tagDeleted'));
   });
 }
 
@@ -719,6 +876,7 @@ export function initSettings(deps) {
   render = deps.render;
   testNotification = deps.testNotification;
   getNotificationStatus = deps.getNotificationStatus;
+  applyLanguageFn = deps.applyLanguage || null;
   onTagRenamed = deps.onTagRenamed || null;
   onTagDeleted = deps.onTagDeleted || null;
   updater = deps.updater || null;

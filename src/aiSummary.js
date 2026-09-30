@@ -5,9 +5,17 @@ import { closeDetail } from './detail.js';
 import { extractCompleteContent, normalizeStreamText, parseSseLine, resolveAiApiUrl } from './utils/aiApi.js';
 import { getUiMotionDuration } from './uiPreferences.js';
 import { createFocusTrap, enableRovingTablist } from './utils/focus.js';
+import { t, getLanguage, getAiTypeLabels, buildAiPrompt } from './i18n/index.js';
 
 export function getMonthlyReportRange(baseDate) {
   return getMonthRange(baseDate);
+}
+
+let refreshSummaryLangFn = null;
+
+/* 语言切换时刷新已开 AI 面板：占位文案、日期范围与生成按钮，不动已生成的报告正文 */
+export function refreshSummaryLanguage() {
+  if (typeof refreshSummaryLangFn === 'function') refreshSummaryLangFn();
 }
 
 export function initAiSummary({ data, saveData, showToast }) {
@@ -44,6 +52,21 @@ export function initAiSummary({ data, saveData, showToast }) {
   );
 
   summaryDateInput.addEventListener('change', updateSummaryDateRange);
+
+  refreshSummaryLangFn = () => {
+    const placeholder = summaryOutput.querySelector('.summary-placeholder');
+    if (placeholder) {
+      const title = placeholder.querySelector('strong');
+      if (title) title.textContent = t('ai.readyTitle');
+      const sub = placeholder.querySelector('span:not(.summary-placeholder-icon)');
+      if (sub) sub.textContent = t('ai.readySub');
+    }
+    updateSummaryDateRange();
+    if (isGeneratingReport) {
+      generateReportLabel.textContent = t('ai.generating');
+      summaryLiveStatus.textContent = t('ai.loadingLive');
+    }
+  };
 
   function updateSummaryDateRange() {
     const dateStr = summaryDateInput.value;
@@ -161,27 +184,27 @@ export function initAiSummary({ data, saveData, showToast }) {
   const MAX_REPORT_CHARS = 15000;
   function truncateReportList(text) {
     if (text.length <= MAX_REPORT_CHARS) return text;
-    return `${text.slice(0, MAX_REPORT_CHARS)}\n- ……（内容过长已截断）`;
+    return `${text.slice(0, MAX_REPORT_CHARS)}\n- ${t('ai.truncated')}`;
   }
 
   generateReportBtn.addEventListener('click', async () => {
     if (isGeneratingReport) {
-      showToast('报告正在生成中');
+      showToast(t('ai.generatingNow'));
       return;
     }
     if (!data.aiConfig.apiUrl || !data.aiConfig.apiKey || !data.aiConfig.model) {
-      showToast('请先配置 API');
+      showToast(t('ai.needApi'));
       return;
     }
     const dateStr = summaryDateInput.value;
     if (!dateStr) {
-      showToast('请选择日期');
+      showToast(t('ai.needDate'));
       return;
     }
 
     const baseDate = parseLocalDateInput(dateStr);
     if (!baseDate) {
-      showToast('日期格式无效');
+      showToast(t('ai.badDate'));
       return;
     }
     let startDate, endDate, rangeLabel;
@@ -220,13 +243,13 @@ export function initAiSummary({ data, saveData, showToast }) {
       return created < endDate && (!end || end >= startDate);
     });
 
-    const typeLabel = summaryType === 'daily' ? '日报' : summaryType === 'monthly' ? '月报' : '周报';
-    const planLabel = summaryType === 'daily' ? '明日计划' : summaryType === 'monthly' ? '下月计划' : '下周计划';
+    const { typeLabel, planLabel } = getAiTypeLabels(summaryType);
+    const prioNames = { high: t('priority.high'), medium: t('priority.medium'), low: t('priority.low') };
     /* 大月报截断输入：避免全量标题+备注拼接导致超长 prompt、POST 慢/超限 */
     const formatReportTodos = (todos) => truncateReportList(todos.slice(0, MAX_REPORT_TODOS)
-      .map(t => `- ${t.title}${t.priority !== 'none' ? `（优先级：${{high:'高',medium:'中',low:'低'}[t.priority]}）` : ''}${t.tag ? `（标签：${t.tag}）` : ''}${t.desc ? `\n  备注：${t.desc.slice(0, 200)}` : ''}`).join('\n'));
-    const doneList = doneTodos.length > 0 ? formatReportTodos(doneTodos) : '- 无';
-    const pendingList = pendingTodos.length > 0 ? formatReportTodos(pendingTodos) : '- 无';
+      .map(t => `- ${t.title}${t.priority !== 'none' ? t('ai.prioLabel', { label: prioNames[t.priority] || t.priority }) : ''}${t.tag ? t('ai.tagLabel', { tag: t.tag }) : ''}${t.desc ? `\n  ${t('ai.notePrefix')}${t.desc.slice(0, 200)}` : ''}`).join('\n'));
+    const doneList = doneTodos.length > 0 ? formatReportTodos(doneTodos) : t('ai.noneItem');
+    const pendingList = pendingTodos.length > 0 ? formatReportTodos(pendingTodos) : t('ai.noneItem');
 
     const prompt = buildPrompt({ data, summaryType, typeLabel, planLabel, rangeLabel, doneList, pendingList });
 
@@ -234,12 +257,12 @@ export function initAiSummary({ data, saveData, showToast }) {
     generateReportBtn.disabled = true;
     generateReportBtn.classList.add('is-loading');
     generateReportBtn.setAttribute('aria-busy', 'true');
-    generateReportLabel.textContent = '生成中...';
+    generateReportLabel.textContent = t('ai.generating');
     summaryOutput.textContent = '';
     summaryFooter.classList.add('hidden');
     summaryOutput.setAttribute('aria-busy', 'true');
-    summaryLiveStatus.textContent = '正在生成总结，请稍候。';
-    summaryOutput.innerHTML = '<div class="summary-loading"><span class="summary-loading-indicator" aria-hidden="true"></span><strong>正在生成总结</strong><span>AI 正在整理任务进度，请稍候</span></div>';
+    summaryLiveStatus.textContent = t('ai.loadingLive');
+    summaryOutput.innerHTML = `<div class="summary-loading"><span class="summary-loading-indicator" aria-hidden="true"></span><strong>${t('ai.loadingTitle')}</strong><span>${t('ai.loadingSub')}</span></div>`;
 
     try {
       reportAborter?.abort();
@@ -260,7 +283,7 @@ export function initAiSummary({ data, saveData, showToast }) {
 
       if (!response.ok) {
         const err = await response.text();
-        summaryOutput.textContent = `请求失败：${response.status}\n${err || '请检查 API 地址、模型名称或服务状态'}`;
+        summaryOutput.textContent = `${t('ai.requestFailed', { status: response.status })}\n${err || t('ai.checkApi')}`;
         return;
       }
 
@@ -276,7 +299,7 @@ export function initAiSummary({ data, saveData, showToast }) {
       if (!reader) {
         const json = await response.json();
         const content = json.choices?.[0]?.message?.content || json.choices?.[0]?.text || '';
-        summaryOutput.textContent = normalizeStreamText(content) || '接口未返回报告内容';
+        summaryOutput.textContent = normalizeStreamText(content) || t('ai.emptyResponse');
         summaryFooter.classList.remove('hidden');
         summaryOutput.classList.remove('is-streaming');
         return;
@@ -335,17 +358,17 @@ export function initAiSummary({ data, saveData, showToast }) {
       if (streamedLength === 0) {
         /* 网关整包返回（无视 stream:true）：从缓冲提取正文，仍为空才明示 */
         const fallback = extractCompleteContent(buffer);
-        summaryOutput.textContent = normalizeStreamText(fallback) || '接口未返回报告内容（已收到响应但无可解析正文）';
+        summaryOutput.textContent = normalizeStreamText(fallback) || t('ai.emptyResponseDetail');
       }
       summaryFooter.classList.remove('hidden');
-      summaryLiveStatus.textContent = '报告已生成。';
+      summaryLiveStatus.textContent = t('ai.generated');
     } catch (err) {
       if (err?.name === 'AbortError') {
-        summaryOutput.textContent += '\n\n（已取消生成）';
-        summaryLiveStatus.textContent = '已取消生成。';
+        summaryOutput.textContent += `\n\n${t('ai.cancelled')}`;
+        summaryLiveStatus.textContent = t('ai.cancelledLive');
       } else {
-        summaryOutput.textContent = `请求出错: ${err.message}`;
-        summaryLiveStatus.textContent = `生成失败：${err.message}`;
+        summaryOutput.textContent = t('ai.requestError', { msg: err.message });
+        summaryLiveStatus.textContent = t('ai.generateFailed', { msg: err.message });
       }
     } finally {
       reportAborter = null;
@@ -353,7 +376,7 @@ export function initAiSummary({ data, saveData, showToast }) {
       generateReportBtn.disabled = false;
       generateReportBtn.classList.remove('is-loading');
       generateReportBtn.removeAttribute('aria-busy');
-      generateReportLabel.textContent = '生成报告';
+      generateReportLabel.textContent = t('ai.generate');
       summaryOutput.classList.remove('is-streaming');
       summaryOutput.setAttribute('aria-busy', 'false');
     }
@@ -363,9 +386,9 @@ export function initAiSummary({ data, saveData, showToast }) {
     const text = summaryOutput.textContent;
     if (!text) return;
     navigator.clipboard.writeText(text).then(() => {
-      showToast('已复制到剪贴板');
+      showToast(t('ai.copied'));
     }).catch(() => {
-      showToast('复制失败');
+      showToast(t('ai.copyFailed'));
     });
   });
 }
@@ -379,52 +402,5 @@ function buildPrompt({ data, summaryType, typeLabel, planLabel, rangeLabel, done
       .replace(/\{pendingList\}/g, pendingList)
       .replace(/\{plan\}/g, planLabel);
   }
-  const wordLimit = summaryType === 'daily' ? '300' : summaryType === 'monthly' ? '800' : '500';
-  return `你是一位专业的项目管理助手，擅长撰写简洁、结构清晰的工作报告。
-
-请根据以下任务数据，生成一份高质量的${typeLabel}。
-
-## 基本信息
-- 报告类型：${typeLabel}
-- 日期范围：${rangeLabel}
-
-## 任务数据
-
-### 已完成任务
-${doneList}
-
-### 进行中/未完成任务
-${pendingList}
-
-## 输出要求
-
-请严格按照以下格式输出（使用 Markdown）：
-
-### ${typeLabel} · ${rangeLabel}
-
-**一、工作概览**
-用 1-2 句话概括本期工作重点和整体进展。
-
-**二、已完成事项**
-- 将已完成任务按标签或类别分组列出
-- 每项用一句话描述完成情况
-- 如果有高优先级任务完成，优先列出并标注
-
-**三、进行中事项**
-- 列出当前仍在进行的任务
-- 标注优先级和预计完成情况
-- 如有阻塞或风险，简要说明
-
-**四、${planLabel}**
-- 根据进行中任务和整体节奏，给出 3-5 条合理的计划建议
-- 优先级高的任务排在前面
-
-**五、总结与反思**
-用 1-2 句话总结本期效率和改进方向。
-
-## 注意事项
-- 语言：简洁专业的中文
-- 如果某个分类没有数据，写"无"即可，不要编造内容
-- 不要重复罗列原始数据，要有归纳和提炼
-- 保持整体篇幅适中，控制在 ${wordLimit} 字以内`;
+  return buildAiPrompt({ summaryType, typeLabel, planLabel, rangeLabel, doneList, pendingList }, getLanguage());
 }

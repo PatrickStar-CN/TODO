@@ -8,15 +8,16 @@ import { buildTodoContextMenu, buildTagContextMenu, buildNavContextMenu, buildLi
 import { createTodoItemEl } from './renderTodoItem.js';
 import { formatTimelineTime, getTimelineDateParts, normalizeTimelineSettings, sortTimelineTodos } from './timeline.js';
 import { renderCalendar as _renderCalendar, getTodosForDate as _getTodosForDate, renderCalendarDetail as _renderCalendarDetail, buildMonthIndex, MONTH_TODOS_PAGE_SIZE } from './calendar.js';
-import { openDetail as _openDetail, closeDetail, initDetailEditor } from './detail.js';
+import { openDetail as _openDetail, closeDetail, initDetailEditor, refreshDetailLanguage } from './detail.js';
 import { createOverlay, closeOverlay, showConfirmDialog } from './overlay.js';
 import { applyTheme } from './theme.js';
 import { applyUiStyle, getUiMotionDuration, normalizeUiStyle } from './uiPreferences.js';
 import { initAiSummary } from './aiSummary.js';
 import { initReminders } from './reminder.js';
 import { initMiniMode } from './miniMode.js';
-import { initQuickAddPopups } from './quickAddPopup.js';
-import { initDatePicker } from './datePicker.js';
+import { initQuickAddPopups, closeAllPopups } from './quickAddPopup.js';
+import { initDatePicker, closeDatePicker } from './datePicker.js';
+import { refreshSummaryLanguage } from './aiSummary.js';
 import { initSettings } from './settings.js';
 import { createUpdater } from './updater.js';
 import { createRuntimeIndex } from './runtimeIndex.js';
@@ -24,6 +25,7 @@ import { computeDonePanelMaxHeightFromRects, initDonePanelResize } from './doneP
 import { iconSvg, setIcon } from './icons.js';
 import { getTagColor, getTagTaskCount, isNeutralinoEnv } from './shared.js';
 import { enableRovingTablist } from './utils/focus.js';
+import { t, normalizeLanguage, applyLanguage, getLanguage, formatTodayDate } from './i18n/index.js';
 
 const STORAGE_KEY = 'todo_app_data';
 const DATA_FILE = 'todo_data.json';
@@ -49,7 +51,7 @@ async function getDesktopDataPath() {
 }
 
 function createEmptyData() {
-  return { todos: [], tags: [] };
+  return { todos: [], tags: [], language: 'zh' };
 }
 
 function safeLocalStorageData() {
@@ -149,7 +151,7 @@ function handleCorruptData(err, content, source) {
     persistenceWriteBlocked = true;
     persistenceBlockedNotified = true;
     setTimeout(() => {
-      showToast('数据文件加密密钥不匹配，已暂停覆盖保存');
+      showToast(t('toast.keyMismatch'));
     }, 0);
     return createEmptyData();
   }
@@ -158,7 +160,7 @@ function handleCorruptData(err, content, source) {
   backupCorruptDataFile(content);
   persistenceBlockedNotified = true;
   setTimeout(() => {
-    showToast('数据文件异常，已暂停覆盖保存');
+    showToast(t('toast.dataCorrupt'));
   }, 0);
   return createEmptyData();
 }
@@ -232,7 +234,7 @@ function persistVersion(version) {
 
     if (isNeutralinoEnv()) {
       await Neutralino.filesystem.writeFile(await getDesktopDataPath(), payload).catch(() => {
-        showToast('保存失败，数据已暂存本地');
+        showToast(t('toast.saveFailed'));
       });
       return;
     }
@@ -242,7 +244,7 @@ function persistVersion(version) {
       headers: { 'Content-Type': 'application/json' },
       body: payload
     }).catch(() => {
-      showToast('保存失败，数据已暂存本地');
+      showToast(t('toast.saveFailed'));
     });
   }).catch((err) => {
     /* 单次保存失败不应冻结后续保存链 */
@@ -256,7 +258,7 @@ function saveData() {
   dataChangeListeners.forEach(listener => listener());
   if (persistenceWriteBlocked && !persistenceBlockedNotified) {
     persistenceBlockedNotified = true;
-    showToast('数据文件异常，已暂停覆盖保存');
+    showToast(t('toast.dataCorrupt'));
   }
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
@@ -278,7 +280,7 @@ function subscribeDataChanges(listener) {
   return () => dataChangeListeners.delete(listener);
 }
 
-let data = { todos: [], tags: ['计划内'], aiConfig: { apiUrl: '', apiKey: '', model: '', customPrompt: '' }, theme: 'auto', uiStyle: normalizeUiStyle(), timeline: normalizeTimelineSettings(), sidebarMini: false };
+let data = { todos: [], tags: ['计划内'], aiConfig: { apiUrl: '', apiKey: '', model: '', customPrompt: '' }, theme: 'auto', uiStyle: normalizeUiStyle(), timeline: normalizeTimelineSettings(), sidebarMini: false, language: 'zh' };
 let currentList = 'todo';
 let currentTag = null;
 let selectedDate = null;
@@ -316,7 +318,7 @@ function showToast(msg) {
 function normalizeData() {
   /* 防御：loadData 可能因文件为空/损坏返回非对象（如空字符串） */
   if (!data || typeof data !== 'object' || Array.isArray(data)) {
-    data = { todos: [], tags: [], aiConfig: {}, theme: 'auto', uiStyle: normalizeUiStyle(), timeline: normalizeTimelineSettings(), sidebarMini: false };
+    data = { todos: [], tags: [], aiConfig: {}, theme: 'auto', uiStyle: normalizeUiStyle(), timeline: normalizeTimelineSettings(), sidebarMini: false, language: 'zh' };
   }
   if (!Array.isArray(data.tags)) {
     data.tags = [];
@@ -367,6 +369,7 @@ function normalizeData() {
   }
   data.uiStyle = normalizeUiStyle(data.uiStyle);
   data.timeline = normalizeTimelineSettings(data.timeline);
+  data.language = normalizeLanguage(data.language);
   if (typeof data.sidebarMini !== 'boolean') {
     data.sidebarMini = false;
   }
@@ -414,13 +417,13 @@ function getTodoById(id) {
 function deleteTag(tag, onDeleted) {
   const count = getTagTaskCount(data, tag);
   const message = count > 0
-    ? `标签“${tag}”下还有 ${count} 个任务，删除后这些任务会变成无标签，确定继续吗？`
-    : `确定要删除标签“${tag}”吗？`;
+    ? t('confirm.deleteTagWithCount', { tag, count })
+    : t('confirm.deleteTag', { tag });
 
   const overlay = createOverlay(
-    '删除标签',
+    t('confirm.deleteTagTitle'),
     `<p class="overlay-message">${escapeHtml(message)}</p>`,
-    '<button class="btn-cancel">取消</button><button class="btn-danger">删除</button>'
+    `<button class="btn-cancel">${t('common.cancel')}</button><button class="btn-danger">${t('common.delete')}</button>`
   );
 
   const close = () => closeOverlay(overlay);
@@ -448,7 +451,7 @@ function deleteTag(tag, onDeleted) {
     if (onDeleted) {
       onDeleted();
     }
-    showToast('标签已删除');
+    showToast(t('toast.tagDeleted'));
   });
 
   overlay.addEventListener('click', (ev) => {
@@ -703,7 +706,7 @@ function renderSidebar() {
   const tagFragment = document.createDocumentFragment();
   data.tags.forEach(tag => {
     const undone = countTagUndone(data, tag);
-    const label = `待完成 ${undone}`;
+    const label = t('nav.pendingUndone', { count: undone });
     let el = existingTagEls.get(tag);
     if (!el) {
       el = document.createElement('a');
@@ -717,7 +720,7 @@ function renderSidebar() {
     el.dataset.tag = tag;
     el.classList.toggle('active', currentTag === tag);
     el.title = label;
-    el.setAttribute('aria-label', `${tag}，${label}`);
+    el.setAttribute('aria-label', t('nav.tagAria', { tag, count: undone }));
     el.querySelector('.tag-dot').style.background = getTagColor(tag, data.tags);
     el.querySelector('.tag-label').textContent = tag;
     el.querySelector('.nav-count').textContent = undone;
@@ -816,34 +819,34 @@ function renderTodoList() {
   if (mode === 'timeline') {
     addTaskBar.style.display = currentList === 'archived' || searchKeyword ? 'none' : '';
     renderTaskItems(sorted, data.timeline.sortBy === 'completed'
-      ? '<div class="empty-state">暂无已完成任务</div>'
-      : '<div class="empty-state">暂无任务</div>');
+      ? `<div class="empty-state">${t('list.emptyDoneTimeline')}</div>`
+      : `<div class="empty-state">${t('list.emptyTimeline')}</div>`);
     doneSection.style.display = 'none';
     doneListEl.innerHTML = '';
     doneListEl.dataset.total = '0';
     doneListEl.dataset.rendered = '0';
-    taskSummary.textContent = `${sorted.length} 个任务`;
+    taskSummary.textContent = t('list.countTasks', { count: sorted.length });
     return;
   }
 
   if (mode === 'archived') {
     addTaskBar.style.display = 'none';
-    renderTaskItems(sorted, '<div class="empty-state">暂无归档任务</div>');
+    renderTaskItems(sorted, `<div class="empty-state">${t('list.emptyArchived')}</div>`);
     doneSection.style.display = 'none';
-    taskSummary.textContent = `${sorted.length} 个归档`;
+    taskSummary.textContent = t('list.countArchived', { count: sorted.length });
     return;
   }
 
   if (mode === 'search') {
     addTaskBar.style.display = 'none';
-    renderTaskItems(sorted, '<div class="empty-state">未找到匹配的任务</div>');
+    renderTaskItems(sorted, `<div class="empty-state">${t('list.emptySearch')}</div>`);
     doneSection.style.display = 'none';
-    taskSummary.textContent = `搜索到 ${sorted.length} 个任务`;
+    taskSummary.textContent = t('list.countSearch', { count: sorted.length });
     return;
   }
 
   addTaskBar.style.display = '';
-  renderTaskItems(sorted, '<div class="empty-state">暂无待办事项</div>');
+  renderTaskItems(sorted, `<div class="empty-state">${t('list.emptyTodo')}</div>`);
 
   doneCountEl.textContent = done.length;
   doneSection.style.display = done.length > 0 ? 'block' : 'none';
@@ -862,7 +865,7 @@ function renderTodoList() {
     doneListEl.dataset.rendered = '0';
   }
 
-  taskSummary.textContent = `${sorted.length} 个任务`;
+  taskSummary.textContent = t('list.countTasks', { count: sorted.length });
 }
 
 function appendTodoItems(container, todos) {
@@ -876,18 +879,18 @@ function appendTodoItems(container, todos) {
     }
     const timelineDate = getTimelineDateParts(todo, data.timeline.sortBy);
     if (!hasPreviousTimelineDate || timelineDate?.year !== previousTimelineDate?.year) {
-      fragment.appendChild(createTimelineGroupRow('year', timelineDate ? `${timelineDate.year}年` : '时间未知'));
+      fragment.appendChild(createTimelineGroupRow('year', timelineDate ? t('timeline.year', { year: timelineDate.year }) : t('timeline.unknownTime')));
     }
     if (!hasPreviousTimelineDate ||
         timelineDate?.year !== previousTimelineDate?.year ||
         timelineDate?.month !== previousTimelineDate?.month) {
-      fragment.appendChild(createTimelineGroupRow('month', timelineDate ? `${timelineDate.month}月` : '未知月份'));
+      fragment.appendChild(createTimelineGroupRow('month', timelineDate ? t('timeline.month', { month: timelineDate.month }) : t('timeline.unknownMonth')));
     }
     if (!hasPreviousTimelineDate ||
         timelineDate?.year !== previousTimelineDate?.year ||
         timelineDate?.month !== previousTimelineDate?.month ||
         timelineDate?.day !== previousTimelineDate?.day) {
-      fragment.appendChild(createTimelineGroupRow('day', timelineDate ? `${timelineDate.day}号` : '未知日期'));
+      fragment.appendChild(createTimelineGroupRow('day', timelineDate ? t('timeline.day', { day: timelineDate.day }) : t('timeline.unknownDate')));
     }
     const row = document.createElement('div');
     row.className = 'timeline-row';
@@ -936,15 +939,15 @@ function createTimelineEntry(todo) {
   const primary = document.createElement('span');
   primary.className = 'timeline-time timeline-time-primary';
   primary.textContent = data.timeline.sortBy === 'completed'
-    ? formatTimelineTime(todo.doneAt) || '时间未知'
-    : formatTimelineTime(todo.createdAt) || '时间未知';
+    ? formatTimelineTime(todo.doneAt) || t('timeline.unknownTime')
+    : formatTimelineTime(todo.createdAt) || t('timeline.unknownTime');
   times.appendChild(primary);
 
   const secondary = document.createElement('span');
   secondary.className = 'timeline-time timeline-time-secondary';
   secondary.textContent = data.timeline.sortBy === 'completed'
-    ? `创建 ${formatTimelineTime(todo.createdAt) || '时间未知'}`
-    : (todo.doneAt ? `完成 ${formatTimelineTime(todo.doneAt) || '时间未知'}` : '完成 未完成');
+    ? t('timeline.created', { time: formatTimelineTime(todo.createdAt) || t('timeline.unknownTime') })
+    : (todo.doneAt ? t('timeline.completedPrefix', { time: formatTimelineTime(todo.doneAt) || t('timeline.unknownTime') }) : t('timeline.notDone'));
   times.appendChild(secondary);
 
   entry.setAttribute('aria-label', `${primary.textContent}，${secondary.textContent}`);
@@ -958,8 +961,8 @@ function renderStatus() {
   if (currentTag) {
     listTitle.textContent = currentTag;
   } else {
-    const titles = { todo: 'TODO', important: '重要', all: '所有', archived: '归档' };
-    listTitle.textContent = titles[currentList] || '所有';
+    const titles = { todo: 'TODO', important: t('nav.important'), all: t('nav.all'), archived: t('nav.archived') };
+    listTitle.textContent = titles[currentList] || t('nav.all');
   }
 }
 
@@ -1005,12 +1008,12 @@ function syncCalendarViewState() {
   todayButton?.classList.toggle('hidden', calendarMode !== 'month');
   legend?.classList.toggle('hidden', calendarMode === 'month');
   if (legendLabel) {
-    legendLabel.textContent = calendarMode === 'completed' ? '完成量' : '任务量';
+    legendLabel.textContent = calendarMode === 'completed' ? t('calendar.legendDone') : t('calendar.legendTasks');
   }
 
   if (toggleButton) {
     toggleButton.setAttribute('aria-expanded', String(!chartCollapsed));
-    if (toggleLabel) toggleLabel.textContent = chartCollapsed ? '展开图表' : '收起图表';
+    if (toggleLabel) toggleLabel.textContent = chartCollapsed ? t('calendar.expand') : t('calendar.collapse');
   }
 }
 
@@ -1078,6 +1081,207 @@ function renderCalendarDetail(monthIndex) {
   _renderCalendarDetail({ selectedDate, data, renderTodoItem, mode: calendarMode, detailView: calendarDetailMode, monthDate: currentMonth, visibleMonthCount }, monthIndex);
 }
 
+export function applyStaticTexts() {
+  const lang = getLanguage();
+  document.documentElement.lang = lang === 'en' ? 'en' : 'zh-CN';
+  document.title = t('app.title');
+  const setText = (sel, key) => {
+    const el = document.querySelector(sel);
+    if (el) el.textContent = t(key);
+  };
+  const setAria = (sel, key) => {
+    const el = document.querySelector(sel);
+    if (el) el.setAttribute('aria-label', t(key));
+  };
+  setText('.sidebar-header h2', 'app.title');
+  setAria('#btn-settings', 'sidebar.settings');
+  document.getElementById('btn-settings')?.setAttribute('title', t('sidebar.settings'));
+  const navKeys = { todo: 'nav.todo', important: 'nav.important', all: 'nav.all', archived: 'nav.archived', calendar: 'nav.calendar' };
+  document.querySelectorAll('.nav-item[data-list]').forEach((el) => {
+    const key = navKeys[el.dataset.list];
+    if (!key) return;
+    el.setAttribute('title', t(key));
+    const txt = el.querySelector('.nav-text');
+    if (txt) txt.textContent = t(key);
+  });
+  setText('.sidebar-section .section-title', 'nav.tags');
+  setText('#btn-mini-mode-footer .btn-text', 'sidebar.miniMode');
+  const calTitle = document.querySelector('#view-calendar h1');
+  if (calTitle) calTitle.textContent = t('calendar.title');
+  const searchBtn = document.querySelector('#btn-search span:last-child');
+  if (searchBtn) searchBtn.textContent = t('header.search');
+  const aiBtn = document.querySelector('#btn-open-summary span:last-child');
+  if (aiBtn) aiBtn.textContent = t('header.aiSummary');
+  const searchInput = document.getElementById('search-input');
+  if (searchInput) {
+    searchInput.placeholder = t('search.placeholder');
+    searchInput.setAttribute('aria-label', t('search.label'));
+  }
+  const quickAdd = document.getElementById('quick-add');
+  if (quickAdd) quickAdd.placeholder = t('quickadd.placeholder');
+  const dateBtn = document.getElementById('btn-set-date');
+  if (dateBtn) { dateBtn.title = t('quickadd.setDate'); dateBtn.setAttribute('aria-label', t('quickadd.setDate')); }
+  const prioBtn = document.getElementById('btn-set-priority');
+  if (prioBtn) { prioBtn.title = t('quickadd.setPriority'); prioBtn.setAttribute('aria-label', t('quickadd.setPriority')); }
+  const tagBtn = document.getElementById('btn-set-tag');
+  if (tagBtn) { tagBtn.title = t('quickadd.setTag'); tagBtn.setAttribute('aria-label', t('quickadd.setTag')); }
+  const todayEl = document.getElementById('today-date');
+  if (todayEl) todayEl.textContent = formatTodayDate(new Date());
+  const doneLabel = document.querySelector('#done-toggle > span');
+  if (doneLabel) {
+    const n = document.getElementById('done-count')?.textContent || '0';
+    doneLabel.innerHTML = `${t('list.doneHeader')} (<span id="done-count">${n}</span>)`;
+  }
+  const archBtn = document.getElementById('btn-archive-done');
+  if (archBtn) { archBtn.title = t('list.archiveDone'); archBtn.setAttribute('aria-label', t('list.archiveDone')); }
+  const clearBtn = document.getElementById('btn-clear-done');
+  if (clearBtn) { clearBtn.title = t('list.clearDone'); clearBtn.setAttribute('aria-label', t('list.clearDone')); }
+  const resizeHandle = document.getElementById('done-resize-handle');
+  if (resizeHandle) {
+    resizeHandle.setAttribute('aria-label', t('list.resizeDone'));
+    resizeHandle.title = t('list.resizeDone');
+  }
+  const modeKeys = { month: 'calendar.modeMonth', tasks: 'calendar.modeTasks', completed: 'calendar.modeCompleted' };
+  document.querySelectorAll('.calendar-mode-btn').forEach((b) => {
+    const key = modeKeys[b.dataset.calendarMode];
+    if (key) b.textContent = t(key);
+  });
+  const weekdays = document.querySelector('.calendar-weekdays');
+  if (weekdays) {
+    weekdays.innerHTML = [0, 1, 2, 3, 4, 5, 6].map((d) => `<span>${t(`weekday.${d}`)}</span>`).join('');
+  }
+  // Detail panel
+  const detailPanel = document.getElementById('detail-panel');
+  if (detailPanel) {
+    detailPanel.setAttribute('aria-label', t('detail.title'));
+    detailPanel.querySelector('.detail-header h3').textContent = t('detail.title');
+    setAria('#close-detail', 'detail.close');
+    const labelFor = (id, key) => {
+      const input = document.getElementById(id);
+      const row = input?.closest('.detail-row');
+      const lab = row?.querySelector(':scope > label');
+      if (lab) lab.textContent = t(key);
+    };
+    labelFor('detail-title', 'detail.fieldTitle');
+    labelFor('detail-desc', 'detail.fieldDesc');
+    labelFor('detail-priority', 'detail.priority');
+    labelFor('detail-tag', 'detail.tag');
+    labelFor('detail-start', 'detail.startTime');
+    labelFor('detail-end', 'detail.endTime');
+    labelFor('detail-reminder', 'detail.reminderTime');
+    labelFor('detail-reminder-repeat', 'detail.repeat');
+    const descInput = document.getElementById('detail-desc');
+    if (descInput) descInput.placeholder = t('detail.descPlaceholder');
+    setText('.detail-toggle-title', 'detail.addToTodo');
+    const todoHint = document.getElementById('detail-todo-hint');
+    if (todoHint) todoHint.textContent = t('detail.addToTodoHint');
+    const impTitles = detailPanel.querySelectorAll('.detail-toggle-title');
+    if (impTitles[1]) impTitles[1].textContent = t('detail.markImportant');
+    const impHint = document.getElementById('detail-important-hint');
+    if (impHint) impHint.textContent = t('detail.markImportantHint');
+    const doneLab = document.querySelector('#detail-done-row label');
+    if (doneLab) doneLab.textContent = t('detail.doneTime');
+    const createdLab = document.querySelector('#detail-created-row label');
+    if (createdLab) createdLab.textContent = t('detail.createdTime');
+    const saveBtn = detailPanel.querySelector('.detail-actions .btn-primary');
+    if (saveBtn) saveBtn.textContent = t('common.save');
+    const delBtn = document.getElementById('btn-delete-task');
+    if (delBtn) delBtn.textContent = t('common.delete');
+    // detail combobox aria-labels (static HTML contains Chinese)
+    document.getElementById('detail-priority')?.setAttribute('aria-label', t('detail.priority'));
+    document.getElementById('detail-tag')?.setAttribute('aria-label', t('detail.tag'));
+    document.getElementById('detail-reminder-repeat')?.setAttribute('aria-label', t('detail.repeat'));
+    document.getElementById('detail-todo')?.setAttribute('aria-label', t('detail.addToTodo'));
+    document.getElementById('detail-important')?.setAttribute('aria-label', t('detail.markImportant'));
+  }
+  // AI panel
+  setText('#summary-panel h3', 'ai.title');
+  const aiSub = document.querySelector('#summary-panel .summary-heading p');
+  if (aiSub) aiSub.textContent = t('ai.subtitle');
+  setAria('#close-summary', 'ai.close');
+  setAria('#summary-panel .summary-type-tabs', 'ai.reportType');
+  const aiTabs = { daily: 'ai.daily', weekly: 'ai.weekly', monthly: 'ai.monthly' };
+  document.querySelectorAll('.summary-tab').forEach((b) => {
+    const key = aiTabs[b.dataset.type];
+    if (key) b.textContent = t(key);
+  });
+  const sumLabel = document.querySelector('label[for="summary-date"]');
+  if (sumLabel) sumLabel.textContent = t('ai.reportDate');
+  const genLabel = document.querySelector('.summary-generate-label');
+  if (genLabel && !document.getElementById('btn-generate-report')?.disabled) genLabel.textContent = t('ai.generate');
+  // Mini panel
+  setText('.mini-title', 'app.title');
+  setText('.mini-caption', 'mini.brandSub');
+  setAria('#btn-mini-add', 'mini.quickAdd');
+  setAria('#btn-exit-mini', 'mini.restore');
+  const miniInput = document.getElementById('mini-quick-add');
+  if (miniInput) {
+    miniInput.placeholder = t('mini.addPlaceholder');
+    miniInput.setAttribute('aria-label', t('mini.quickAddAria'));
+  }
+  setText('#mini-detail-title', 'mini.detail');
+  setText('#mini-detail-subtitle', 'mini.detailHint');
+  // Calendar toolbar
+  const prevBtn = document.getElementById('prev-month');
+  if (prevBtn) prevBtn.setAttribute('aria-label', t('calendar.prevMonth'));
+  const nextBtn = document.getElementById('next-month');
+  if (nextBtn) nextBtn.setAttribute('aria-label', t('calendar.nextMonth'));
+  const calTitleBtn = document.getElementById('calendar-title');
+  if (calTitleBtn) calTitleBtn.title = t('calendar.pickYearMonth');
+  const todayBtn = document.getElementById('btn-today');
+  if (todayBtn) {
+    todayBtn.title = t('calendar.backToday');
+    todayBtn.setAttribute('aria-label', t('calendar.backToday'));
+  }
+  const legend = document.querySelector('.calendar-heat-legend');
+  if (legend) legend.setAttribute('aria-label', t('calendar.legend'));
+  const copyBtn = document.querySelector('#btn-copy-report span:last-child');
+  if (copyBtn) copyBtn.textContent = t('ai.copy');
+  const searchClose = document.getElementById('btn-search-close');
+  if (searchClose) {
+    searchClose.title = t('search.close');
+    searchClose.setAttribute('aria-label', t('search.close'));
+  }
+  const searchBarLabel = document.querySelector('label[for="search-input"]');
+  if (searchBarLabel) searchBarLabel.textContent = t('search.label');
+  const footMini = document.querySelector('#btn-mini-mode-footer');
+  if (footMini) {
+    footMini.title = t('sidebar.miniMode');
+    footMini.setAttribute('aria-label', t('sidebar.miniMode'));
+  }
+}
+
+export function setAppLanguage(lang) {
+  data.language = normalizeLanguage(lang);
+  applyLanguage(data.language);
+  listViewCache.key = '';
+  monthIndexCache.key = '';
+  monthIndexCache.version = -1;
+  saveData();
+  applyStaticTexts();
+  const toggleBtn = document.getElementById('btn-toggle-sidebar');
+  if (toggleBtn) {
+    const label = data.sidebarMini ? t('sidebar.expand') : t('sidebar.collapse');
+    const txt = toggleBtn.querySelector('.btn-text');
+    if (txt) txt.textContent = label;
+    toggleBtn.title = label;
+    toggleBtn.setAttribute('aria-label', label);
+  }
+  render();
+  if (typeof syncCalendarViewState === 'function') syncCalendarViewState();
+  refreshCalendarDetail({ preserveScroll: true });
+  // 已开弹窗即时刷新：详情/AI 保留内容只换文案，瞬态弹窗直接关闭下次重开即新语言
+  try { refreshDetailLanguage(); } catch { /* ignore */ }
+  try { refreshSummaryLanguage(); } catch { /* ignore */ }
+  try { closeAllPopups(); } catch { /* ignore */ }
+  try { closeContextMenu(); } catch { /* ignore */ }
+  try { closeDatePicker(); } catch { /* ignore */ }
+  // 通用确认/选择类遮罩（.tag-input-overlay）中若正显示，关闭后用户重新触发即新语言
+  document.querySelectorAll('.tag-input-overlay').forEach((el) => {
+    try { closeOverlay(el); } catch { /* ignore */ }
+  });
+}
+
 function showMonthPicker(currentMonth, onConfirm) {
   const year = currentMonth.getFullYear();
   const month = currentMonth.getMonth();
@@ -1086,7 +1290,7 @@ function showMonthPicker(currentMonth, onConfirm) {
   const yearOptions = [];
   for (let y = nowYear - 10; y <= nowYear + 10; y++) yearOptions.push(y);
 
-  const monthNames = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
+  const monthNames = Array.from({ length: 12 }, (_, i) => t('monthPicker.monthSuffix', { month: i + 1 }));
 
   const renderPickerSelect = (id, value, options, ariaLabel) => {
     const selected = options.find(option => option.value === value) || options[0];
@@ -1104,7 +1308,7 @@ function showMonthPicker(currentMonth, onConfirm) {
       </div>`;
   };
 
-  const yearPickerOptions = yearOptions.map(value => ({ value, label: `${value}年` }));
+  const yearPickerOptions = yearOptions.map(value => ({ value, label: t('monthPicker.yearSuffix', { year: value }) }));
   const monthPickerOptions = monthNames.map((label, value) => ({ value, label }));
 
   const contentHtml = `
@@ -1112,25 +1316,25 @@ function showMonthPicker(currentMonth, onConfirm) {
       <div class="month-picker-preview">
         <span class="month-picker-preview-icon">${iconSvg('calendar')}</span>
         <span class="month-picker-preview-copy">
-          <small>当前选择</small>
-          <strong id="month-picker-preview-value">${year}年${month + 1}月</strong>
+          <small>${t('monthPicker.current')}</small>
+          <strong id="month-picker-preview-value">${t('monthPicker.preview', { year, month: month + 1 })}</strong>
         </span>
       </div>
       <div class="month-picker-row">
         <label class="month-picker-field">
-          <span>年份</span>
-          ${renderPickerSelect('picker-year', year, yearPickerOptions, '选择年份')}
+          <span>${t('monthPicker.year')}</span>
+          ${renderPickerSelect('picker-year', year, yearPickerOptions, t('monthPicker.selectYear'))}
         </label>
         <label class="month-picker-field">
-          <span>月份</span>
-          ${renderPickerSelect('picker-month', month, monthPickerOptions, '选择月份')}
+          <span>${t('monthPicker.month')}</span>
+          ${renderPickerSelect('picker-month', month, monthPickerOptions, t('monthPicker.selectMonth'))}
         </label>
       </div>
     </div>`;
 
-  const actionsHtml = '<button class="btn-cancel" id="picker-cancel">取消</button><button class="btn-primary" id="picker-confirm">确定</button>';
+  const actionsHtml = `<button class="btn-cancel" id="picker-cancel">${t('common.cancel')}</button><button class="btn-primary" id="picker-confirm">${t('common.confirm')}</button>`;
 
-  const overlay = createOverlay('选择年月', contentHtml, actionsHtml, document.getElementById('calendar-title'));
+  const overlay = createOverlay(t('monthPicker.title'), contentHtml, actionsHtml, document.getElementById('calendar-title'));
   overlay.querySelector('.tag-input-box').classList.add('month-picker-dialog');
   const close = () => closeOverlay(overlay);
   const pickerSelects = [...overlay.querySelectorAll('.month-picker-select')];
@@ -1303,6 +1507,8 @@ export async function initApp() {
 
   applyTheme(data.theme);
   applyUiStyle(data.uiStyle);
+  applyLanguage(data.language);
+  applyStaticTexts();
 
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
     if (data.theme === 'auto') applyTheme(data.theme, { animate: true });
@@ -1353,7 +1559,7 @@ export async function initApp() {
     const icon = toggleSidebarBtn.querySelector('.btn-icon');
     const text = toggleSidebarBtn.querySelector('.btn-text');
     setIcon(icon, data.sidebarMini ? 'chevron-right' : 'chevron-left');
-    const label = data.sidebarMini ? '展开侧栏' : '折叠侧栏';
+    const label = data.sidebarMini ? t('sidebar.expand') : t('sidebar.collapse');
     text.textContent = label;
     toggleSidebarBtn.title = label;
     toggleSidebarBtn.setAttribute('aria-label', label);
@@ -1437,8 +1643,11 @@ export async function initApp() {
 
   // Set today's date
   const today = new Date();
-  document.getElementById('today-date').textContent =
-    `${today.getMonth() + 1}月${today.getDate()}日星期${getWeekday(today)}`;
+  const todayDateEl = document.getElementById('today-date');
+  const updateTodayDate = () => {
+    todayDateEl.textContent = formatTodayDate(new Date());
+  };
+  updateTodayDate();
 
   // Nav clicks
   document.querySelector('.sidebar-nav').addEventListener('click', (e) => {
@@ -1515,18 +1724,18 @@ export async function initApp() {
 
   function createQuickAddTag(rawName) {
     const name = rawName.trim();
-    if (!name) return { tag: '', message: '请输入标签名称' };
+    if (!name) return { tag: '', message: t('quickadd.inputTagName') };
 
     const existing = data.tags.find(tag => tag === name);
     if (existing) {
-      showToast('标签已存在，已直接选中');
+      showToast(t('toast.tagExistsSelected'));
       return { tag: existing, created: false };
     }
 
     data.tags.push(name);
     saveData();
     renderSidebar();
-    showToast('标签创建成功');
+    showToast(t('toast.tagCreated'));
     return { tag: name, created: true };
   }
 
@@ -1574,7 +1783,7 @@ export async function initApp() {
         newEl.classList.add('entering');
         newEl.addEventListener('animationend', () => newEl.classList.remove('entering'), { once: true });
       }
-      showToast('任务添加成功');
+      showToast(t('toast.taskAdded'));
     }
   });
 
@@ -1655,12 +1864,12 @@ export async function initApp() {
     e.stopPropagation();
     const filtered = getFilteredTodos();
     const doneTodos = filtered.filter(t => t.done && !t.archived);
-    if (doneTodos.length === 0) { showToast('没有可归档的任务'); return; }
+    if (doneTodos.length === 0) { showToast(t('toast.noArchivable')); return; }
     const now = new Date().toISOString();
     doneTodos.forEach(todo => runtimeIndex.update(todo, { archived: true, archivedAt: now }));
     saveData();
     scheduleRender();
-    showToast(`已归档 ${doneTodos.length} 个任务`);
+    showToast(t('toast.archivedCount', { count: doneTodos.length }));
   });
 
   // Detail form
@@ -1891,7 +2100,7 @@ export async function initApp() {
   }
 
   function deleteTodoById(id, itemEl = null) {
-    showConfirmDialog('确定要删除这个任务吗？', () => {
+    showConfirmDialog(t('confirm.deleteTask'), () => {
       const sourceEl = itemEl?.isConnected
         ? itemEl
         : [...document.querySelectorAll('.todo-item[data-id]')]
@@ -1946,9 +2155,9 @@ export async function initApp() {
 
   function clearDoneTasks() {
     const doneTodos = getFilteredTodos().filter(t => t.done);
-    if (doneTodos.length === 0) { showToast('没有已完成的任务'); return; }
+    if (doneTodos.length === 0) { showToast(t('toast.noDone')); return; }
     const doneIds = new Set(doneTodos.map(todo => todo.id));
-    showConfirmDialog(`确定要清空 ${doneTodos.length} 个已完成任务？`, () => {
+    showConfirmDialog(t('confirm.clearDone', { count: doneTodos.length }), () => {
       runtimeIndex.replaceTodos(data.todos.filter(t => !doneIds.has(t.id)));
       saveData();
       scheduleRender();
@@ -1996,6 +2205,7 @@ export async function initApp() {
     saveData,
     showToast,
     render,
+    applyLanguage: setAppLanguage,
     updater: updaterProxy,
     testNotification: reminders.testNotification,
     getNotificationStatus: reminders.getNotificationStatus,

@@ -532,7 +532,9 @@ assert.ok(!/\$\{stats\.undone\}\/\$\{stats\.total\}/.test(appSource), 'app.js �
   assert.ok(/is-complete/.test(calendarSource), 'calendar.js 整组完成时应有完成态样式');
   assert.ok(/calendar-range/.test(calendarSource), 'calendar.js 按月切换应使用图标库图标');
   assert.ok(/data-count-tier/.test(calendarSource), 'calendar.js 月历格子任务量标识应按数量分档');
-  assert.ok(/持续至/.test(calendarSource), 'calendar.js 跨天任务应提示持续至日期');
+  assert.ok(/continueTo/.test(calendarSource), 'calendar.js 跨天任务应经 i18n continueTo 提示持续日期');
+  const zhDict = readFileSync(path.join(__dirname, '../src/i18n/zh.js'), 'utf8');
+  assert.ok(/持续至/.test(zhDict), '中文包应包含“持续至”文案');
   const renderSource = readFileSync(path.join(__dirname, '../src/renderTodoItem.js'), 'utf8');
   assert.ok(/badge-span/.test(renderSource), 'renderTodoItem.js 应支持持续至徽章（opt-in，不影响其他视图）');
   assert.ok(/calendar-detail-sub/.test(calendarSource), 'calendar.js 整月标题应展示已完成统计');
@@ -548,7 +550,8 @@ assert.ok(!/\$\{stats\.undone\}\/\$\{stats\.total\}/.test(appSource), 'app.js �
   const aiSource = readFileSync(path.join(__dirname, '../src/aiSummary.js'), 'utf8');
   assert.ok(/monthly/.test(aiSource), 'aiSummary.js 应支持 monthly 月报类型');
   assert.ok(/getMonthRange|getMonthlyReportRange/.test(aiSource), 'aiSummary.js 月报范围应收敛到自然月范围函数');
-  assert.ok(/下月计划/.test(aiSource), 'aiSummary.js 月报计划标签应为 下月计划');
+  assert.ok(/planMonthly|getAiTypeLabels/.test(aiSource), 'aiSummary.js 月报计划标签应经 i18n 获取');
+  assert.ok(/下月计划/.test(readFileSync(path.join(__dirname, '../src/i18n/zh.js'), 'utf8')), '中文包月报计划标签应为 下月计划');
   const htmlSourceMonthly = readFileSync(path.join(__dirname, '../index.html'), 'utf8');
   assert.ok(/data-type="monthly"/.test(htmlSourceMonthly), 'index.html AI 总结应包含月报页签');
 }
@@ -1392,6 +1395,42 @@ assert.ok(/btn-cancel-update/.test(settingsSource), '设置页应提供取消下
   assert.ok(!/setTimeout\((commitOnce|removeOnce),\s*260\)/.test(appSource), '完成/删除动画兜底超时应跟随全局动效');
   const snapSource = readFileSync(path.join(__dirname, '../src/miniSnap.js'), 'utf8');
   assert.ok(/panelSlideDurationMs/.test(snapSource), '贴边收起动画时长应跟随全局动效');
+}
+
+/* 语言切换（i18n）：注册表驱动、归一化、字典完整性、切换入口与持久化 */
+{
+  const { normalizeLanguage, t: tr, getHtmlLang, getSupportedLanguages, DEFAULT_LANGUAGE, buildAiPrompt } = await import('../src/i18n/index.js');
+  assert.equal(DEFAULT_LANGUAGE, 'zh');
+  assert.equal(normalizeLanguage('zh-CN'), 'zh');
+  assert.equal(normalizeLanguage('EN_us'), 'en');
+  assert.equal(normalizeLanguage('xx'), 'zh');
+  assert.equal(normalizeLanguage(''), 'zh');
+  assert.equal(getHtmlLang('zh'), 'zh-CN');
+  assert.equal(getHtmlLang('en'), 'en');
+  assert.ok(getSupportedLanguages().length >= 2, '至少支持中英两种语言');
+  assert.equal(tr('settings.title', {}, 'zh'), '设置');
+  assert.equal(tr('settings.title', {}, 'en'), 'Settings');
+  assert.equal(tr('list.countTasks', { count: 3 }, 'zh'), '3 个任务');
+  assert.equal(tr('list.countTasks', { count: 3 }, 'en'), '3 tasks');
+  assert.equal(tr('no.such.key', {}, 'en'), 'no.such.key');
+  const { zh } = await import('../src/i18n/zh.js');
+  const { en } = await import('../src/i18n/en.js');
+  assert.deepEqual(Object.keys(en).sort(), Object.keys(zh).sort(), '中英字典 key 集必须一致，新增语言照此扩展');
+  const promptZh = buildAiPrompt({ summaryType: 'monthly', typeLabel: '月报', planLabel: '下月计划', rangeLabel: '9/1 ~ 9/30', doneList: '- 无', pendingList: '- 无' }, 'zh');
+  const promptEn = buildAiPrompt({ summaryType: 'monthly', typeLabel: 'Monthly', planLabel: "Next month's plan", rangeLabel: '9/1 ~ 9/30', doneList: '- None', pendingList: '- None' }, 'en');
+  assert.ok(/下月计划/.test(promptZh) && /简洁专业的中文/.test(promptZh), '中文 AI 模板应含计划标签与中文要求');
+  assert.ok(/Next month/.test(promptEn) && /professional English/.test(promptEn), '英文 AI 模板应英文化');
+  assert.ok(/data\.language/.test(appSource), 'app.js 应持久化 data.language 偏好');
+  assert.ok(/normalizeLanguage/.test(appSource), 'app.js 应归一化 language 字段以兼容老数据');
+  assert.ok(/setAppLanguage/.test(appSource), 'app.js 应提供 setAppLanguage 统一切换入口');
+  assert.ok(/applyStaticTexts/.test(appSource), 'app.js 应提供静态壳翻译入口');
+  assert.ok(/listViewCache\.key = ''/.test(appSource), '切换语言应失效列表缓存');
+  assert.ok(/settings-lang-trigger|settings-lang-menu/.test(settingsSource), '设置头部应提供语言下拉（关闭按钮旁）');
+  assert.ok(/settings-lang-option/.test(settingsSource), '语言下拉应提供可扩展的选项列表');
+  assert.ok(/refreshSettingsLanguage|teardownPanelInstant/.test(settingsSource), '切换语言应重建已开设置面板以刷新静态文案（原地无动画重建）');
+  const calendarSourceI18n = readFileSync(path.join(__dirname, '../src/calendar.js'), 'utf8');
+  assert.ok(!/WEEKDAY_NAMES = \['日'/.test(calendarSourceI18n), 'calendar.js 不得硬编码中文星期数组，应走 i18n');
+  assert.ok(/getTrayMenuItems|onLanguageChange/.test(readFileSync(path.join(__dirname, '../src/main.js'), 'utf8')), '托盘菜单应随语言重建');
 }
 
 console.log('State checks passed');

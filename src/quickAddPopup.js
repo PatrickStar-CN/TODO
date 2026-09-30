@@ -3,8 +3,9 @@ import { escapeHtml } from './utils/html.js';
 import { initDatePicker } from './datePicker.js';
 import { iconSvg } from './icons.js';
 import { getTagDotStyle, getNextTagDotStyle } from './shared.js';
+import { t, getPriorityLabel } from './i18n/index.js';
 
-function closeAllPopups() {
+export function closeAllPopups() {
   document.querySelectorAll('.quick-popup').forEach(el => el.remove());
   document.querySelectorAll('.add-task-actions button[aria-expanded="true"]').forEach(button => {
     button.setAttribute('aria-expanded', 'false');
@@ -99,15 +100,15 @@ export function initQuickAddPopups({
     const tomorrowStr = toLocalDateInput(tomorrow);
     const nextWeekStr = toLocalDateInput(nextWeek);
     popup.innerHTML = `
-      <div class="popup-title">截止日期</div>
-      <div class="popup-option ${quickAddPreset.endTime === todayStr ? 'selected' : ''}" data-date="${todayStr}">${iconSvg('sun')}<span>今天</span></div>
-      <div class="popup-option ${quickAddPreset.endTime === tomorrowStr ? 'selected' : ''}" data-date="${tomorrowStr}">${iconSvg('calendar')}<span>明天</span></div>
-      <div class="popup-option ${quickAddPreset.endTime === nextWeekStr ? 'selected' : ''}" data-date="${nextWeekStr}">${iconSvg('calendar-range')}<span>下周</span></div>
+      <div class="popup-title">${t('quickadd.dueDate')}</div>
+      <div class="popup-option ${quickAddPreset.endTime === todayStr ? 'selected' : ''}" data-date="${todayStr}">${iconSvg('sun')}<span>${t('quickadd.today')}</span></div>
+      <div class="popup-option ${quickAddPreset.endTime === tomorrowStr ? 'selected' : ''}" data-date="${tomorrowStr}">${iconSvg('calendar')}<span>${t('quickadd.tomorrow')}</span></div>
+      <div class="popup-option ${quickAddPreset.endTime === nextWeekStr ? 'selected' : ''}" data-date="${nextWeekStr}">${iconSvg('calendar-range')}<span>${t('quickadd.nextWeek')}</span></div>
       <div class="popup-divider"></div>
       <div class="popup-custom-date">
         <input type="text" class="popup-date-input" value="${quickAddPreset.endTime || ''}">
       </div>
-      ${quickAddPreset.endTime ? `<div class="popup-option popup-clear" data-date="">${iconSvg('x')}<span>清除日期</span></div>` : ''}
+      ${quickAddPreset.endTime ? `<div class="popup-option popup-clear" data-date="">${iconSvg('x')}<span>${t('quickadd.clearDate')}</span></div>` : ''}
     `;
     document.body.appendChild(popup);
     adjustPopupPosition(popup, dateButton, container);
@@ -135,11 +136,11 @@ export function initQuickAddPopups({
     popup.className = 'quick-popup quick-popup-priority';
     priorityButton.setAttribute('aria-expanded', 'true');
     popup.innerHTML = `
-      <div class="popup-title">优先级</div>
-      <div class="popup-option ${quickAddPreset.priority === 'high' ? 'selected' : ''}" data-priority="high"><span class="prio-dot prio-high"></span>高</div>
-      <div class="popup-option ${quickAddPreset.priority === 'medium' ? 'selected' : ''}" data-priority="medium"><span class="prio-dot prio-medium"></span>中</div>
-      <div class="popup-option ${quickAddPreset.priority === 'low' ? 'selected' : ''}" data-priority="low"><span class="prio-dot prio-low"></span>低</div>
-      <div class="popup-option ${quickAddPreset.priority === 'none' ? 'selected' : ''}" data-priority="none"><span class="prio-dot prio-none"></span>无</div>
+      <div class="popup-title">${t('quickadd.priority')}</div>
+      <div class="popup-option ${quickAddPreset.priority === 'high' ? 'selected' : ''}" data-priority="high"><span class="prio-dot prio-high"></span>${getPriorityLabel('high')}</div>
+      <div class="popup-option ${quickAddPreset.priority === 'medium' ? 'selected' : ''}" data-priority="medium"><span class="prio-dot prio-medium"></span>${getPriorityLabel('medium')}</div>
+      <div class="popup-option ${quickAddPreset.priority === 'low' ? 'selected' : ''}" data-priority="low"><span class="prio-dot prio-low"></span>${getPriorityLabel('low')}</div>
+      <div class="popup-option ${quickAddPreset.priority === 'none' ? 'selected' : ''}" data-priority="none"><span class="prio-dot prio-none"></span>${getPriorityLabel('none')}</div>
     `;
     document.body.appendChild(popup);
     adjustPopupPosition(popup, priorityButton, container);
@@ -164,15 +165,15 @@ export function initQuickAddPopups({
       `<div class="popup-option ${quickAddPreset.tag === tag ? 'selected' : ''}" data-tag="${escapeHtml(tag)}"><span class="tag-dot" ${getTagDotStyle(tag, data.tags)}></span>${escapeHtml(tag)}</div>`
     ).join('');
     popup.innerHTML = `
-      <div class="popup-title">标签</div>
-      <div class="quick-tag-options" aria-label="可用标签">
-        ${tagOptions || '<div class="popup-empty">暂无标签</div>'}
+      <div class="popup-title">${t('quickadd.tag')}</div>
+      <div class="quick-tag-options" aria-label="${t('quickadd.availableTags')}">
+        ${tagOptions || `<div class="popup-empty">${t('quickadd.noTags')}</div>`}
       </div>
-      ${quickAddPreset.tag ? `<button class="popup-option popup-clear quick-tag-clear" type="button" data-tag="">${iconSvg('x')}<span>清除标签</span></button>` : ''}
+      ${quickAddPreset.tag ? `<button class="popup-option popup-clear quick-tag-clear" type="button" data-tag="">${iconSvg('x')}<span>${t('quickadd.clearTag')}</span></button>` : ''}
       <div class="quick-tag-create">
         <span class="tag-dot quick-tag-create-swatch" ${getNextTagDotStyle(data.tags)} aria-hidden="true"></span>
-        <input class="quick-tag-create-input" type="text" maxlength="20" autocomplete="off" spellcheck="false" aria-label="新标签名称" placeholder="新建标签">
-        <button class="quick-tag-create-btn" type="button" aria-label="创建并选择标签" title="创建并选择标签">${iconSvg('plus')}<span>创建</span></button>
+        <input class="quick-tag-create-input" type="text" maxlength="20" autocomplete="off" spellcheck="false" aria-label="${t('settings.newTagAria')}" placeholder="${t('quickadd.newTag')}">
+        <button class="quick-tag-create-btn" type="button" aria-label="${t('quickadd.createTagTitle')}" title="${t('quickadd.createTagTitle')}">${iconSvg('plus')}<span>${t('quickadd.create')}</span></button>
       </div>
 <div class="quick-tag-feedback" role="status" aria-live="polite"></div>
     `;
@@ -193,7 +194,7 @@ export function initQuickAddPopups({
       const name = input.value.trim();
       if (!name) {
         input.setAttribute('aria-invalid', 'true');
-        feedback.textContent = '请输入标签名称';
+        feedback.textContent = t('quickadd.inputTagName');
         input.focus();
         return;
       }
@@ -201,7 +202,7 @@ export function initQuickAddPopups({
       const result = createTag(name);
       if (!result?.tag) {
         input.setAttribute('aria-invalid', 'true');
-        feedback.textContent = result?.message || '无法创建标签';
+        feedback.textContent = result?.message || t('quickadd.cannotCreate');
         input.focus();
         return;
       }

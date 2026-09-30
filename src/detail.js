@@ -4,6 +4,7 @@ import { escapeAttr, escapeHtml } from './utils/html.js';
 import { getUiMotionDuration } from './uiPreferences.js';
 import { createFocusTrap } from './utils/focus.js';
 import { getTagDotStyle } from './shared.js';
+import { t, getPriorityLabel, getRepeatLabel } from './i18n/index.js';
 
 let onDoneTimeChange = null;
 let onBeforeDetailClose = null;
@@ -12,20 +13,24 @@ let detailReleaseFocus = null;
 let detailPreviouslyFocused = null;
 
 /* 优先级选项配置 */
-const PRIORITY_OPTIONS = [
-  { value: 'none', label: '无', dotClass: '' },
-  { value: 'low', label: '低', dotClass: 'prio-low' },
-  { value: 'medium', label: '中', dotClass: 'prio-medium' },
-  { value: 'high', label: '高', dotClass: 'prio-high' },
-];
+function getPriorityOptions() {
+  return [
+    { value: 'none', label: getPriorityLabel('none'), dotClass: '' },
+    { value: 'low', label: getPriorityLabel('low'), dotClass: 'prio-low' },
+    { value: 'medium', label: getPriorityLabel('medium'), dotClass: 'prio-medium' },
+    { value: 'high', label: getPriorityLabel('high'), dotClass: 'prio-high' },
+  ];
+}
 
 /* 重复提醒选项配置 */
-const REPEAT_OPTIONS = [
-  { value: 'none', label: '不重复' },
-  { value: 'daily', label: '每天' },
-  { value: 'weekly', label: '每周' },
-  { value: 'monthly', label: '每月' },
-];
+function getRepeatOptions() {
+  return [
+    { value: 'none', label: getRepeatLabel('none') },
+    { value: 'daily', label: getRepeatLabel('daily') },
+    { value: 'weekly', label: getRepeatLabel('weekly') },
+    { value: 'monthly', label: getRepeatLabel('monthly') },
+  ];
+}
 
 let activeDropdown = null;
 let activeSelect = null;
@@ -144,7 +149,7 @@ export function initDetailEditor(callbacks) {
   /* 优先级下拉 */
   document.getElementById('detail-priority').addEventListener('click', function (e) {
     e.stopPropagation();
-    createDetailDropdown(this, PRIORITY_OPTIONS, (opt) =>
+    createDetailDropdown(this, getPriorityOptions(), (opt) =>
       opt.dotClass ? `<span class="prio-dot ${opt.dotClass}"></span>${opt.label}` : opt.label
     );
   });
@@ -153,8 +158,8 @@ export function initDetailEditor(callbacks) {
   document.getElementById('detail-tag').addEventListener('click', function (e) {
     e.stopPropagation();
     const tagOptions = (detailData?.tags || []).map(tag => ({ value: tag, label: tag }));
-    const clearOption = { value: '', label: '未设置标签' };
-    const allOptions = tagOptions.length > 0 ? [clearOption, ...tagOptions] : [{ value: '', label: '暂无标签' }];
+    const clearOption = { value: '', label: t('detail.unsetTag') };
+    const allOptions = tagOptions.length > 0 ? [clearOption, ...tagOptions] : [{ value: '', label: t('detail.noTag') }];
     createDetailDropdown(this, allOptions, (opt) =>
       opt.value ? `<span class="tag-dot" ${getTagDotStyle(opt.value, detailData?.tags || [])}></span>${escapeHtml(opt.label)}` : escapeHtml(opt.label)
     );
@@ -163,7 +168,7 @@ export function initDetailEditor(callbacks) {
   /* 重复提醒下拉 */
   document.getElementById('detail-reminder-repeat').addEventListener('click', function (e) {
     e.stopPropagation();
-    createDetailDropdown(this, REPEAT_OPTIONS, (opt) => opt.label);
+    createDetailDropdown(this, getRepeatOptions(), (opt) => opt.label);
   });
 
   /* 点击外部关闭 */
@@ -242,7 +247,8 @@ export function openDetail(todo, triggerEl) {
   const priorityVal = todo.priority || 'none';
   const priorityEl = document.getElementById('detail-priority');
   priorityEl.dataset.value = priorityVal;
-  const priorityOption = PRIORITY_OPTIONS.find(o => o.value === priorityVal) || PRIORITY_OPTIONS[0];
+  const priorityOptions = getPriorityOptions();
+  const priorityOption = priorityOptions.find(o => o.value === priorityVal) || priorityOptions[0];
   priorityEl.querySelector('.detail-select-trigger').innerHTML = priorityOption.dotClass
     ? `<span class="prio-dot ${priorityOption.dotClass}"></span>${priorityOption.label}`
     : priorityOption.label;
@@ -253,14 +259,14 @@ export function openDetail(todo, triggerEl) {
   tagEl.dataset.value = tagVal;
   tagEl.querySelector('.detail-select-trigger').innerHTML = tagVal
     ? `<span class="tag-dot" ${getTagDotStyle(tagVal, detailData?.tags || [])}></span>${escapeHtml(tagVal)}`
-    : '未设置';
+    : t('detail.unset');
 
   /* 设置自定义下拉值 —— 重复提醒 */
   const repeatVal = todo.reminderRepeat || 'none';
   const repeatEl = document.getElementById('detail-reminder-repeat');
   repeatEl.dataset.value = repeatVal;
   repeatEl.querySelector('.detail-select-trigger').textContent =
-    REPEAT_OPTIONS.find(o => o.value === repeatVal)?.label || '不重复';
+    getRepeatOptions().find(o => o.value === repeatVal)?.label || getRepeatLabel('none');
 
   const doneRow = document.getElementById('detail-done-row');
   const doneTimeEl = document.getElementById('detail-done-time');
@@ -268,7 +274,7 @@ export function openDetail(todo, triggerEl) {
     doneRow.classList.remove('hidden');
     doneTimeEl.textContent = formatDateTime(todo.doneAt);
     doneTimeEl.style.cursor = 'pointer';
-    doneTimeEl.title = '点击修改完成时间';
+    doneTimeEl.title = t('detail.clickEditDone');
     doneTimeEl.onclick = () => enterDoneTimeEdit(todo);
   } else {
     doneRow.classList.add('hidden');
@@ -281,6 +287,48 @@ export function openDetail(todo, triggerEl) {
     (todo.createdAt && !Number.isNaN(new Date(todo.createdAt).getTime()))
       ? formatDateTime(new Date(todo.createdAt).toISOString())
       : '—';
+}
+
+export function closeDetailDropdownsPublic() {
+  closeDetailDropdowns();
+}
+
+/* 语言切换时刷新已开详情面板：只重填下拉触发器与日期触发器文案，
+ * 不触碰用户正在编辑的输入值/复选框，避免丢失未保存改动 */
+export function refreshDetailLanguage() {
+  closeDetailDropdowns();
+  const panel = document.getElementById('detail-panel');
+  if (!panel || panel.classList.contains('hidden')) return;
+  const priorityEl = document.getElementById('detail-priority');
+  if (priorityEl) {
+    const val = priorityEl.dataset.value || 'none';
+    const opts = getPriorityOptions();
+    const opt = opts.find(o => o.value === val) || opts[0];
+    priorityEl.querySelector('.detail-select-trigger').innerHTML = opt.dotClass
+      ? `<span class="prio-dot ${opt.dotClass}"></span>${opt.label}`
+      : opt.label;
+  }
+  const tagEl = document.getElementById('detail-tag');
+  if (tagEl) {
+    const tagVal = tagEl.dataset.value || '';
+    tagEl.querySelector('.detail-select-trigger').innerHTML = tagVal
+      ? `<span class="tag-dot" ${getTagDotStyle(tagVal, detailData?.tags || [])}></span>${escapeHtml(tagVal)}`
+      : t('detail.unset');
+  }
+  const repeatEl = document.getElementById('detail-reminder-repeat');
+  if (repeatEl) {
+    const val = repeatEl.dataset.value || 'none';
+    repeatEl.querySelector('.detail-select-trigger').textContent =
+      getRepeatOptions().find(o => o.value === val)?.label || getRepeatLabel('none');
+  }
+  ['detail-start', 'detail-end', 'detail-reminder'].forEach((id) => {
+    const input = document.getElementById(id);
+    if (input) setDatePickerValue(input, input.value || '');
+  });
+  const doneTimeEl = document.getElementById('detail-done-time');
+  if (doneTimeEl && doneTimeEl.tagName !== 'INPUT') {
+    doneTimeEl.title = doneTimeEl.textContent ? t('detail.clickEditDone') : '';
+  }
 }
 
 export function closeDetail() {
@@ -349,7 +397,7 @@ function enterDoneTimeEdit(todo) {
     const displayValue = save ? (input.value ? new Date(input.value).toISOString() : null) : todo.doneAt;
     span.textContent = displayValue ? formatDateTime(displayValue) : '';
     span.style.cursor = 'pointer';
-    span.title = '点击修改完成时间';
+    span.title = t('detail.clickEditDone');
     span.onclick = () => enterDoneTimeEdit(todo);
     const inputWrapper = input.closest('.dp-wrapper') || input;
     inputWrapper.replaceWith(span);

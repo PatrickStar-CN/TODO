@@ -1,3 +1,5 @@
+import { t, getWeekdayName } from '../i18n/index.js';
+
 export function toLocalDatetime(date) {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, '0');
@@ -49,17 +51,17 @@ export function isToday(dateStr) {
 }
 
 export function getWeekday(date) {
-  return ['日', '一', '二', '三', '四', '五', '六'][date.getDay()];
+  return getWeekdayName(date.getDay());
 }
 
 export function formatDate(str) {
   if (!str) return '';
   const d = new Date(str);
   const now = new Date();
-  if (isSameDay(d, now)) return '今天';
+  if (isSameDay(d, now)) return t('date.today');
   const tomorrow = new Date(now);
   tomorrow.setDate(tomorrow.getDate() + 1);
-  if (isSameDay(d, tomorrow)) return '明天';
+  if (isSameDay(d, tomorrow)) return t('date.tomorrow');
   return `${d.getMonth() + 1}/${d.getDate()}`;
 }
 

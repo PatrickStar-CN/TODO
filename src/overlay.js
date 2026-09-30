@@ -1,6 +1,7 @@
 import { escapeHtml } from './utils/html.js';
 import { getUiMotionDuration } from './uiPreferences.js';
 import { createFocusTrap } from './utils/focus.js';
+import { t } from './i18n/index.js';
 
 export function createOverlay(title, content, actions, triggerEl) {
   const previouslyFocused = triggerEl && document.contains(triggerEl)
@@ -66,9 +67,9 @@ export function createManagedOverlay(title, content, actions, triggerEl) {
 
 export function showConfirmDialog(message, onConfirm, triggerEl) {
   const overlay = createOverlay(
-    '确认操作',
+    t('confirm.title'),
     `<p class="overlay-message">${escapeHtml(message)}</p>`,
-    '<button class="btn-cancel">取消</button><button class="btn-danger">确定</button>',
+    `<button class="btn-cancel">${t('common.cancel')}</button><button class="btn-danger">${t('common.confirm')}</button>`,
     triggerEl
   );
 

@@ -6,6 +6,7 @@ import { registerWindowsToastApp } from './windowsToast.js';
 import { hydrateIcons } from './icons.js';
 import { initGlassTooltip } from './glassTooltip.js';
 import { initOverlayScrollbars } from './overlayScrollbars.js';
+import { t, getLanguage, onLanguageChange } from './i18n/index.js';
 
 const SECOND_INSTANCE_EVENT = 'todo-tools:second-instance';
 const RESTORE_MAIN_WINDOW_EVENT = 'todo-tools:restore-main-window';
@@ -158,18 +159,30 @@ async function exitApp() {
   await Neutralino.app.exit().catch(() => {});
 }
 
+function getTrayMenuItems() {
+  return [
+    { id: 'show', text: t('tray.show') },
+    { id: 'quit', text: t('tray.quit') }
+  ];
+}
+
 function setupTray() {
+  const applyTrayMenu = () => {
+    try {
+      Neutralino.os.setTray({
+        icon: '/dist/icon.png',
+        menuItems: getTrayMenuItems()
+      });
+    } catch (err) {
+      console.warn('[tray] failed to create system tray:', err);
+    }
+  };
+  applyTrayMenu();
   try {
-    Neutralino.os.setTray({
-      icon: '/dist/icon.png',
-      menuItems: [
-        { id: 'show', text: '显示窗口' },
-        { id: 'quit', text: '退出' }
-      ]
+    onLanguageChange(() => {
+      if (typeof Neutralino !== 'undefined') applyTrayMenu();
     });
-  } catch (err) {
-    console.warn('[tray] failed to create system tray:', err);
-  }
+  } catch { /* ignore */ }
 
   Neutralino.events.on('trayMenuItemClicked', (event) => {
     switch (event.detail.id) {

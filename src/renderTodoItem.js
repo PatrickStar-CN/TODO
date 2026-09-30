@@ -1,6 +1,7 @@
 import { formatDate } from './utils/date.js';
 import { createIcon, setIcon } from './icons.js';
 import { getTagBadgeStyle } from './shared.js';
+import { t, getPriorityLabel } from './i18n/index.js';
 
 function setIconLabel(element, iconName, label) {
   const icon = createIcon(iconName);
@@ -21,7 +22,7 @@ export function createTodoItemEl(t, { currentList, tags, spanText = '' }) {
   checkbox.dataset.id = t.id;
   checkbox.setAttribute('role', 'checkbox');
   checkbox.setAttribute('aria-checked', String(t.done));
-  checkbox.setAttribute('aria-label', '标记完成');
+  checkbox.setAttribute('aria-label', t('todo.markDone'));
   checkbox.tabIndex = 0;
   item.appendChild(checkbox);
 
@@ -31,7 +32,7 @@ export function createTodoItemEl(t, { currentList, tags, spanText = '' }) {
   body.dataset.id = t.id;
   body.setAttribute('role', 'button');
   body.tabIndex = 0;
-  body.setAttribute('aria-label', `编辑任务：${t.title}`);
+  body.setAttribute('aria-label', t('todo.editTask', { title: t.title }));
 
   const title = document.createElement('div');
   title.className = 'todo-title';
@@ -49,16 +50,16 @@ export function createTodoItemEl(t, { currentList, tags, spanText = '' }) {
   const starBtn = document.createElement('button');
   starBtn.dataset.action = 'star';
   starBtn.dataset.id = t.id;
-  starBtn.title = '重要';
-  starBtn.setAttribute('aria-label', t.important ? '取消重要' : '标记重要');
+  starBtn.title = t('todo.important');
+  starBtn.setAttribute('aria-label', t.important ? t('todo.unImportant') : t('todo.markImportant'));
   setIcon(starBtn, t.important ? 'star-filled' : 'star');
   actions.appendChild(starBtn);
 
   const delBtn = document.createElement('button');
   delBtn.dataset.action = 'delete';
   delBtn.dataset.id = t.id;
-  delBtn.title = '删除';
-  delBtn.setAttribute('aria-label', '删除');
+  delBtn.title = t('todo.delete');
+  delBtn.setAttribute('aria-label', t('todo.delete'));
   setIcon(delBtn, 'x');
   actions.appendChild(delBtn);
 
@@ -113,7 +114,7 @@ function buildBadges(t, tags, currentList, spanText = '') {
   if (t.priority && t.priority !== 'none') {
     const badge = document.createElement('span');
     badge.className = `badge badge-priority-${t.priority}`;
-    setIconLabel(badge, 'circle', { high: '高', medium: '中', low: '低' }[t.priority]);
+    setIconLabel(badge, 'circle', getPriorityLabel(t.priority));
     meta.appendChild(badge);
     count++;
   }
@@ -130,7 +131,7 @@ function buildBadges(t, tags, currentList, spanText = '') {
     const badge = document.createElement('span');
     badge.className = 'badge badge-reminder';
     setIcon(badge, 'bell');
-    badge.setAttribute('aria-label', '已设置提醒');
+    badge.setAttribute('aria-label', t('todo.reminderSet'));
     meta.appendChild(badge);
     count++;
   }

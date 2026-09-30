@@ -1,11 +1,15 @@
 import { isSameDay, formatMonthDay } from './utils/date.js';
 import { iconSvg } from './icons.js';
+import { t, getLanguage, getWeekdayName, formatCalendarTitle, formatYearTitle, formatDayActivity } from './i18n/index.js';
 
 /* 月视图日期索引：{ 'YYYY-MM-DD': [todo, ...] }
  * 一次构建后，月内所有格子的 getTodosForDate 查询为 O(1) */
 export const MONTH_TODOS_PAGE_SIZE = 25;
 
-const WEEKDAY_NAMES = ['日', '一', '二', '三', '四', '五', '六'];
+const WEEKDAY_NAMES = null;
+function weekdayName(day) {
+  return getWeekdayName(day);
+}
 
 function fmtYMD(date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
@@ -153,13 +157,13 @@ export function renderCalendar({ currentMonth, selectedDate, data, getTodosForDa
   calendarGrid?.classList.toggle('month-mode', monthMode);
 
   if (!monthMode) {
-    calendarTitle.textContent = `${year}年`;
+    calendarTitle.textContent = formatYearTitle(year);
     renderYearHeatmap({ year, selectedDate, data, calendarDays, monthLabels, todayDate, metric: mode });
     if (onDetailRender) onDetailRender(idx);
     return;
   }
 
-  calendarTitle.textContent = `${year}年${month + 1}月`;
+  calendarTitle.textContent = formatCalendarTitle(year, month);
   if (monthLabels) monthLabels.innerHTML = '';
 
   const firstDay = new Date(year, month, 1).getDay();
@@ -186,7 +190,7 @@ export function renderCalendar({ currentMonth, selectedDate, data, getTodosForDa
     const todosOnDay = lookup(date);
     const activity = activityIndex.get(fmtYMD(date)) || { created: 0, done: 0 };
     const heatStyle = '--heat-alpha:0';
-    const activityLabel = `${month + 1}月${d}日，${todosOnDay.length} 项任务`;
+    const activityLabel = formatDayActivity(month + 1, d, todosOnDay.length);
     /* 任务量标识按数量分档：1 项短点、2-3 项中线、4 项以上长线，一眼分辨忙闲 */
     const countTier = todosOnDay.length <= 0 ? 0 : todosOnDay.length === 1 ? 1 : todosOnDay.length <= 3 ? 2 : 3;
     const taskMarker = countTier > 0
@@ -235,7 +239,7 @@ function renderYearHeatmap({ year, selectedDate, data, calendarDays, monthLabels
           - Date.UTC(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate())) / 86400000
       );
       const week = Math.floor(dayOffset / 7) + 1;
-      return `<span style="grid-column:${week}">${month + 1}月</span>`;
+      return `<span style="grid-column:${week}">${t('calendar.monthLabel', { month: month + 1 })}</span>`;
     }).join('');
   }
 
@@ -250,8 +254,8 @@ function renderYearHeatmap({ year, selectedDate, data, calendarDays, monthLabels
       const heatAlpha = getHeatAlpha(count, maxCount);
       const today = isSameDay(cursor, todayDate);
       const selected = selectedDate && isSameDay(cursor, selectedDate);
-      const metricLabel = metric === 'completed' ? '完成' : '任务';
-      const label = `${cursor.getMonth() + 1}月${cursor.getDate()}日，${metricLabel} ${count} 项`;
+      const metricLabel = metric === 'completed' ? t('calendar.metricDone') : t('calendar.metricTask');
+      const label = t('calendar.heatLabel', { month: cursor.getMonth() + 1, day: cursor.getDate(), metric: metricLabel, count });
       html += `<div class="calendar-day year-day${today ? ' today' : ''}${selected ? ' selected' : ''}${count ? ' has-activity' : ''}" data-date="${key}" data-count="${count}" style="--heat-alpha:${heatAlpha}" role="button" tabindex="0" aria-label="${label}" title="${label}"><span class="calendar-day-number">${cursor.getDate()}</span></div>`;
     }
     cursor.setDate(cursor.getDate() + 1);
@@ -356,9 +360,9 @@ export function paginateList(list, visibleCount) {
 
 function renderDetailSwitch(detailView) {
   const dayActive = detailView !== 'month';
-  return `<div class="calendar-detail-switch" role="tablist" aria-label="日期详情范围">`
-    + `<button type="button" role="tab" aria-selected="${dayActive}" class="calendar-detail-switch-btn${dayActive ? ' active' : ''}" data-detail-view="day" title="按天查看">${iconSvg('calendar', 'detail-switch-icon')}<span>按天</span></button>`
-    + `<button type="button" role="tab" aria-selected="${!dayActive}" class="calendar-detail-switch-btn${!dayActive ? ' active' : ''}" data-detail-view="month" title="按月查看整月任务">${iconSvg('calendar-range', 'detail-switch-icon')}<span>按月</span></button>`
+  return `<div class="calendar-detail-switch" role="tablist" aria-label="${t('calendar.detailRange')}">`
+    + `<button type="button" role="tab" aria-selected="${dayActive}" class="calendar-detail-switch-btn${dayActive ? ' active' : ''}" data-detail-view="day" title="${t('calendar.byDayTitle')}">${iconSvg('calendar', 'detail-switch-icon')}<span>${t('calendar.byDay')}</span></button>`
+    + `<button type="button" role="tab" aria-selected="${!dayActive}" class="calendar-detail-switch-btn${!dayActive ? ' active' : ''}" data-detail-view="month" title="${t('calendar.byMonthTitle')}">${iconSvg('calendar-range', 'detail-switch-icon')}<span>${t('calendar.byMonth')}</span></button>`
     + `</div>`;
 }
 
@@ -376,20 +380,21 @@ function renderMonthGroupsInto(container, groups, renderTodoItem, mode = 'month'
       const isToday = isSameDay(group.date, today);
       if (isToday) groupEl.classList.add('is-today');
       if (doneInGroup === group.todos.length && group.todos.length > 0) header.classList.add('is-complete');
-      const dateLabel = `${group.date.getMonth() + 1}月${group.date.getDate()}日`;
+      const dateLabel = t('calendar.groupDate', { month: group.date.getMonth() + 1, day: group.date.getDate() });
       header.dataset.jumpDate = fmtYMD(group.date);
-      header.title = `查看${dateLabel}事项`;
-      header.setAttribute('aria-label', `查看${dateLabel}事项，共${group.todos.length}项，已完成${doneInGroup}项`);
-      header.innerHTML = `<span class="month-group-date"><strong>${group.date.getDate()}日</strong>`
-        + `<span>星期${WEEKDAY_NAMES[group.date.getDay()]}</span>`
-        + (isToday ? '<span class="month-group-today">今天</span>' : '')
-        + `</span><span class="month-group-count">${group.todos.length}项</span>`
+      header.title = t('calendar.viewItems', { label: dateLabel });
+      header.setAttribute('aria-label', t('calendar.viewItemsAria', { label: dateLabel, total: group.todos.length, done: doneInGroup }));
+      const dayNum = getLanguage() === 'en' ? String(group.date.getDate()) : `${group.date.getDate()}日`;
+      header.innerHTML = `<span class="month-group-date"><strong>${dayNum}</strong>`
+        + `<span>${weekdayName(group.date.getDay())}</span>`
+        + (isToday ? `<span class="month-group-today">${t('calendar.today')}</span>` : '')
+        + `</span><span class="month-group-count">${t('calendar.itemsCount', { count: group.todos.length })}</span>`
         + iconSvg('chevron-right', 'month-group-jump-icon');
     } else {
       header.disabled = true;
-      header.setAttribute('aria-label', `未知日期，共${group.todos.length}项`);
-      header.innerHTML = `<span class="month-group-date"><strong>未知日期</strong></span>`
-        + `<span class="month-group-count">${group.todos.length}项</span>`;
+      header.setAttribute('aria-label', t('calendar.unknownAria', { count: group.todos.length }));
+      header.innerHTML = `<span class="month-group-date"><strong>${t('calendar.unknownDate')}</strong></span>`
+        + `<span class="month-group-count">${t('calendar.itemsCount', { count: group.todos.length })}</span>`;
     }
     groupEl.appendChild(header);
     const listEl = document.createElement('div');
@@ -401,7 +406,7 @@ function renderMonthGroupsInto(container, groups, renderTodoItem, mode = 'month'
       if (showSpan && groupDay !== null) {
         const range = getTodoTaskDateRange(t);
         if (range && range[1].getTime() > groupDay) {
-          spanText = `持续至 ${formatMonthDay(range[1])}`;
+          spanText = t('calendar.continueTo', { date: formatMonthDay(range[1]) });
         }
       }
       listEl.appendChild(renderTodoItem(t, { spanText }));
@@ -415,12 +420,12 @@ function renderMonthSentinel(total, rendered) {
   if (total <= 0) return '';
   const percent = Math.min(100, Math.round(rendered / total * 100));
   if (total <= rendered) {
-    return `<div class="calendar-month-sentinel is-complete" role="status">${iconSvg('check', 'month-sentinel-icon')}<span>已显示全部 ${total} 项</span></div>`;
+    return `<div class="calendar-month-sentinel is-complete" role="status">${iconSvg('check', 'month-sentinel-icon')}<span>${t('calendar.shownAll', { total })}</span></div>`;
   }
   return `<div class="calendar-month-sentinel" role="status">`
     + `<div class="calendar-month-progress" aria-hidden="true"><i style="width:${percent}%"></i></div>`
-    + `<span>已显示 ${rendered} 项，共 ${total} 项</span>`
-    + `<button type="button" class="btn-glass calendar-month-more" data-action="load-more-month" aria-label="加载更多本月任务，已显示${rendered}项共${total}项">${iconSvg('chevron-down', 'month-more-icon')}<span>加载更多</span></button></div>`;
+    + `<span>${t('calendar.shownPart', { shown: rendered, total })}</span>`
+    + `<button type="button" class="btn-glass calendar-month-more" data-action="load-more-month" aria-label="${t('calendar.loadMoreAria', { shown: rendered, total })}">${iconSvg('chevron-down', 'month-more-icon')}<span>${t('calendar.loadMore')}</span></button></div>`;
 }
 
 export function renderCalendarDetail({ selectedDate, data, renderTodoItem, mode = 'month', detailView = 'day', monthDate = null, visibleMonthCount = MONTH_TODOS_PAGE_SIZE }, monthIndex) {
@@ -443,15 +448,15 @@ export function renderCalendarDetail({ selectedDate, data, renderTodoItem, mode 
     calendarDetail.dataset.monthRendered = String(visible.length);
     const completedMode = mode === 'completed';
     const tasksMode = mode === 'tasks';
-    const detailLabel = completedMode ? ' · 完成事项' : tasksMode ? ' · 任务事项' : '';
+    const detailLabel = completedMode ? t('calendar.monthSuffixDone') : tasksMode ? t('calendar.monthSuffixTasks') : '';
     const doneCount = completedMode ? total : monthTodos.filter(t => t.done).length;
-    const doneSub = (!completedMode && doneCount > 0) ? ` <small class="calendar-detail-sub">已完成 ${doneCount}</small>` : '';
-    const title = `${viewMonth + 1}月${detailLabel} (${total}项)${doneSub}`;
+    const doneSub = (!completedMode && doneCount > 0) ? ` <small class="calendar-detail-sub">${t('calendar.doneSub', { count: doneCount })}</small>` : '';
+    const title = t('calendar.monthTitleCount', { month: viewMonth + 1, label: detailLabel, total });
     calendarDetail.innerHTML = `<div class="calendar-detail-header"><h3>${title}</h3>${renderDetailSwitch('month')}</div>`
       + `<div class="calendar-detail-scroll"><div id="calendar-todo-list" class="calendar-month-list"></div>${renderMonthSentinel(total, visible.length)}</div>`;
     const monthList = calendarDetail.querySelector('#calendar-todo-list');
     if (total === 0) {
-      const emptyText = completedMode ? '本月无完成事项' : tasksMode ? '本月无任务' : '本月无事项';
+      const emptyText = completedMode ? t('calendar.emptyMonthDone') : tasksMode ? t('calendar.emptyMonthTasks') : t('calendar.emptyMonth');
       monthList.innerHTML = `<div class="calendar-month-empty">${iconSvg('calendar', 'month-empty-icon')}<p class="empty-state-hint">${emptyText}</p></div>`;
     } else {
       renderMonthGroupsInto(monthList, groupMonthTodos(visible, mode, viewYear, viewMonth), renderTodoItem, mode);
@@ -471,8 +476,8 @@ export function renderCalendarDetail({ selectedDate, data, renderTodoItem, mode 
     calendarDetail.dataset.monthTotal = '0';
     calendarDetail.dataset.monthRendered = '0';
     const monthTodos = getMonthTodos(viewYear, viewMonth, data, mode);
-    calendarDetail.innerHTML = `<div class="calendar-detail-header"><h3>点击日期查看事项</h3>${renderDetailSwitch('day')}</div>`
-      + `<div class="calendar-detail-scroll"><div class="calendar-detail-empty">${iconSvg('calendar-range', 'detail-empty-icon')}<p class="empty-state-hint">点击日期查看事项，或切换到按月查看本月 ${monthTodos.length} 项</p></div></div>`;
+    calendarDetail.innerHTML = `<div class="calendar-detail-header"><h3>${t('calendar.clickToView')}</h3>${renderDetailSwitch('day')}</div>`
+      + `<div class="calendar-detail-scroll"><div class="calendar-detail-empty">${iconSvg('calendar-range', 'detail-empty-icon')}<p class="empty-state-hint">${t('calendar.clickOrMonth', { count: monthTodos.length })}</p></div></div>`;
     return;
   }
   const dateKey = fmtYMD(selectedDate);
@@ -488,14 +493,14 @@ export function renderCalendarDetail({ selectedDate, data, renderTodoItem, mode 
       : monthIndex
         ? (monthIndex.get(dateKey) || [])
         : getTodosForDate(selectedDate, data);
-  const dateStr = `${selectedDate.getMonth() + 1}月${selectedDate.getDate()}日 星期${WEEKDAY_NAMES[selectedDate.getDay()]}`;
+  const dateStr = t('calendar.dayStr', { month: selectedDate.getMonth() + 1, day: selectedDate.getDate(), weekday: weekdayName(selectedDate.getDay()) });
   if (dayTodos.length === 0) {
-    const emptyText = completedMode ? '当天无完成事项' : tasksMode ? '当天无任务' : '当天无事项';
+    const emptyText = completedMode ? t('calendar.emptyDayDone') : tasksMode ? t('calendar.emptyDayTasks') : t('calendar.emptyDay');
     calendarDetail.innerHTML = `<div class="calendar-detail-header"><h3>${dateStr}</h3>${renderDetailSwitch('day')}</div><div class="calendar-detail-scroll"><div class="calendar-detail-empty">${iconSvg('calendar', 'detail-empty-icon')}<p class="empty-state-hint">${emptyText}</p></div></div>`;
     return;
   }
-  const detailLabel = completedMode ? ' · 完成事项' : tasksMode ? ' · 任务事项' : '';
-  calendarDetail.innerHTML = `<div class="calendar-detail-header"><h3>${dateStr}${detailLabel} (${dayTodos.length}项)</h3>${renderDetailSwitch('day')}</div><div class="calendar-detail-scroll"><div id="calendar-todo-list" class="todo-list calendar-todo-list"></div></div>`;
+  const detailLabel = completedMode ? t('calendar.monthSuffixDone') : tasksMode ? t('calendar.monthSuffixTasks') : '';
+  calendarDetail.innerHTML = `<div class="calendar-detail-header"><h3>${t('calendar.dayTitle', { date: dateStr, label: detailLabel, count: dayTodos.length })}</h3>${renderDetailSwitch('day')}</div><div class="calendar-detail-scroll"><div id="calendar-todo-list" class="todo-list calendar-todo-list"></div></div>`;
   const calendarTodoList = calendarDetail.querySelector('#calendar-todo-list');
   dayTodos.forEach(t => calendarTodoList.appendChild(renderTodoItem(t)));
   if (dateChanged) {
