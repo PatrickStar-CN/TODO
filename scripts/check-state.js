@@ -14,6 +14,7 @@ import { INSTANCE_LOCK_DIR, INSTANCE_LOCK_FILE, getNextTagDotStyle, getTagTaskCo
 import { extractCompleteContent, normalizeStreamText, parseSseLine, resolveAiApiUrl } from '../src/utils/aiApi.js';
 import { DEFAULT_TIMELINE_SETTINGS, formatTimelineTime, getTimelineDateParts, normalizeTimelineSettings, sortTimelineTodos } from '../src/timeline.js';
 import { clampDonePanelHeight, computeDonePanelHeightFromPointer, computeDonePanelMaxHeightFromRects } from '../src/donePanelResize.js';
+import { EXPORT_FORMATS, EXPORT_SCHEMA_VERSION, buildExportFileName, buildExportPayload, buildMarkdownExport, exportData } from '../src/dataExport.js';
 
 assert.equal(resolveAiApiUrl('https://api.openai.com/v1'), 'https://api.openai.com/v1/chat/completions');
 assert.equal(resolveAiApiUrl('https://api.openai.com/v1/'), 'https://api.openai.com/v1/chat/completions');
@@ -483,7 +484,7 @@ delete globalThis.fetch;
 /* 回归：cdfc1c2 把 initDetailEditor 的 data 局部变量改成模块级 detailData 后，
    详情标签下拉处理器不得再引用裸 data 变量，否则打开任务标签编辑器会抛
    ReferenceError(data is not defined)，导致标签编辑界面卡死且改动无法保存 */
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -1397,6 +1398,218 @@ assert.ok(/btn-cancel-update/.test(settingsSource), '设置页应提供取消下
   assert.ok(/panelSlideDurationMs/.test(snapSource), '贴边收起动画时长应跟随全局动效');
 }
 
+/* 数据导出：快照形状（剔除 _index / apiKey 策略）、Markdown 清单、双运行时落盘 */
+{
+  const { zh: dictZh } = await import('../src/i18n/zh.js');
+  const { en: dictEn } = await import('../src/i18n/en.js');
+  assert.deepEqual(EXPORT_FORMATS, ['json', 'markdown'], '导出格式应固定为 JSON 与 Markdown');
+  assert.equal(EXPORT_SCHEMA_VERSION, 1, '导出快照应带版本标记');
+
+  const sampleData = {
+    todos: [
+      { id: 'a', title: '写周报', desc: '多行\n备注', priority: 'high', tag: '计划内', startTime: '2026-09-30T09:00', endTime: null, done: false, archived: false, doneAt: null, createdAt: 1750000000000 },
+      { id: 'b', title: '修 bug', desc: '', priority: 'none', tag: '', startTime: null, endTime: null, done: true, archived: false, doneAt: '2026-09-29T18:00:00.000Z', createdAt: 1750000000000 },
+      { id: 'c', title: '旧任务', desc: '', priority: 'low', tag: '归档', startTime: null, endTime: null, done: false, archived: true, archivedAt: '2026-08-01T10:00:00.000Z', createdAt: 1750000000000 }
+    ],
+    tags: ['计划内', '归档'],
+    aiConfig: { apiUrl: 'https://api.example.com/v1', apiKey: 'sk-secret-value', model: 'gpt-4o-mini', customPrompt: '' },
+    theme: 'auto',
+    language: 'zh',
+    _index: { counts: { todo: 9 }, tagTotal: { 计划内: 9 } }
+  };
+
+  /* 默认剔除 apiKey：导出文件会明文落盘，密钥不应被顺手带出 */
+  const payload = buildExportPayload(sampleData);
+  assert.ok(!('_index' in payload), '_index 是纯运行时数据，不得出现在导出文件');
+  assert.equal(payload.aiConfig.apiKey, '', '默认导出应剔除 apiKey');
+  assert.equal(payload.aiConfig.apiUrl, 'https://api.example.com/v1', 'AI 其余字段应保留');
+  assert.equal(payload.aiConfig.model, 'gpt-4o-mini', 'AI 模型应保留');
+  assert.deepEqual(payload.todos, sampleData.todos, '任务列表应原样导出');
+  assert.deepEqual(payload.tags, sampleData.tags, '标签应原样导出');
+  assert.equal(payload.theme, 'auto', '界面偏好应一并导出');
+  assert.ok('_index' in sampleData && sampleData._index, 'buildExportPayload 不得就地删除源数据的 _index');
+  assert.equal(sampleData.aiConfig.apiKey, 'sk-secret-value', 'buildExportPayload 不得就地清空源数据的 apiKey');
+  assert.notEqual(payload.aiConfig, sampleData.aiConfig, 'aiConfig 应深拷贝，避免导出污染运行态');
+
+  const withKey = buildExportPayload(sampleData, { includeApiKey: true });
+  assert.equal(withKey.aiConfig.apiKey, 'sk-secret-value', '显式勾选后应包含 apiKey');
+  assert.ok(!('_index' in withKey), '勾选 apiKey 时同样不得带出 _index');
+
+  /* 损坏/异常数据不得抛裸错，也不得产出非法结构 */
+  const sparse = buildExportPayload({ todos: 'not-an-array', tags: null, aiConfig: null });
+  assert.deepEqual(sparse.todos, [], 'todos 非数组时应回落为空数组');
+  assert.deepEqual(sparse.tags, [], 'tags 非数组时应回落为空数组');
+  assert.deepEqual(sparse.aiConfig, { apiKey: '' }, 'aiConfig 缺失时应补默认并剔除密钥');
+  assert.throws(() => buildExportPayload(null), TypeError, 'buildExportPayload 应对非对象抛错');
+  assert.throws(() => buildExportPayload('nope'), TypeError, 'buildExportPayload 应对字符串抛错');
+  assert.throws(() => buildMarkdownExport(undefined), TypeError, 'buildMarkdownExport 应对非对象抛错');
+
+  /* 文件名用本地时间戳，避免 UTC 偏移串到别的一天 */
+  const stampNow = new Date(2026, 8, 30, 15, 4);
+  assert.equal(buildExportFileName('json', stampNow), 'todo-backup-20260930-1504.json', 'JSON 备份文件名应带本地时间戳');
+  assert.equal(buildExportFileName('markdown', stampNow), 'todo-20260930-1504.md', 'Markdown 文件名应带本地时间戳');
+  assert.throws(() => buildExportFileName('csv', stampNow), TypeError, '未知格式应抛错');
+
+  /* Markdown 清单：本地化标题 + 三段分组 + 转义 */
+  const md = buildMarkdownExport(sampleData, { now: stampNow });
+  assert.ok(md.startsWith(`# ${dictZh['export.mdTitle']}`), 'Markdown 应以本地化标题开头');
+  assert.ok(md.includes(`- ${dictZh['export.mdExportedAt']}: 2026-09-30T15:04`), 'Markdown 应记录本地导出时间');
+  assert.ok(md.includes(`- ${dictZh['export.mdDone']}: 1`), 'Markdown 统计已完成数');
+  assert.ok(md.includes(`- ${dictZh['export.mdTags']}: 计划内、归档`), 'Markdown 应列出标签并使用本地化分隔符');
+  assert.ok(md.includes(`## ${dictZh['export.mdTodoSection']} (1)`), 'Markdown 应含待办分组及计数');
+  assert.ok(md.includes(`## ${dictZh['export.mdDoneSection']} (1)`), 'Markdown 应含已完成分组及计数');
+  assert.ok(md.includes(`## ${dictZh['export.mdArchivedSection']} (1)`), 'Markdown 应含已归档分组及计数');
+  assert.ok(md.includes('写周报') && md.includes('修 bug') && md.includes('旧任务'), 'Markdown 应包含各任务标题');
+  assert.ok(md.includes(dictZh['priority.high']), 'Markdown 应本地化优先级');
+  /* 表头必须用「字段」级 key：detail.title 是面板标题（编辑任务），detail.desc 不存在 */
+  const mdHeader = md.split('\n').find(l => l.startsWith('| | '));
+  [dictZh['detail.fieldTitle'], dictZh['detail.priority'], dictZh['detail.tag'],
+    dictZh['detail.startTime'], dictZh['detail.endTime'],
+    dictZh['detail.createdTime'], dictZh['detail.doneTime'], dictZh['detail.fieldDesc']]
+    .forEach((label) => assert.ok(mdHeader.includes(label), `Markdown 表头应含「${label}」`));
+  assert.ok(!/detail\.[a-zA-Z]+/.test(md), 'Markdown 不得泄漏未命中的 i18n key（t() 会原样返回 key）');
+  /* 创建/完成时间：createdAt 为 epoch 数字、doneAt 为 ISO 字符串，两种形态都要能落到本地时间 */
+  const mdRows = md.split('\n').filter(l => l.startsWith('| ['));
+  assert.equal(mdRows.length, 3, 'Markdown 应输出三行任务');
+  assert.ok(mdHeader.split('|').length === mdRows[0].split('|').length, '表头与数据行列数必须一致');
+  assert.equal(mdRows[0].split('|').length, 11, '应为勾选列 + 8 个字段列');
+  const mdRowsByTitle = new Map(mdRows.map(row => [row.split('|')[2].trim(), row.split('|').map(c => c.trim())]));
+  const createdCol = mdHeader.split('|').findIndex(c => c.includes(dictZh['detail.createdTime']));
+  const doneCol = mdHeader.split('|').findIndex(c => c.includes(dictZh['detail.doneTime']));
+  assert.ok(createdCol > 0 && doneCol > createdCol, '创建时间与完成时间列位置应在表头中就位');
+  const todoRow = mdRowsByTitle.get('写周报');
+  assert.equal(todoRow[createdCol], toLocalDatetime(new Date(1750000000000)), 'createdAt 应按 epoch 数字转为本地时间');
+  assert.equal(todoRow[doneCol], dictZh['detail.unset'], '未完成任务的完成时间应为未设置');
+  const doneRow = mdRowsByTitle.get('修 bug');
+  assert.equal(doneRow[doneCol], toLocalDatetime(new Date('2026-09-29T18:00:00.000Z')), 'doneAt 应按 ISO 字符串转为本地时间');
+  /* 缺失/非法时间不得输出 Invalid Date 或空单元格 */
+  const mdSparse = buildMarkdownExport({
+    todos: [
+      { title: '无时间', createdAt: null, doneAt: null },
+      { title: '坏时间', createdAt: 'not-a-date', doneAt: 'not-a-date' }
+    ]
+  }, { now: stampNow });
+  mdSparse.split('\n').filter(l => l.startsWith('| [')).forEach((row) => {
+    assert.ok(!/Invalid Date|undefined|NaN/.test(row), `非法时间不得泄漏到输出: ${row}`);
+  });
+  assert.ok(mdSparse.includes(dictZh['detail.unset']), '缺失时间应回落为未设置文案');
+  assert.ok(md.includes('<br>'), 'Markdown 单元格内的换行应转成 <br>');
+  assert.ok(!md.includes('sk-secret-value'), 'Markdown 不应输出任何凭据');
+  const mdEmpty = buildMarkdownExport({ todos: [], tags: [] }, { now: stampNow });
+  assert.ok(mdEmpty.includes(dictZh['export.mdEmpty']), '空数据应给出空态文案');
+
+  /* 桌面端：os.showSaveDialog 在 nativeAllowList 内，取消不得写盘 */
+  const desktopWrites = [];
+  const saveDialogCalls = [];
+  let saveDialogResult = 'C:\\Users\\test\\todo-backup-20260930-1504.json';
+  globalThis.NL_PORT = 45699;
+  globalThis.Neutralino = {
+    os: { showSaveDialog: async (title, opts) => { saveDialogCalls.push({ title, opts }); return saveDialogResult; } },
+    filesystem: { writeFile: async (p, content) => { desktopWrites.push({ path: p, content }); } }
+  };
+  const desktopOk = await exportData(sampleData, { format: 'json', now: stampNow, dialogTitle: '数据导出' });
+  assert.equal(desktopOk.status, 'saved', '桌面端保存成功应返回 saved');
+  assert.equal(desktopOk.path, 'C:\\Users\\test\\todo-backup-20260930-1504.json', '桌面端应回传保存路径供提示展示');
+  assert.equal(desktopWrites.length, 1, '桌面端应写盘一次');
+  assert.equal(desktopWrites[0].path, 'C:\\Users\\test\\todo-backup-20260930-1504.json', '应写入用户选定路径');
+  /* 客户端签名为 showSaveDialog(title, options)：标题必须是独立首参，
+   * 误传选项对象会让标题变成 "[object Object]" 且 defaultPath/filters 全部丢失 */
+  assert.equal(saveDialogCalls[0].title, '数据导出', '保存对话框标题应作为第一个参数单独传入');
+  assert.equal(typeof saveDialogCalls[0].title, 'string', '对话框标题必须是字符串，不能把选项对象当首参');
+  assert.equal(saveDialogCalls[0].opts.defaultPath, 'todo-backup-20260930-1504.json', '保存对话框应预填导出文件名');
+  assert.deepEqual(saveDialogCalls[0].opts.filters, [{ name: 'JSON', filter: ['json'] }], '保存对话框应按格式给出过滤器');
+  const written = JSON.parse(desktopWrites[0].content);
+  assert.equal(written.schemaVersion, EXPORT_SCHEMA_VERSION, '导出文件应带版本标记');
+  assert.equal(written.exportedAt, '2026-09-30T15:04', '导出文件应记录本地导出时间');
+  /* 备份必须可直接作为数据文件恢复：顶层即 todo_data 结构，而非嵌套 data 包装 */
+  assert.ok(Array.isArray(written.todos), '导出文件顶层应为 todos 数组，可直接还原为数据文件');
+  assert.ok(Array.isArray(written.tags), '导出文件顶层应为 tags 数组');
+  assert.ok(!('data' in written), '导出文件不应嵌套 data 包装层，否则恢复会得到空数据');
+  assert.ok(!('_index' in written), '落盘内容不得含 _index');
+  assert.ok(written.aiConfig && typeof written.aiConfig === 'object', '导出文件应保留 aiConfig');
+  assert.equal(written.aiConfig.apiKey, '', '落盘内容默认不含 apiKey');
+  assert.equal(written.todos.length, 3, '落盘内容应含全部任务');
+  assert.deepEqual(written.todos, sampleData.todos, '落盘任务应与运行态一致');
+  assert.equal(written.theme, 'auto', '落盘内容应保留界面偏好');
+
+  desktopWrites.length = 0;
+  saveDialogResult = null;
+  const desktopCancel = await exportData(sampleData, { format: 'markdown', now: stampNow });
+  assert.equal(desktopCancel.status, 'cancelled', '用户取消保存对话框应返回 cancelled');
+  assert.equal(desktopWrites.length, 0, '用户取消时不得写盘');
+
+  /* 降级路径：运行时缺少 showSaveDialog 时写入「下载」目录，而不是让导出直接失败 */
+  delete globalThis.Neutralino.os.showSaveDialog;
+  const joinedPaths = [];
+  globalThis.Neutralino.filesystem.getJoinedPath = async (base, name) => { joinedPaths.push([base, name]); return `${base}\\${name}`; };
+  globalThis.Neutralino.os.getPath = async (kind) => { assert.equal(kind, 'download'); return 'C:\\Users\\test\\Downloads'; };
+  const fallback = await exportData(sampleData, { format: 'json', now: stampNow });
+  assert.equal(fallback.status, 'saved', '缺少保存对话框时仍应完成导出');
+  assert.equal(fallback.path, 'C:\\Users\\test\\Downloads\\todo-backup-20260930-1504.json', '降级路径应写入下载目录并回传位置');
+  assert.deepEqual(joinedPaths, [['C:\\Users\\test\\Downloads', 'todo-backup-20260930-1504.json']], '降级路径应拼接下载目录与文件名');
+  assert.equal(desktopWrites.at(-1).path, 'C:\\Users\\test\\Downloads\\todo-backup-20260930-1504.json', '降级路径应真实写盘');
+
+  delete globalThis.Neutralino;
+  delete globalThis.NL_PORT;
+
+  /* Web 端：Blob + 临时 a[download]，用完即 revoke */
+  const savedAnchors = [];
+  const createdBlobs = [];
+  let revokedUrl = '';
+  globalThis.Blob = class { constructor(parts, opts) { this.parts = parts; this.type = opts?.type; createdBlobs.push(this); } };
+  globalThis.URL = { createObjectURL: () => 'blob:mock', revokeObjectURL: (u) => { revokedUrl = u; } };
+  globalThis.document = {
+    createElement: () => ({ click() { this.clicked = true; }, remove() {}, style: {} }),
+    body: { appendChild: (node) => { node.clicked = false; savedAnchors.push(node); } }
+  };
+  const webOk = await exportData(sampleData, { format: 'markdown', now: stampNow });
+  assert.equal(webOk.status, 'saved', 'Web 端应报告导出成功');
+  assert.equal(webOk.path, undefined, 'Web 端无保存路径，提示不应带路径');
+  assert.equal(webOk.fileName, 'todo-20260930-1504.md', 'Web 端应生成 Markdown 文件名');
+  assert.equal(savedAnchors.length, 1, 'Web 端应创建一次下载链接');
+  assert.equal(savedAnchors[0].download, 'todo-20260930-1504.md', '下载链接应带文件名');
+  assert.ok(savedAnchors[0].clicked, '下载链接应被点击以触发保存');
+  assert.equal(revokedUrl, 'blob:mock', '下载后应释放 object URL');
+  assert.equal(createdBlobs.length, 1, 'Web 端应构造一次 Blob');
+  assert.equal(createdBlobs[0].type, 'text/markdown;charset=utf-8', 'Markdown 下载应为 UTF-8 文本');
+  assert.ok(!createdBlobs[0].parts[0].includes('sk-secret-value'), '下载内容不得夹带凭据');
+
+  delete globalThis.Blob;
+  delete globalThis.URL;
+  delete globalThis.document;
+  assert.ok(!('Blob' in globalThis) && !('document' in globalThis), '测试应清理浏览器全局桩');
+
+  /* 非法数据：导出入口必须上抛，交由调用方提示而非静默产出空文件 */
+  await assert.rejects(() => exportData(null, { format: 'json' }), TypeError, '导出非法数据应上抛');
+
+  /* 接线：设置面板的导出卡片与绑定必须存在，且导出不写运行时索引 */
+  assert.ok(/id="btn-export-data"/.test(settingsSource), '设置系统页签应提供导出按钮');
+  assert.ok(/data-export-format="json"/.test(settingsSource) && /data-export-format="markdown"/.test(settingsSource), '应提供 JSON 与 Markdown 两种格式选择');
+  assert.ok(/bindExportControls/.test(settingsSource), 'settings.js 应绑定导出控件');
+  assert.ok(/updateExportControls/.test(settingsSource), 'settings.js 应回填导出控件状态（语言切换重建后保留选择）');
+  assert.ok(/id="set-export-include-key"/.test(settingsSource) && /role="switch"/.test(settingsSource), '应提供 API Key 包含开关并使用 switch 语义');
+  assert.ok(/aria-busy/.test(settingsSource), '导出按钮忙碌态应标记 aria-busy');
+  const exportSection = /function bindExportControls\(overlay\) \{[\s\S]*?\n\}/.exec(settingsSource);
+  assert.ok(exportSection, 'settings.js 应定义 bindExportControls');
+  /* 去掉注释再判断，避免说明性文字里的 saveData() 字样造成误报 */
+  const exportCodeOnly = exportSection[0].replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+  assert.ok(!/saveData\(\)/.test(exportCodeOnly), '导出为只读路径，不应调用 saveData()');
+  /* dataExport.js 顶部已被本文件 import（全程无 DOM 全局），构建函数内也不得触碰 DOM */
+  const exportModuleSource = readFileSync(path.join(__dirname, '../src/dataExport.js'), 'utf8');
+  ['buildExportPayload', 'buildExportFileName', 'buildMarkdownExport'].forEach((fn) => {
+    const body = new RegExp(`function ${fn}\\([\\s\\S]*?\\n\\}`).exec(exportModuleSource);
+    assert.ok(body && !/\b(document|window|Blob|Neutralino)\b/.test(body[0]), `${fn} 应保持纯逻辑，不得触碰运行时全局`);
+  });
+  assert.ok(/'settings.exportData'/.test(settingsSource) || /t\('settings\.exportData'\)/.test(settingsSource), '导出按钮文案应走 i18n');
+  assert.ok(/export-hint/.test(styleSource), '导出卡片应有明文风险提示样式');
+  assert.ok(/\.export-format-opt\s*\{/.test(styleSource), '导出格式按钮应有样式');
+  assert.ok(/\.export-format-opt\.active\s*\{/.test(styleSource), '导出格式按钮应有选中态样式');
+  assert.ok(/export-format-opt/.test(readFileSync(path.join(__dirname, '../src/ripple.js'), 'utf8')), '导出格式按钮应纳入涟漪按压反馈');
+  /* 导出不得携带凭据：明文 API Key 只在显式勾选时出现 */
+  assert.equal(dictZh['settings.exportIncludeApiKey'], '包含 AI API Key', '中文文案应说明勾选后包含密钥');
+  assert.equal(dictEn['settings.exportIncludeApiKey'], 'Include AI API Key', '英文文案应说明勾选后包含密钥');
+}
+
 /* 语言切换（i18n）：注册表驱动、归一化、字典完整性、切换入口与持久化 */
 {
   const { normalizeLanguage, t: tr, getHtmlLang, getSupportedLanguages, DEFAULT_LANGUAGE, buildAiPrompt } = await import('../src/i18n/index.js');
@@ -1431,6 +1644,215 @@ assert.ok(/btn-cancel-update/.test(settingsSource), '设置页应提供取消下
   const calendarSourceI18n = readFileSync(path.join(__dirname, '../src/calendar.js'), 'utf8');
   assert.ok(!/WEEKDAY_NAMES = \['日'/.test(calendarSourceI18n), 'calendar.js 不得硬编码中文星期数组，应走 i18n');
   assert.ok(/getTrayMenuItems|onLanguageChange/.test(readFileSync(path.join(__dirname, '../src/main.js'), 'utf8')), '托盘菜单应随语言重建');
+}
+
+/* i18n 字面量守卫：源码中 t('a.b') / t(`a.b`) 的字面量必须在双字典中真实存在，
+ * 否则 t() 会原样返回 key，界面直接显示 "detail.desc" 这类字符串。 */
+{
+  const { zh: dictZh2, en: dictEn2 } = { zh: (await import('../src/i18n/zh.js')).zh, en: (await import('../src/i18n/en.js')).en };
+  const srcDir = path.join(__dirname, '../src');
+  const missing = [];
+  readdirSync(srcDir, { withFileTypes: true }).forEach((entry) => {
+    if (!entry.isFile() || !entry.name.endsWith('.js')) return;
+    const src = readFileSync(path.join(srcDir, entry.name), 'utf8')
+      /* 排除动态拼接：t(`priority.${x}`) 之类无法静态校验 */
+      .replace(/t\(\s*`[^`]*`\s*,?/g, ' ')
+      .replace(/t\(\s*['"][^'"]*['"]\s*\+/g, ' t( ');
+    [...src.matchAll(/\bt\(\s*['"]([a-zA-Z][a-zA-Z0-9]*\.[a-zA-Z0-9]+)['"]/g)].forEach((m) => {
+      const key = m[1];
+      if (!(key in dictZh2)) missing.push(`${entry.name} zh 缺失 ${key}`);
+      if (!(key in dictEn2)) missing.push(`${entry.name} en 缺失 ${key}`);
+    });
+  });
+  assert.deepEqual(missing, [], `源码中的 i18n key 必须存在于中英字典: ${missing.join(' | ')}`);
+}
+
+/* i18n 回归：任务项渲染不得抛错。
+ * 历史故障：createTodoItemEl/buildBadges 的形参命名为 t，遮蔽了 i18n 的 t() 翻译函数，
+ * 列表渲染时抛 "t is not a function"，导致桌面端与 Web 端任务列表整体空白。
+ * 这里用最小 DOM stub 真实调用一次渲染函数，并校验无障碍文案确实走了字典。 */
+{
+  const hadDocument = 'document' in globalThis;
+  const previousDocument = globalThis.document;
+  const previousElement = globalThis.Element;
+  const previousLocalStorage = globalThis.localStorage;
+  const previousWindow = globalThis.window;
+
+  const createStubElement = (tag) => {
+    const el = {
+      tagName: String(tag).toUpperCase(),
+      children: [],
+      dataset: {},
+      attrs: {},
+      _text: '',
+      className: '',
+      get textContent() { return this._text; },
+      set textContent(value) { this._text = String(value ?? ''); this.children = []; },
+      setAttribute(key, value) { this.attrs[key] = String(value); },
+      getAttribute(key) { return this.attrs[key] ?? null; },
+      removeAttribute(key) { delete this.attrs[key]; },
+      appendChild(child) { this.children.push(child); return child; },
+      replaceChildren(...nodes) { this.children = nodes; },
+      matches() { return false; },
+      querySelectorAll() { return []; }
+    };
+    /* createIcon 依赖 <template>.innerHTML + content.firstElementChild，桩件直接返回图标节点 */
+    if (el.tagName === 'TEMPLATE') {
+      el._html = '';
+      el.content = { firstElementChild: createStubElement('svg') };
+      Object.defineProperty(el, 'innerHTML', {
+        get() { return this._html; },
+        set(value) { this._html = String(value); }
+      });
+    }
+    return el;
+  };
+
+  globalThis.document = {
+    documentElement: createStubElement('html'),
+    createElement: createStubElement,
+    createTextNode: (value) => ({ nodeValue: String(value) }),
+    createDocumentFragment: () => createStubElement('#fragment'),
+    getElementById: () => null,
+    querySelector: () => null,
+    querySelectorAll: () => []
+  };
+  globalThis.Element = class Element {};
+  globalThis.localStorage = {
+    store: new Map(),
+    getItem(key) { return this.store.has(key) ? this.store.get(key) : null; },
+    setItem(key, value) { this.store.set(key, String(value)); },
+    removeItem(key) { this.store.delete(key); }
+  };
+  globalThis.window = { crypto: globalThis.crypto };
+
+  try {
+    const { createTodoItemEl } = await import('../src/renderTodoItem.js');
+    const { zh: dictZh3, en: dictEn3 } = { zh: (await import('../src/i18n/zh.js')).zh, en: (await import('../src/i18n/en.js')).en };
+    const sampleTodo = {
+      id: 'render-check-1',
+      title: '渲染回归用例',
+      desc: 'desc',
+      priority: 'high',
+      tag: '回归',
+      startTime: '2026-01-02',
+      endTime: '2026-01-03',
+      todo: true,
+      important: true,
+      done: false,
+      doneAt: null,
+      reminder: '2026-01-02T09:00',
+      reminderRepeat: 'none',
+      archived: false,
+      archivedAt: null,
+      createdAt: Date.now()
+    };
+
+    let rendered = null;
+    assert.doesNotThrow(() => {
+      rendered = createTodoItemEl(sampleTodo, { currentList: 'all', tags: ['回归'] });
+    }, 'createTodoItemEl 不应抛错：形参遮蔽 i18n 的 t() 会让任务列表整体空白');
+    assert.ok(rendered, 'createTodoItemEl 应返回任务项节点');
+    assert.equal(rendered.children.length, 3, '任务项应包含勾选框、内容区和操作区');
+
+    const [checkbox, body, actions] = rendered.children;
+    assert.equal(checkbox.getAttribute('aria-label'), dictZh3['todo.markDone'], '勾选框 aria-label 应来自中文字典');
+    assert.equal(body.getAttribute('aria-label'), dictZh3['todo.editTask'].replace('{title}', sampleTodo.title), '内容区 aria-label 应插值任务标题');
+    assert.equal(actions.children[0].getAttribute('aria-label'), dictZh3['todo.unImportant'], '重要按钮 aria-label 应按当前状态切换');
+    assert.equal(actions.children[1].getAttribute('aria-label'), dictZh3['todo.delete'], '删除按钮 aria-label 应来自字典');
+    /* 徽标区同时含日期/起始日期/标签/优先级/TODO/提醒，验证 buildBadges 内部同样没有遮蔽翻译函数 */
+    const badges = body.children[1];
+    assert.ok(badges && badges.className === 'todo-meta', '应生成徽标区');
+    assert.equal(badges.children.length, 6, '应渲染结束日期、起始日期、标签、优先级、TODO 和提醒共 6 个徽标');
+    const reminderBadge = badges.children[5];
+    assert.equal(reminderBadge.getAttribute('aria-label'), dictZh3['todo.reminderSet'], '提醒徽标 aria-label 应来自字典');
+    assert.ok(checkbox.getAttribute('aria-label').length > 0, 'aria-label 不应为空');
+    assert.ok(!/\btodo\.[a-zA-Z]/.test(checkbox.getAttribute('aria-label')), 'aria-label 不应回退成 i18n key');
+    assert.ok(dictEn3['todo.markDone'] !== dictZh3['todo.markDone'], '中英字典应存在差异，便于校验翻译结果');
+  } finally {
+    if (hadDocument) globalThis.document = previousDocument;
+    else delete globalThis.document;
+    if (previousElement === undefined) delete globalThis.Element;
+    else globalThis.Element = previousElement;
+    if (previousLocalStorage === undefined) delete globalThis.localStorage;
+    else globalThis.localStorage = previousLocalStorage;
+    if (previousWindow === undefined) delete globalThis.window;
+    else globalThis.window = previousWindow;
+  }
+}
+
+/* i18n 回归：源码里不得再用 t 作为局部绑定后又调用 t()。
+ * 只要某个作用域（形参 / const、let、var）声明了局部 t，作用域内的 t() 就不再是翻译函数。 */
+{
+  const srcRoot = path.join(__dirname, '../src');
+  const listJsFiles = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) return listJsFiles(full);
+    return entry.isFile() && entry.name.endsWith('.js') ? [full] : [];
+  });
+
+  /* 去掉注释、字符串与模板字面量，避免其中的括号干扰大括号配平 */
+  const stripLiterals = (src) => {
+    let out = '';
+    let i = 0;
+    while (i < src.length) {
+      const ch = src[i];
+      const next = src[i + 1];
+      if (ch === '/' && next === '/') { while (i < src.length && src[i] !== '\n') i++; continue; }
+      if (ch === '/' && next === '*') { i += 2; while (i < src.length && !(src[i] === '*' && src[i + 1] === '/')) i++; i += 2; continue; }
+      if (ch === '"' || ch === "'") {
+        i++;
+        while (i < src.length) {
+          if (src[i] === '\\') { i += 2; continue; }
+          if (src[i] === ch) { i++; break; }
+          i++;
+        }
+        out += '""';
+        continue;
+      }
+      if (ch === '`') {
+        i++;
+        let depth = 0;
+        while (i < src.length) {
+          if (src[i] === '\\') { i += 2; continue; }
+          if (src[i] === '$' && src[i + 1] === '{') { depth++; i += 2; continue; }
+          if (src[i] === '}' && depth > 0) { depth--; i++; continue; }
+          if (src[i] === '`' && depth === 0) { i++; break; }
+          if (src[i] === '\n' && depth === 0) break;
+          i++;
+        }
+        out += '``';
+        continue;
+      }
+      out += ch;
+      i++;
+    }
+    return out;
+  };
+
+  const shadowedCalls = [];
+  listJsFiles(srcRoot).forEach((file) => {
+    const raw = readFileSync(file, 'utf8');
+    if (!/import\s*\{[^}]*\bt\b[^}]*\}\s*from\s*'[^']*i18n/.test(raw)) return;
+    const code = stripLiterals(raw);
+    const declRe = /(?:\(\s*t\s*(?:,|\))|,\s*t\s*\)\s*=>|=>\s*t\s*=>|\b(?:const|let|var)\s+t\s*=)/g;
+    let match;
+    while ((match = declRe.exec(code)) !== null) {
+      const start = match.index;
+      const open = code.indexOf('{', start);
+      if (open === -1) continue;
+      let depth = 0;
+      let end = code.length;
+      for (let i = open; i < code.length; i++) {
+        if (code[i] === '{') depth++;
+        else if (code[i] === '}') { depth--; if (depth === 0) { end = i; break; } }
+      }
+      if (/(^|[^.\w$])t\s*\(/.test(code.slice(start, end))) {
+        shadowedCalls.push(`${path.relative(srcRoot, file).replace(/\\/g, '/')}:${code.slice(0, start).split('\n').length}`);
+      }
+    }
+  });
+  assert.deepEqual(shadowedCalls, [], `局部 t 遮蔽了 i18n 翻译函数，调用 t() 会抛错: ${shadowedCalls.join(' | ')}`);
 }
 
 console.log('State checks passed');

@@ -18,6 +18,7 @@ const BUTTON_SELECTOR = [
   '.btn-theme-toggle',
   '.btn-row button',
   '.theme-opt',
+  '.export-format-opt',
   '.settings-tab',
   '.btn-ai-mode',
   '.btn-ai-range',

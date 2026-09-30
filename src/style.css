@@ -306,6 +306,7 @@ button .app-icon,
 .btn-theme-toggle::before,
 .btn-row button::before,
 .theme-opt::before,
+.export-format-opt::before,
 .settings-tab::before,
 .btn-ai-mode::before,
 .btn-ai-range::before,
@@ -336,6 +337,7 @@ button .app-icon,
 .btn-theme-toggle.is-pressing::before,
 .btn-row button.is-pressing::before,
 .theme-opt.is-pressing::before,
+.export-format-opt.is-pressing::before,
 .settings-tab.is-pressing::before,
 .btn-ai-mode.is-pressing::before,
 .btn-ai-range.is-pressing::before,
@@ -10568,6 +10570,93 @@ html.mini-mode-active .mini-panel {
   color: var(--text-muted);
   font-size: calc(10px * var(--ui-font-scale));
   line-height: 1.5;
+}
+
+/* --- 数据导出卡片（设置 → 系统） --- */
+
+.export-format-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.export-format-opt {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-width: 0;
+  height: 40px;
+  padding: 0 11px;
+  border: 1px solid var(--glass-control-border);
+  border-radius: var(--ui-radius-sm);
+  color: var(--text-secondary);
+  background: var(--glass-control-bg);
+  box-shadow: var(--glass-control-shadow), var(--glass-inset-highlight);
+  font-size: 13px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background var(--motion-fast), border-color var(--motion-fast), color var(--motion-fast);
+}
+
+.export-format-opt .app-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.export-format-opt span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.export-format-opt:hover:not(.active) {
+  color: var(--text-primary);
+  background: var(--glass-control-bg-hover);
+  border-color: var(--glass-control-border-hover);
+}
+
+.export-format-opt.active {
+  color: var(--accent-text);
+  background: color-mix(in srgb, var(--accent) 16%, var(--glass-control-bg));
+  border-color: color-mix(in srgb, var(--accent) 44%, var(--glass-control-border));
+}
+
+.export-format-opt:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.export-key-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.export-key-row > span {
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: calc(12px * var(--ui-font-scale));
+}
+
+.export-hint {
+  margin: 10px 0 0;
+  color: var(--text-muted);
+  font-size: calc(10px * var(--ui-font-scale));
+  line-height: 1.5;
+}
+
+/* 系统页签内含更新与导出两张卡片，按外观页签的网格间距排布 */
+.settings-pane[data-pane="system"].active {
+  display: grid;
+  gap: 12px;
 }
 
 @media (max-width: 900px) {

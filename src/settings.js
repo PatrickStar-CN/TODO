@@ -2,6 +2,7 @@ import { escapeHtml } from './utils/html.js';
 import { applyTheme } from './theme.js';
 import { closeDetail } from './detail.js';
 import { showConfirmDialog } from './overlay.js';
+import { exportData, EXPORT_FORMATS } from './dataExport.js';
 import { DEFAULT_UI_STYLE, applyUiStyle, getUiMotionDuration, normalizeUiStyle } from './uiPreferences.js';
 import { createFocusTrap, enableRovingTablist } from './utils/focus.js';
 import { iconSvg } from './icons.js';
@@ -19,6 +20,9 @@ let settingsRovingCleanup = null;
 let settingsPreviouslyFocused = null;
 let updater = null;
 let updateStatusUnsub = null;
+/* 导出选项存模块级：语言切换会原地重建面板，存在这里才能在重建后回填 */
+let exportFormat = 'json';
+let exportIncludeKey = false;
 
 // --- 弹窗开关 ---
 
@@ -229,6 +233,28 @@ function openPanel(opts = {}) {
               <button class="btn-primary btn-sm settings-primary-action hidden" id="btn-restart-update" type="button">${iconSvg('refresh')}<span>${t('settings.restartNow')}</span></button>
             </div>
           </section>
+          <section class="settings-content-card settings-export-card" aria-labelledby="settings-export-title">
+            <div class="settings-content-card-heading">
+              <div>
+                <strong id="settings-export-title">${t('settings.exportTitle')}</strong>
+                <span>${t('settings.exportSub')}</span>
+              </div>
+            </div>
+            <div class="export-format-options" role="group" aria-label="${t('settings.exportFormatLabel')}">
+              <button class="export-format-opt active" type="button" aria-pressed="true" data-export-format="json">${iconSvg('document')}<span>${t('settings.exportFormatJson')}</span></button>
+              <button class="export-format-opt" type="button" aria-pressed="false" data-export-format="markdown">${iconSvg('clipboard')}<span>${t('settings.exportFormatMarkdown')}</span></button>
+            </div>
+            <div class="settings-row export-key-row">
+              <span id="settings-export-key-label">${t('settings.exportIncludeApiKey')}</span>
+              <button class="settings-switch" id="set-export-include-key" type="button" role="switch" aria-checked="false" aria-labelledby="settings-export-key-label">
+                <span aria-hidden="true"></span>
+              </button>
+            </div>
+            <div class="update-actions">
+              <button class="btn-primary btn-sm settings-primary-action" id="btn-export-data" type="button">${iconSvg('download')}<span>${t('settings.exportData')}</span></button>
+            </div>
+            <p class="export-hint">${t('settings.exportHint')}</p>
+          </section>
         </div>
       </div>
     </div>
@@ -389,6 +415,7 @@ function openPanel(opts = {}) {
   bindUiStyleControls(overlay);
   bindTimelineControls(overlay);
   bindUpdateControls(overlay);
+  bindExportControls(overlay);
 
   overlay.querySelector('#test-notification').addEventListener('click', async (event) => {
     const button = event.currentTarget;
@@ -493,6 +520,7 @@ function renderContent(overlay) {
   updateNotificationStatus(overlay);
   updateTimelineControls(overlay);
   renderTagList(overlay);
+  updateExportControls(overlay);
 }
 
 function teardownPanelInstant() {
@@ -868,6 +896,63 @@ function deleteTag(tag, overlay) {
 }
 
 // --- 导出 ---
+
+function updateExportControls(overlay) {
+  overlay.querySelectorAll('[data-export-format]').forEach((button) => {
+    const active = button.dataset.exportFormat === exportFormat;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', String(active));
+  });
+  const keySwitch = overlay.querySelector('#set-export-include-key');
+  if (keySwitch) {
+    keySwitch.classList.toggle('active', exportIncludeKey);
+    keySwitch.setAttribute('aria-checked', String(exportIncludeKey));
+  }
+}
+
+function bindExportControls(overlay) {
+  overlay.querySelectorAll('[data-export-format]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const format = button.dataset.exportFormat;
+      if (!EXPORT_FORMATS.includes(format)) return;
+      exportFormat = format;
+      updateExportControls(overlay);
+    });
+  });
+
+  const keySwitch = overlay.querySelector('#set-export-include-key');
+  keySwitch?.addEventListener('click', () => {
+    exportIncludeKey = !exportIncludeKey;
+    updateExportControls(overlay);
+  });
+
+  overlay.querySelector('#btn-export-data')?.addEventListener('click', async (event) => {
+    const button = event.currentTarget;
+    const label = button.querySelector('span');
+    button.disabled = true;
+    button.classList.add('is-loading');
+    button.setAttribute('aria-busy', 'true');
+    try {
+      /* 导出为只读路径：不调用 saveData()，也不改运行时索引 */
+      const result = await exportData(data, {
+        format: exportFormat,
+        includeApiKey: exportIncludeKey,
+        dialogTitle: t('settings.exportTitle')
+      });
+      /* 用户主动取消保存对话框时不提示，避免噪音 */
+      if (result.status === 'cancelled') return;
+      showToast(result.path ? t('toast.exportSaved', { path: result.path }) : t('toast.exportDownloaded'));
+    } catch (err) {
+      console.warn('[export] failed:', err);
+      showToast(t('toast.exportFailed'));
+    } finally {
+      button.disabled = false;
+      button.classList.remove('is-loading');
+      button.removeAttribute('aria-busy');
+      if (label) label.textContent = t('settings.exportData');
+    }
+  });
+}
 
 export function initSettings(deps) {
   data = deps.data;

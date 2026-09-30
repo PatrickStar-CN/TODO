@@ -44,6 +44,7 @@
 | Calendar | Month view + yearly task-volume and completion heatmaps; flip months, jump back to today, pick year/month directly; per-day detail in day/month mode with sticky group headers; counts always match the chart |
 | Look & feel | Restrained frosted-glass office style (no gradient page background); SVG-only icon set (`src/icons.js`); per-container overlay scrollbars; keyboard operation (`↑↓` / `Enter` / `Space` / `Esc`) with ARIA roles throughout |
 | Settings | Appearance, AI config, reminders, tag management, system; AI streaming reports; desktop auto-update from GitHub Releases (download → SHA-256 verify → allowlist replace → `.bak` rollback) |
+| Data export | Settings → System exports all tasks and tags as a JSON backup (same shape as `todo_data.json`) or a readable Markdown checklist; desktop shows a native save dialog, web triggers a download; `aiConfig.apiKey` is omitted unless explicitly checked |
 | Data safety | AES-GCM file encryption when Web Crypto is available; legacy plaintext and legacy-encrypted formats still readable; corrupt files are never silently overwritten (writes pause + `.bak` backup); `localStorage` snapshot never stores `aiConfig.apiKey`; `_index` stays runtime-only |
 
 ---
@@ -205,6 +206,7 @@ Files use AES-GCM encryption when Web Crypto is available; legacy plaintext JSON
 - Desktop backs up abnormal files to timestamped `.bak` files when possible.
 - The `localStorage` snapshot never stores `aiConfig.apiKey`; desktop/dev file snapshots keep the full AI config.
 - The internal `_index` is runtime-only and never persisted.
+- Exported files are always **plaintext**: the encryption key is bound to the current device environment, so a backup meant for another machine must be unencrypted. The JSON export omits `aiConfig.apiKey` unless the checkbox is checked — treat an export with the key included as a secret.
 
 </details>
 
@@ -379,7 +381,7 @@ New or changed UI should follow these rules.
 - Mini-mode pin-on-top, dragging, and frameless chrome are desktop-only.
 - The web build is not an offline PWA.
 - Production static preview has no dev-server `/api/data` endpoint, so it uses the `localStorage` fallback.
-- The file-encryption key includes current-device environment info — keep a readable original or export plaintext before migrating encrypted data across devices.
+- The file-encryption key includes current-device environment info — use Settings → System → Data export to produce a plaintext JSON backup before migrating encrypted data across devices, then place it as `todo_data.json`. The JSON export uses the same top-level shape as the data file, so it restores as-is.
 
 ## Contributing
 

@@ -401,15 +401,15 @@ function renderMonthGroupsInto(container, groups, renderTodoItem, mode = 'month'
     listEl.className = 'todo-list calendar-todo-list';
     /* 跨天任务只出现在起始分组，加“持续至”徽章避免在后续日期中被遗漏 */
     const groupDay = group.date ? startOfDay(group.date).getTime() : null;
-    group.todos.forEach(t => {
+    group.todos.forEach(todo => {
       let spanText = '';
       if (showSpan && groupDay !== null) {
-        const range = getTodoTaskDateRange(t);
+        const range = getTodoTaskDateRange(todo);
         if (range && range[1].getTime() > groupDay) {
           spanText = t('calendar.continueTo', { date: formatMonthDay(range[1]) });
         }
       }
-      listEl.appendChild(renderTodoItem(t, { spanText }));
+      listEl.appendChild(renderTodoItem(todo, { spanText }));
     });
     groupEl.appendChild(listEl);
     container.appendChild(groupEl);

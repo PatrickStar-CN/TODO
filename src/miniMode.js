@@ -113,14 +113,14 @@ export function initMiniMode({ data, saveData, render, showToast, showContextMen
     miniList.classList.toggle('is-empty', items.length === 0);
     miniList.innerHTML = items.length === 0
       ? `<div class="mini-empty-state">${iconSvg('inbox')}<strong>${t('mini.empty')}</strong><span>${t('mini.emptyHint')}</span></div>`
-      : items.map(t => {
-        const prioCls = t.priority && t.priority !== 'none' ? t.priority : '';
-        const tagChip = t.tag
-          ? `<span class="mini-item-tag" ${getTagBadgeStyle(t.tag, data.tags)}><span class="tag-dot" aria-hidden="true"></span><span class="mini-item-tag-label">${escapeHtml(t.tag)}</span></span>`
+      : items.map(item => {
+        const prioCls = item.priority && item.priority !== 'none' ? item.priority : '';
+        const tagChip = item.tag
+          ? `<span class="mini-item-tag" ${getTagBadgeStyle(item.tag, data.tags)}><span class="tag-dot" aria-hidden="true"></span><span class="mini-item-tag-label">${escapeHtml(item.tag)}</span></span>`
           : '';
-        return `<div class="mini-todo-item${prioCls ? ` p-${prioCls}` : ''}" data-id="${t.id}">
-          <button class="mini-checkbox" type="button" data-mini-toggle="${t.id}" aria-label="${t('todo.completeTask', { title: escapeHtml(t.title) })}"></button>
-          <span class="mini-todo-title">${escapeHtml(t.title)}</span>
+        return `<div class="mini-todo-item${prioCls ? ` p-${prioCls}` : ''}" data-id="${item.id}">
+          <button class="mini-checkbox" type="button" data-mini-toggle="${item.id}" aria-label="${t('todo.completeTask', { title: escapeHtml(item.title) })}"></button>
+          <span class="mini-todo-title">${escapeHtml(item.title)}</span>
           ${tagChip}
         </div>`;
       }).join('');

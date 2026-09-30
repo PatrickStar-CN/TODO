@@ -247,7 +247,7 @@ export function initAiSummary({ data, saveData, showToast }) {
     const prioNames = { high: t('priority.high'), medium: t('priority.medium'), low: t('priority.low') };
     /* 大月报截断输入：避免全量标题+备注拼接导致超长 prompt、POST 慢/超限 */
     const formatReportTodos = (todos) => truncateReportList(todos.slice(0, MAX_REPORT_TODOS)
-      .map(t => `- ${t.title}${t.priority !== 'none' ? t('ai.prioLabel', { label: prioNames[t.priority] || t.priority }) : ''}${t.tag ? t('ai.tagLabel', { tag: t.tag }) : ''}${t.desc ? `\n  ${t('ai.notePrefix')}${t.desc.slice(0, 200)}` : ''}`).join('\n'));
+      .map(todo => `- ${todo.title}${todo.priority !== 'none' ? t('ai.prioLabel', { label: prioNames[todo.priority] || todo.priority }) : ''}${todo.tag ? t('ai.tagLabel', { tag: todo.tag }) : ''}${todo.desc ? `\n  ${t('ai.notePrefix')}${todo.desc.slice(0, 200)}` : ''}`).join('\n'));
     const doneList = doneTodos.length > 0 ? formatReportTodos(doneTodos) : t('ai.noneItem');
     const pendingList = pendingTodos.length > 0 ? formatReportTodos(pendingTodos) : t('ai.noneItem');
 
