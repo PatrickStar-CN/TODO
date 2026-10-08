@@ -9,7 +9,7 @@ import { encrypt, initCrypto, tryDecrypt } from '../src/utils/crypto.js';
 import { escapeAttr, escapeHtml } from '../src/utils/html.js';
 import { parseLocalDateInput, toLocalDateInput, toLocalDatetime, isToday, getMonthRange } from '../src/utils/date.js';
 import { animateWindowRect, cancelWindowRectAnimation, centerRect, computeCollapsedY, easeOutCubic, ensureDisplayHz, framesPerApply, isNearScreenTop, rectAt, WINDOW_ANIM_MAX_HZ } from '../src/miniSnap.js';
-import { buildCurlProxyPs, buildDownloadCurlPs, buildDownloadWebRequestPs, buildFetchCurlPs, buildFetchWebRequestPs, buildProxyAssignPs, buildTlsPs, buildUpdateLauncherVbs, buildUpdateTaskRun, buildUpdateTaskRunVbs, compareVersions, createUpdater, normalizeTargetDir, psQuote, sanitizeNetDetail, toEncodedCommand } from '../src/updater.js';
+import { buildCurlProxyPs, buildDownloadCurlPs, buildDownloadStreamPs, buildDownloadWebRequestPs, buildFetchCurlPs, buildFetchWebRequestPs, buildProxyAssignPs, buildTlsPs, buildUpdateLauncherVbs, buildUpdateTaskRun, buildUpdateTaskRunVbs, compareVersions, createUpdater, normalizeTargetDir, parseProgressLine, psQuote, sanitizeNetDetail, toEncodedCommand } from '../src/updater.js';
 import { getNextTagDotStyle, getTagTaskCount } from '../src/shared.js';
 import { HOLDER_LOST_EXIT_CODE, SINGLE_INSTANCE_MUTEX, acquireSingleInstance, buildHolderPs, buildMutexName, buildProbePs, decideProbe, releaseSingleInstance } from '../src/singleInstance.js';
 import { extractCompleteContent, normalizeStreamText, parseSseLine, resolveAiApiUrl } from '../src/utils/aiApi.js';
@@ -712,6 +712,7 @@ assert.ok(!/progress: 0\.99/.test(updaterSource), 'zip 完成后不得回退到 
 assert.ok(/data-progress-pct/.test(settingsSource), '进度文案应可原地更新');
 assert.ok(/existingFill\.style\.width/.test(settingsSource), '进度条应原地改宽度以复用 CSS 过渡，而非 innerHTML 重建');
 assert.ok(/cancelDownload/.test(updaterSource), 'updater 应支持取消下载');
+assert.ok(/updateSpawnedProcess/.test(updaterSource), '取消下载应真杀流式进程，而非仅逻辑取消');
 assert.ok(/if \(!expected\) throw/.test(updaterSource), 'SHA-256 取不到期望哈希时必须直接失败');
 assert.ok(/r\.stdErr/.test(updaterSource) && !/r\.stderr/.test(updaterSource), '应使用 stdErr 字段取进程错误输出');
 assert.ok(/\/TR '\$\{buildUpdateTaskRunVbs\(launcherPath\)\}'/.test(updaterSource), '计划任务 /TR 应整体加引号并走 VBS 无闪现链路');
@@ -750,6 +751,20 @@ assert.ok(/btn-cancel-update/.test(settingsSource), '设置页应提供取消下
   assert.equal(sanitizeNetDetail('  a\n b  '), 'a b');
   assert.equal(sanitizeNetDetail(''), '');
   assert.ok(sanitizeNetDetail('x'.repeat(200)).length <= 161, '诊断摘要应截断');
+}
+
+/* 流式进度协议：解析容忍杂散行，脚本分块上报且不断代理/TLS 语义 */
+{
+  assert.deepEqual(parseProgressLine('CHUNK 123'), { kind: 'CHUNK', value: 123 });
+  assert.deepEqual(parseProgressLine('total 8'), { kind: 'TOTAL', value: 8 });
+  assert.deepEqual(parseProgressLine('DONE 8'), { kind: 'DONE', value: 8 });
+  assert.equal(parseProgressLine('  % Total received  '), null);
+  assert.equal(parseProgressLine(''), null);
+  const streamPs = buildDownloadStreamPs('https://example.com/p.zip', 'C:\\Temp\\p.zip');
+  assert.ok(streamPs.includes('CHUNK ') && streamPs.includes('DONE '), '流式脚本应分块上报 CHUNK/DONE');
+  assert.ok(streamPs.includes('IsBypassed') && streamPs.includes('DefaultCredentials'), '流式脚本应与第一路一致走系统代理');
+  assert.ok(streamPs.includes('Tls12'), '流式脚本应保留 TLS 兼容');
+  assert.ok(!/CopyTo/.test(streamPs), '流式脚本不得再一次性 CopyTo，否则无中间进度');
 }
 
 /* 检查阶段 curl 兜底：第一路 exit 1（网络失败）→ 第二路成功应回到 available */
@@ -1210,6 +1225,180 @@ assert.ok(/btn-cancel-update/.test(settingsSource), '设置页应提供取消下
   assert.ok(seen.some((p) => p > 0 && p < 1), `应采到中间进度，实际序列: ${seen.join(',')}`);
   delete globalThis.Neutralino;
   delete globalThis.NL_PORT;
+}
+
+/* 流式下载：spawn 分块 CHUNK 累加应上报 0<p<1 中间值（不依赖轮询） */
+{
+  const fsMem = new Map();
+  const dirSet = new Set();
+  const base = 'C:\\Temp\\todo-tools-update';
+  const JSON_KEY = `${base}\\latest-release.json`;
+  const ZIP_KEY = `${base}\\todo-tools-win_x64.zip`;
+  const SHA_KEY = `${base}\\todo-tools-win_x64.zip.sha256`;
+  const handlers = new Set();
+  const emit = (detail) => {
+    handlers.forEach((cb) => { try { cb({ detail }); } catch {} });
+  };
+  globalThis.NL_PORT = 45678;
+  globalThis.window = {
+    addEventListener: (type, cb) => { if (type === 'spawnedProcess') handlers.add(cb); },
+    removeEventListener: (type, cb) => { handlers.delete(cb); }
+  };
+  let streamCmds = 0;
+  let legacyWebCalls = 0;
+  globalThis.Neutralino = {
+    app: { getConfig: async () => ({ version: '1.2.2' }) },
+    os: {
+      getPath: async () => 'C:\\Temp',
+      execCommand: async (cmd) => {
+        if (cmd.includes('check-web.ps1')) {
+          fsMem.set(JSON_KEY, JSON.stringify({
+            tag_name: 'v9.9.9',
+            body: 'notes',
+            assets: [
+              { name: 'todo-tools-win_x64.zip', size: 8, browser_download_url: 'https://example.com/pkg.zip' },
+              { name: 'todo-tools-win_x64.zip.sha256', size: 65, browser_download_url: 'https://example.com/pkg.sha256' }
+            ]
+          }));
+          return { exitCode: 0, stdOut: '', stdErr: '' };
+        }
+        if (cmd.includes('dl-zip-web.ps1')) legacyWebCalls += 1;
+        if (cmd.includes('dl-sha-web.ps1')) {
+          fsMem.set(SHA_KEY, createHash('sha256').update('ZIPBYTES').digest('hex'));
+          return { exitCode: 0, stdOut: '', stdErr: '' };
+        }
+        if (cmd.includes('Expand-Archive')) {
+          fsMem.set(`${base}\\extracted\\todo-tools-win_x64.exe`, 'EXE');
+          fsMem.set(`${base}\\extracted\\resources.neu`, 'RES');
+        }
+        return { exitCode: 0, stdOut: '', stdErr: '' };
+      },
+      spawnProcess: async (cmd) => {
+        streamCmds += 1;
+        assert.ok(cmd.includes('-stream.ps1'), '流式下载应走 -stream.ps1 脚本');
+        const id = 21;
+        setTimeout(() => {
+          emit({ id, action: 'stdOut', data: 'TOTAL 8\n' });
+          emit({ id, action: 'stdOut', data: 'CHUNK 4\n' });
+          fsMem.set(ZIP_KEY, 'ZIPBYTES');
+          emit({ id, action: 'stdOut', data: 'DONE 8\n' });
+          emit({ id, action: 'exit', data: 0 });
+        }, 50);
+        return { id, pid: 999 };
+      },
+      updateSpawnedProcess: async () => {}
+    },
+    filesystem: {
+      createDirectory: async (p) => {
+        if (dirSet.has(p)) throw new Error('exists');
+        dirSet.add(p);
+      },
+      getStats: async (p) => {
+        if (fsMem.has(p)) return { size: String(fsMem.get(p)).length };
+        if (dirSet.has(p)) return { size: 0 };
+        throw new Error('missing');
+      },
+      readFile: async (p) => {
+        if (fsMem.has(p)) return fsMem.get(p);
+        throw new Error('missing');
+      },
+      readBinaryFile: async (p) => new TextEncoder().encode(fsMem.get(p) ?? ''),
+      writeFile: async (p, content) => { fsMem.set(p, content); },
+      remove: async (p) => { fsMem.delete(p); }
+    }
+  };
+  const seen = [];
+  const streamUpdater = createUpdater({ showToast: () => {} });
+  const unsub = streamUpdater.onStatus((s) => {
+    if (s.phase === 'downloading' && typeof s.progress === 'number') seen.push(s.progress);
+  });
+  await streamUpdater.checkForUpdates();
+  await streamUpdater.downloadAndPrepare();
+  unsub();
+  assert.equal(streamUpdater.getState().phase, 'ready');
+  assert.equal(streamCmds, 1, '主路应走 spawn 流式下载');
+  assert.equal(legacyWebCalls, 0, '流式成功时不应再走轮询第一路');
+  assert.ok(seen.some((p) => p > 0 && p < 1), `流式应上报中间进度，实际序列: ${seen.join(',')}`);
+  delete globalThis.Neutralino;
+  delete globalThis.NL_PORT;
+  delete globalThis.window;
+}
+
+/* 流式取消：cancelDownload 应真杀 spawn 进程并回到 available */
+{
+  const fsMem = new Map();
+  const dirSet = new Set();
+  const JSON_KEY = 'C:\\Temp\\todo-tools-update\\latest-release.json';
+  const handlers = new Set();
+  const emit = (detail) => {
+    handlers.forEach((cb) => { try { cb({ detail }); } catch {} });
+  };
+  const killed = [];
+  globalThis.NL_PORT = 45678;
+  globalThis.window = {
+    addEventListener: (type, cb) => { if (type === 'spawnedProcess') handlers.add(cb); },
+    removeEventListener: (type, cb) => { handlers.delete(cb); }
+  };
+  globalThis.Neutralino = {
+    app: { getConfig: async () => ({ version: '1.2.2' }) },
+    os: {
+      getPath: async () => 'C:\\Temp',
+      execCommand: async (cmd) => {
+        if (cmd.includes('check-web.ps1')) {
+          fsMem.set(JSON_KEY, JSON.stringify({
+            tag_name: 'v9.9.9',
+            body: 'notes',
+            assets: [
+              { name: 'todo-tools-win_x64.zip', size: 10, browser_download_url: 'https://example.com/pkg.zip' },
+              { name: 'todo-tools-win_x64.zip.sha256', size: 65, browser_download_url: 'https://example.com/pkg.sha256' }
+            ]
+          }));
+          return { exitCode: 0, stdOut: '', stdErr: '' };
+        }
+        if (cmd.includes('.ps1')) {
+          await new Promise(() => {});
+        }
+        return { exitCode: 0, stdOut: '', stdErr: '' };
+      },
+      spawnProcess: async () => ({ id: 33, pid: 1000 }),
+      updateSpawnedProcess: async (id, action) => {
+        killed.push({ id, action });
+        /* 真杀后进程退出，下载 promise 据此结算为已取消 */
+        setTimeout(() => emit({ id, action: 'exit', data: 0 }), 20);
+      }
+    },
+    filesystem: {
+      createDirectory: async (p) => {
+        if (dirSet.has(p)) throw new Error('exists');
+        dirSet.add(p);
+      },
+      getStats: async (p) => {
+        if (fsMem.has(p)) return { size: String(fsMem.get(p)).length };
+        if (dirSet.has(p)) return { size: 0 };
+        throw new Error('missing');
+      },
+      readFile: async (p) => {
+        if (fsMem.has(p)) return fsMem.get(p);
+        throw new Error('missing');
+      },
+      writeFile: async (p, content) => { fsMem.set(p, content); },
+      remove: async (p) => { fsMem.delete(p); }
+    }
+  };
+  const cancelStream = createUpdater({ showToast: () => {} });
+  await cancelStream.checkForUpdates();
+  const downloading = cancelStream.downloadAndPrepare();
+  downloading.then(() => {}, () => {});
+  await new Promise(r => setTimeout(r, 300));
+  assert.equal(cancelStream.getState().phase, 'downloading');
+  assert.equal(cancelStream.cancelDownload(), true);
+  await downloading;
+  assert.deepEqual(killed, [{ id: 33, action: 'exit' }], '取消应真杀 spawn 进程');
+  assert.equal(cancelStream.getState().phase, 'available');
+  assert.equal(cancelStream.getState().version, '9.9.9');
+  delete globalThis.Neutralino;
+  delete globalThis.NL_PORT;
+  delete globalThis.window;
 }
 
 /* 下载取消流程：check → available → downloading → cancel → available（版本与资产保留） */

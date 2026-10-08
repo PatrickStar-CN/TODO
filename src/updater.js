@@ -5,7 +5,8 @@
  *     （30s 超时；非版本号形态 tag 无法解析时保守判定为无更新；
  *     HttpWebRequest 优先、curl 兜底，两路均显式走系统代理）；
  *  2. 有新版 → 原生进程下载 zip（HttpWebRequest 优先、curl 兜底且带总超时；
- *     GitHub 资产无 CORS 头，fetch 不可用；下载支持逻辑取消，取消后回到可重试态）；
+ *     GitHub 资产无 CORS 头，fetch 不可用；HttpWebRequest 路优先 spawn 流式
+ *     分块累加上报进度，不可用时降级为轮询文件大小；取消真杀进程后回到可重试态）；
  *  3. SHA-256 校验（发布附带的 .sha256 asset；取不到期望哈希则直接失败，绝不跳过）
  *     → Expand-Archive 解压 → 核对文件大小；
  *  4. 写 pending.json、替换脚本（.ps1）与无窗口启动器（.vbs），注册一次性计划任务，
@@ -133,6 +134,37 @@ export function buildDownloadWebRequestPs(url, dest) {
   return `try { ${buildTlsPs()}; $target=${u}; $req=[System.Net.WebRequest]::Create($target); $req.Method='GET'; $req.Timeout=30000; $req.ReadWriteTimeout=30000; ${buildProxyAssignPs('$target', '$req')}; $resp=$req.GetResponse(); $in=$resp.GetResponseStream(); $out=[System.IO.File]::Create(${o}); $in.CopyTo($out); $out.Close(); $in.Close(); $resp.Close() } catch { exit 1 }`;
 }
 
+/* 流式进度行解析：PS 分块循环按行输出 TOTAL/CHUNK/DONE，JS 侧累加。
+ * 非协议行返回 null（容忍 curl 日志等杂散输出混入 stdErr）。 */
+export function parseProgressLine(line) {
+  const m = String(line ?? '').trim().match(/^(TOTAL|CHUNK|DONE)\s+(-?\d+)\s*$/i);
+  if (!m) return null;
+  return { kind: m[1].toUpperCase(), value: Number(m[2]) };
+}
+
+/* 下载阶段第一路（流式版）：HttpWebRequest 分块 Read 落盘，每块经
+ * [Console]::WriteLine 实时上报（Write-Output 经成功流可能被缓冲，
+ * spawnProcess 侧收不到中间进度，故直接写 stdout + Flush）。
+ * 上报节流 100ms，避免小文件高频事件刷爆前端；结束必报 DONE。
+ * 同样显式走系统代理与 TLS 兼容片段，与非流式第一路保持一致。 */
+export function buildDownloadStreamPs(url, dest) {
+  const u = psQuote(url);
+  const o = psQuote(dest);
+  return [
+    `try { ${buildTlsPs()}; $target=${u}; $req=[System.Net.WebRequest]::Create($target)`,
+    `$req.Method='GET'; $req.Timeout=30000; $req.ReadWriteTimeout=30000`,
+    `${buildProxyAssignPs('$target', '$req')}`,
+    `$resp=$req.GetResponse(); $total=-1; try { $total=$resp.ContentLength } catch {}`,
+    `[Console]::WriteLine(('TOTAL ' + $total)); [Console]::Out.Flush()`,
+    `$in=$resp.GetResponseStream(); $out=[System.IO.File]::Create(${o})`,
+    `$buf=New-Object byte[] 65536; $got=0; $last=[DateTime]::UtcNow`,
+    `while (($n=$in.Read($buf,0,$buf.Length)) -gt 0) { $out.Write($buf,0,$n); $got+=$n`,
+    `  if (([DateTime]::UtcNow - $last).TotalMilliseconds -ge 100) { [Console]::WriteLine(('CHUNK ' + $got)); [Console]::Out.Flush(); $last=[DateTime]::UtcNow } }`,
+    `$out.Close(); $in.Close(); $resp.Close()`,
+    `[Console]::WriteLine(('DONE ' + $got)); [Console]::Out.Flush() } catch { exit 1 }`
+  ].join('; ');
+}
+
 /* 下载阶段第二路：curl 流式落盘，代理在 PowerShell 内解析后显式传入 */
 export function buildDownloadCurlPs(url, dest, logPath) {
   const u = psQuote(url);
@@ -216,12 +248,23 @@ export function createUpdater({ showToast, appConfig = {} }) {
 
   let state = { phase: 'idle' };
   let listeners = [];
-  /* 下载取消标记：execCommand 无中止接口，取消为逻辑取消——后台下载完成后丢弃结果并回到 available */
+  /* 下载取消标记：spawn 流式下载可真杀进程；轮询降级路径仍走逻辑取消——后台完成后丢弃结果并回到 available */
   let cancelRequested = false;
+  /* 当前流式下载的 spawn id：取消时 updateSpawnedProcess(id, 'exit') 真杀进程 */
+  let activeSpawnId = null;
   const cancelledError = () => {
     const err = new Error('已取消下载');
     err.cancelled = true;
     return err;
+  };
+  const killActiveSpawn = () => {
+    if (activeSpawnId === null || activeSpawnId === undefined) return;
+    const id = activeSpawnId;
+    activeSpawnId = null;
+    try {
+      const p = Neutralino.os?.updateSpawnedProcess?.(id, 'exit');
+      if (p && typeof p.catch === 'function') p.catch(() => {});
+    } catch {}
   };
 
   const setState = (next) => {
@@ -350,11 +393,109 @@ export function createUpdater({ showToast, appConfig = {} }) {
     return r;
   }
 
-  /* 下载 zip 并轮询临时文件大小回传进度（exec 通道无进度事件，用文件大小近似）；
-     失败清理半文件并自动重试一次；取消后丢弃结果回到 available。
-     轮询 150ms 且先立即采样一次：10MB 级包在快网下 200ms 内下完，
-     等首轮询（旧 400ms）会直接 0→100，中间态一次也采不到。 */
-  async function downloadWithProgress(url, dest, totalSize, tag = 'dl') {
+  /* 流式下载（spawnProcess + 分块 CHUNK 累加）：PS 分块循环每 100ms 上报已传字节，
+   * JS 侧按 spawnedProcess 的 stdOut/stdErr 行解析累加，exit 结算。
+   * spawn 不可用、监听挂不上时抛 fallback 错，由调用方降级到轮询路径；
+   * 退出码非 0 按真实下载失败抛（调用方再走 curl 兜底）。 */
+  function downloadStreamWebRequest(url, dest, totalSize, tag = 'dl') {
+    const run = async () => {
+      const dir = await updateDir();
+      const psName = `${tag}-stream.ps1`;
+      const psPath = joinPath(dir, psName);
+      await Neutralino.filesystem.writeFile(psPath, buildDownloadStreamPs(url, dest));
+      if (typeof Neutralino.os?.spawnProcess !== 'function') {
+        const err = new Error('spawn unavailable');
+        err.fallback = true;
+        throw err;
+      }
+      let spawned = null;
+      try {
+        spawned = await Neutralino.os.spawnProcess(
+          `powershell -NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "${psPath}"`
+        );
+      } catch (e) {
+        const err = new Error(e?.message || String(e));
+        err.fallback = true;
+        throw err;
+      }
+      activeSpawnId = spawned.id;
+      let transferred = 0;
+      let contentLength = 0;
+      let buf = '';
+      const evtTarget = typeof window !== 'undefined' ? window : globalThis.window;
+      if (!evtTarget || typeof evtTarget.addEventListener !== 'function') {
+        const err = new Error('spawn listen unavailable');
+        err.fallback = true;
+        throw err;
+      }
+      const report = (t) => {
+        transferred = t;
+        const tot = totalSize > 0 ? totalSize : contentLength;
+        if (tot > 0) setState({ phase: 'downloading', progress: Math.min(1, t / tot) });
+      };
+      try {
+        await new Promise((resolve, reject) => {
+          const cleanup = () => {
+            try { evtTarget.removeEventListener('spawnedProcess', onEvent); } catch {}
+            if (activeSpawnId === spawned.id) activeSpawnId = null;
+          };
+          const onEvent = (evt) => {
+            const d = evt?.detail;
+            if (!d || d.id !== spawned.id) return;
+            if (d.action === 'stdOut' || d.action === 'stdErr') {
+              buf += String(d.data ?? '');
+              const parts = buf.split(/\r?\n/);
+              buf = parts.pop();
+              for (const line of parts) {
+                const p = parseProgressLine(line);
+                if (!p) continue;
+                if (p.kind === 'TOTAL') {
+                  if (Number.isFinite(p.value) && p.value > 0) contentLength = p.value;
+                } else if (p.kind === 'CHUNK' || p.kind === 'DONE') {
+                  if (Number.isFinite(p.value) && p.value >= 0) report(p.value);
+                }
+              }
+            } else if (d.action === 'exit') {
+              const code = Number(d.data);
+              /* 尾部残行（如 DONE 未换行）补解析一次，避免少算最后一块 */
+              const tail = parseProgressLine(buf);
+              if (tail && (tail.kind === 'CHUNK' || tail.kind === 'DONE') && tail.value >= 0) report(tail.value);
+              buf = '';
+              cleanup();
+              if (cancelRequested) {
+                reject(cancelledError());
+              } else if (code === 0) {
+                resolve();
+              } else {
+                const err = new Error(`stream exit ${code}`);
+                err.streamExit = code;
+                reject(err);
+              }
+            }
+          };
+          try {
+            evtTarget.addEventListener('spawnedProcess', onEvent);
+          } catch (e) {
+            cleanup();
+            const err = new Error(e?.message || String(e));
+            err.fallback = true;
+            reject(err);
+            return;
+          }
+          if (cancelRequested) killActiveSpawn();
+        });
+      } finally {
+        if (activeSpawnId === spawned.id) activeSpawnId = null;
+      }
+      if (cancelRequested) throw cancelledError();
+      return { transferred, contentLength };
+    };
+    return run();
+  }
+
+  /* 轮询下载（execCommand + 文件大小估算）：spawn 不可用时的降级路径，
+   * 也是 curl 兜底路的进度来源；失败清理半文件并自动重试一次。 */
+  async function downloadWithPoll(url, dest, totalSize, tag = 'dl') {
     let lastErr = null;
     for (let attempt = 0; attempt <= 1; attempt++) {
       if (cancelRequested) throw cancelledError();
@@ -392,6 +533,37 @@ export function createUpdater({ showToast, appConfig = {} }) {
     const size = await fileSize(dest);
     if (totalSize > 0 && size !== totalSize) throw new Error('下载文件大小与发布记录不符');
     setState({ phase: 'downloading', progress: 1 });
+  }
+
+  /* 下载 zip 主入口：优先 spawn 流式分块累加（CHUNK 行按字节累加，最接近
+   * Electron/Tauri 的 data-chunk 做法）；spawn 不可用才降级到轮询估算。
+   * 流式进程退出非 0 时不直接失败，改为走轮询路径（含 curl 兜底）再试一次，
+   * 保留原有“Web 优先、curl 兜底”语义；取消时真杀进程并回到 available。 */
+  async function downloadWithProgress(url, dest, totalSize, tag = 'dl') {
+    if (cancelRequested) throw cancelledError();
+    let streamErr = null;
+    try {
+      await downloadStreamWebRequest(url, dest, totalSize, tag);
+    } catch (e) {
+      if (e?.cancelled) throw e;
+      streamErr = e;
+    }
+    if (!streamErr) {
+      const size = await fileSize(dest);
+      if (totalSize > 0 && size !== totalSize) {
+        await removeFile(dest);
+        streamErr = new Error('下载文件大小与发布记录不符');
+      } else {
+        setState({ phase: 'downloading', progress: 1 });
+        return;
+      }
+    }
+    if (streamErr && !streamErr.fallback && !streamErr.streamExit && !/大小与发布记录不符/.test(streamErr.message || '')) {
+      throw new Error(`下载失败，请检查网络后重试（${streamErr?.message || streamErr}）`);
+    }
+    /* 降级前清掉流式半文件，避免把残缺包当完整包校验 */
+    await removeFile(dest);
+    await downloadWithPoll(url, dest, totalSize, tag);
   }
 
     /* 用 Web Crypto 计算文件 SHA-256：execCommand 在本环境的 stdout 捕获不可靠，
@@ -643,10 +815,12 @@ export function createUpdater({ showToast, appConfig = {} }) {
     }
   }
 
-  /** 取消下载：回到 available 可重试态；后台若仍在下载，完成时丢弃结果 */
+  /** 取消下载：真杀流式进程（若有），回到 available 可重试态；轮询降级路径中
+   * 后台若仍在下载，完成时丢弃结果 */
   function cancelDownload() {
     if (state.phase !== 'downloading' && state.phase !== 'verifying') return false;
     cancelRequested = true;
+    killActiveSpawn();
     const { version, body, assets } = state;
     setState({ phase: 'available', version, body, assets: assets || [], error: null, notice: null, errorKey: null, errorParams: null, noticeKey: null, noticeParams: null, progress: 0 });
     return true;
