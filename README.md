@@ -4,7 +4,7 @@
 
 # TODO Tools
 
-![version](https://img.shields.io/badge/version-1.4.1-blue)
+![version](https://img.shields.io/badge/version-1.4.2-blue)
 ![platform](https://img.shields.io/badge/platform-Windows_%7C_Web-6366f1)
 ![vite](https://img.shields.io/badge/vite-%5E6.3.5-646CFF?logo=vite&logoColor=white)
 ![neutralino](https://img.shields.io/badge/neutralino-6.7.0-orange)
