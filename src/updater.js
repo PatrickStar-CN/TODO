@@ -9,7 +9,8 @@
  *  3. SHA-256 校验（发布附带的 .sha256 asset；取不到期望哈希则直接失败，绝不跳过）
  *     → Expand-Archive 解压 → 核对文件大小；
  *  4. 写 pending.json、替换脚本（.ps1）与无窗口启动器（.vbs），注册一次性计划任务，
- *     释放单实例锁后退出应用（否则新版本因锁新鲜而误判重复实例静默退出）;
+ *     释放单实例 Mutex 持有者后退出应用（否则新版本因 Mutex 仍被占用
+ *     而误判重复实例静默退出）;
  *  5. 计划任务经 wscript（GUI 无控制台）隐藏拉起 powershell（独立进程树，不随主进程回收）
  *     等主进程退出 → 备份 exe/resources.neu → 替换 → 拉起新版本（全程无 cmd 黑框闪现）；
  *  6. 下次启动自检：按 pending.version 与运行版本比对判定成败——成功清理备份，
@@ -24,7 +25,8 @@
  *  - 替换/回滚失败时旧文件备份兜底，不会让程序处于不可启动状态。
  */
 
-import { INSTANCE_LOCK_DIR, INSTANCE_LOCK_FILE, isNeutralinoEnv } from './shared.js';
+import { isNeutralinoEnv } from './shared.js';
+import { releaseSingleInstance } from './singleInstance.js';
 import { t } from './i18n/index.js';
 
 /** semver 逐段比较：忽略 v 前缀；数字段与文本段混合时数字段更新（如 1.1.1-beta < 1.1.1）。
@@ -786,14 +788,14 @@ export function createUpdater({ showToast, appConfig = {} }) {
       );
       /* /Run 失败必须抛错：否则应用退出后更新静默丢失 */
       if (runResult.exitCode !== 0) throw new Error(`触发更新任务失败（${runResult.stdErr || runResult.exitCode}）`);
-      /* 退出前释放单实例锁：老进程心跳刚停（≤2s），锁文件仍新鲜；
-       * 若不删，替换脚本数秒内拉起的新版本会误判“已有实例在运行”
-       * （锁未过期）而静默退出，导致更新成功但程序没打开、pending 残留。
-       * 只删 owner.json 即可：新实例认领逻辑（main.js claimSingleInstance）
-       * 在锁缺失时重建锁目录并接管；删失败也不阻塞退出（新实例按过期锁处理）。 */
+      /* 退出前释放单实例 Mutex 持有者：老持有者随老进程退出而死亡，Mutex 由 OS 回收；
+       * 若不释放，替换脚本数秒内拉起的新版本会误判“已有实例在运行”
+       * 而静默退出，导致更新成功但程序没打开、pending 残留。
+       * 短暂等待让持有者退出先生效；释放失败也不阻塞退出
+       * （持有者随主进程回收，Mutex 最终仍会被 OS 释放）。 */
       try {
-        const tempDir = await Neutralino.os.getPath('temp');
-        await Neutralino.filesystem.remove(joinPath(joinPath(tempDir, INSTANCE_LOCK_DIR), INSTANCE_LOCK_FILE));
+        await releaseSingleInstance();
+        await new Promise(resolve => setTimeout(resolve, 300));
       } catch {}
       await Neutralino.app.exit();
     } catch (e) {

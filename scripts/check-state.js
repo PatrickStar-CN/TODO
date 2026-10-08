@@ -10,7 +10,8 @@ import { escapeAttr, escapeHtml } from '../src/utils/html.js';
 import { parseLocalDateInput, toLocalDateInput, toLocalDatetime, isToday, getMonthRange } from '../src/utils/date.js';
 import { animateWindowRect, cancelWindowRectAnimation, centerRect, computeCollapsedY, easeOutCubic, ensureDisplayHz, framesPerApply, isNearScreenTop, rectAt, WINDOW_ANIM_MAX_HZ } from '../src/miniSnap.js';
 import { buildCurlProxyPs, buildDownloadCurlPs, buildDownloadWebRequestPs, buildFetchCurlPs, buildFetchWebRequestPs, buildProxyAssignPs, buildTlsPs, buildUpdateLauncherVbs, buildUpdateTaskRun, buildUpdateTaskRunVbs, compareVersions, createUpdater, normalizeTargetDir, psQuote, sanitizeNetDetail, toEncodedCommand } from '../src/updater.js';
-import { INSTANCE_LOCK_DIR, INSTANCE_LOCK_FILE, getNextTagDotStyle, getTagTaskCount } from '../src/shared.js';
+import { getNextTagDotStyle, getTagTaskCount } from '../src/shared.js';
+import { HOLDER_LOST_EXIT_CODE, SINGLE_INSTANCE_MUTEX, acquireSingleInstance, buildHolderPs, buildMutexName, buildProbePs, decideProbe, releaseSingleInstance } from '../src/singleInstance.js';
 import { extractCompleteContent, normalizeStreamText, parseSseLine, resolveAiApiUrl } from '../src/utils/aiApi.js';
 import { DEFAULT_TIMELINE_SETTINGS, formatTimelineTime, getTimelineDateParts, normalizeTimelineSettings, sortTimelineTodos } from '../src/timeline.js';
 import { clampDonePanelHeight, computeDonePanelHeightFromPointer, computeDonePanelMaxHeightFromRects } from '../src/donePanelResize.js';
@@ -961,10 +962,26 @@ assert.ok(/btn-cancel-update/.test(settingsSource), '设置页应提供取消下
   assert.ok(/路径校验失败/.test(updaterSource), 'pending 往返不一致必须拦截调度');
   assert.ok(/Log \('targetDir='/.test(updaterSource), '替换脚本应记录解析后的目标目录');
   assert.ok(/更新包缺失/.test(updaterSource), '替换脚本应预检新文件存在');
-  assert.equal(`${INSTANCE_LOCK_DIR}/${INSTANCE_LOCK_FILE}`, 'todo-tools-instance.lock/owner.json');
+  /* OS 命名 Mutex 单实例：Local\ 会话命名空间，名称消毒收敛；
+   * 探测三态映射、持有者原子仲裁（createdNew 输家 exit 42）均为纯函数 */
+  assert.equal(SINGLE_INSTANCE_MUTEX, 'Local\\TODO-Tools-SingleInstance-app.todotools');
+  assert.equal(buildMutexName('app.todotools'), SINGLE_INSTANCE_MUTEX);
+  assert.equal(buildMutexName(''), SINGLE_INSTANCE_MUTEX);
+  assert.ok(/^Local\\TODO-Tools-SingleInstance-[A-Za-z0-9._-]+$/.test(buildMutexName('a/b c中文')), 'Mutex 名非法字符应收敛');
+  assert.ok(buildMutexName('x'.repeat(100)).length <= 'Local\\TODO-Tools-SingleInstance-'.length + 64, 'Mutex 名超长应截断');
+  assert.equal(HOLDER_LOST_EXIT_CODE, 42);
+  assert.equal(decideProbe(0), 'exists');
+  assert.equal(decideProbe(10), 'absent');
+  assert.equal(decideProbe(1), 'unknown');
+  assert.equal(decideProbe(undefined), 'unknown');
+  const probePs = buildProbePs(SINGLE_INSTANCE_MUTEX);
+  assert.ok(/OpenExisting/.test(probePs) && /exit 10/.test(probePs), '探测脚本应区分存在/不存在退出码');
+  const holderPs = buildHolderPs(SINGLE_INSTANCE_MUTEX);
+  assert.ok(/createdNew/.test(holderPs) && /exit 42/.test(holderPs), '持有者脚本应以 createdNew 原子仲裁，输家 exit 42');
   const mainSource = readFileSync(path.join(__dirname, '../src/main.js'), 'utf8');
-  assert.ok(/from '\.\/shared\.js'/.test(mainSource) && /INSTANCE_LOCK_DIR/.test(mainSource), '单实例锁位置应由 shared.js 统一定义，main.js 不得自立副本');
-  assert.ok(/INSTANCE_LOCK_FILE/.test(updaterSource), 'applyUpdate 退出前应释放单实例锁，避免新版本误判重复实例静默退出');
+  assert.ok(/from '\.\/singleInstance\.js'/.test(mainSource) && /acquireSingleInstance/.test(mainSource), '单实例仲裁应由 singleInstance.js 统一提供，main.js 不得自立副本');
+  assert.ok(!/INSTANCE_LOCK_DIR|createLockDirectory|LOCK_HEARTBEAT_MS|LOCK_STALE_MS/.test(mainSource), '文件锁心跳逻辑应已彻底删除');
+  assert.ok(/releaseSingleInstance/.test(updaterSource), 'applyUpdate 退出前应释放单实例 Mutex，避免新版本误判重复实例静默退出');
 }
 
 /* applyUpdate 全链路：就绪态 → 写 pending/脚本 → 注册任务 → 退出；
@@ -978,6 +995,7 @@ assert.ok(/btn-cancel-update/.test(settingsSource), '设置页应提供取消下
   const setup = (fsMem, { corruptPending = false, denyAppWrite = false } = {}) => {
     const dirSet = new Set();
     const cmds = [];
+    const releasedIds = [];
     let exited = false;
     globalThis.NL_PORT = 45678;
     globalThis.window = { NL_PATH: 'C:\\App' };
@@ -990,6 +1008,13 @@ assert.ok(/btn-cancel-update/.test(settingsSource), '设置页应提供取消下
         getPath: async () => 'C:\\Temp',
         execCommand: async (cmd) => {
           cmds.push(cmd);
+          if (cmd.includes('-EncodedCommand')) {
+            /* 单实例探测走 -EncodedCommand：解码后含 OpenExisting 即按 absent（exit 10）
+             * 处理，走原子抢占分支；更新器自身的 schtasks 命令不含该标记，不受影响 */
+            let decoded = '';
+            try { decoded = Buffer.from(cmd.trim().split(' ').pop(), 'base64').toString('utf16le'); } catch {}
+            if (decoded.includes('OpenExisting')) return { exitCode: 10, stdOut: '', stdErr: '' };
+          }
           if (cmd.includes('check-web.ps1')) {
             fsMem.set(JSON_KEY, JSON.stringify({
               tag_name: 'v9.9.9',
@@ -1014,6 +1039,13 @@ assert.ok(/btn-cancel-update/.test(settingsSource), '设置页应提供取消下
             fsMem.set(`${base}\\extracted\\resources.neu`, 'RES');
           }
           return { exitCode: 0, stdOut: '', stdErr: '' };
+        },
+        spawnProcess: async (cmd) => {
+          cmds.push(cmd);
+          return { id: 7, pid: 1234 };
+        },
+        updateSpawnedProcess: async (id, action) => {
+          releasedIds.push({ id, action });
         }
       },
       filesystem: {
@@ -1043,7 +1075,7 @@ assert.ok(/btn-cancel-update/.test(settingsSource), '设置页应提供取消下
         remove: async (p) => { fsMem.delete(p); }
       }
     };
-    return { cmds, wasExited: () => exited };
+    return { cmds, wasExited: () => exited, releasedIds };
   };
   const teardown = () => {
     delete globalThis.Neutralino;
@@ -1055,12 +1087,11 @@ assert.ok(/btn-cancel-update/.test(settingsSource), '设置页应提供取消下
     .filter((c) => c.includes('-EncodedCommand'))
     .map((c) => Buffer.from(c.trim().split(' ').pop(), 'base64').toString('utf16le'))
     .filter((s) => s.includes('TODO-Tools-Update') && s.includes('/Create')).length;
-  /* 正常路径：任务注册 + 释放单实例锁 + 退出，无失败 */
+  /* 正常路径：抢占 Mutex → 任务注册 → 释放 Mutex 持有者 → 退出，无失败 */
   {
     const fsMem = new Map();
-    const LOCK_KEY = 'C:\\Temp\\todo-tools-instance.lock\\owner.json';
-    fsMem.set(LOCK_KEY, JSON.stringify({ instanceId: 'old-instance', updatedAt: Date.now() }));
-    const { cmds, wasExited } = setup(fsMem);
+    const { cmds, wasExited, releasedIds } = setup(fsMem);
+    assert.equal((await acquireSingleInstance()).primary, true, '无实例占用时应抢占 Mutex 成功');
     const u = createUpdater({ showToast: () => {} });
     await u.checkForUpdates();
     assert.equal(u.getState().phase, 'available');
@@ -1068,10 +1099,11 @@ assert.ok(/btn-cancel-update/.test(settingsSource), '设置页应提供取消下
     assert.equal(u.getState().phase, 'ready');
     await u.applyUpdate();
     assert.equal(createdTasks(cmds), 1, '应注册一次性计划任务');
-    assert.ok(!fsMem.has(LOCK_KEY), '退出前应删除单实例锁文件，否则新版本误判重复实例静默退出');
+    assert.deepEqual(releasedIds, [{ id: 7, action: 'exit' }], '退出前应释放单实例 Mutex 持有者，否则新版本误判重复实例静默退出');
     assert.equal(wasExited(), true);
     assert.equal(u.getState().phase, 'ready');
     assert.equal(u.getState().error || null, null);
+    await releaseSingleInstance();
     teardown();
   }
   /* pending 被写坏：路径校验失败，不得调度任务、不得退出 */
