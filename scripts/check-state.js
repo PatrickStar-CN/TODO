@@ -562,6 +562,30 @@ assert.ok(/export function setDatePickerValue/.test(datePickerSource), 'datePick
   timed.after(() => { byTimer += 1; }, 0);
   await new Promise(resolve => setTimeout(resolve, 20));
   assert.equal(byTimer, 1, '动画事件不触发时应由兜底定时器收尾');
+
+  /* 回归：动画事件先到时，兜底定时器必须一起撤销。
+   * 否则面板已被隐藏、收尾登记也已注销，那个定时器会残留到稍后再次执行——
+   * 用户在动画结束与兜底定时器之间重新打开面板，就会被瞬间再次隐藏，
+   * 而新遮罩仍在屏幕上：弹窗闪一下就没了，界面永久停在模糊状态。 */
+  const settled = createFakeElement();
+  const raceDismissal = createDismissal();
+  let raceFinished = 0;
+  raceDismissal.onEnd(settled, () => { raceFinished += 1; });
+  raceDismissal.after(() => { raceFinished += 1; }, 10);
+  settled.fire(settled);
+  await new Promise(resolve => setTimeout(resolve, 40));
+  assert.equal(raceFinished, 1, 'animationend 收尾后兜底定时器应被清掉，不得再次执行');
+  assert.equal(settled.handlers.get('animationend').length, 0, '收尾完成后应移除已登记的 animationend 监听');
+
+  /* 兜底定时器先到时同理：动画监听要一起撤销，避免重复收尾 */
+  const timerFirst = createFakeElement();
+  const timerDismissal = createDismissal();
+  let timerFinished = 0;
+  timerDismissal.onEnd(timerFirst, () => { timerFinished += 1; });
+  timerDismissal.after(() => { timerFinished += 1; }, 0);
+  await new Promise(resolve => setTimeout(resolve, 30));
+  timerFirst.fire(timerFirst);
+  assert.equal(timerFinished, 1, '兜底定时器收尾后 animationend 监听应被清掉');
 }
 
 /* 各弹层关闭流程统一走收尾句柄：重开前撤销，收尾只认自身动画事件 */
@@ -578,6 +602,24 @@ for (const [file, label] of [
 const overlaySource = readFileSync(path.join(__dirname, '../src/overlay.js'), 'utf8');
 assert.ok(/querySelectorAll\('\.tag-input-overlay'\)/.test(overlaySource), 'createOverlay 应先收尾可能残留的旧通用遮罩，避免两层叠加时旧遮罩永久挡住界面');
 assert.ok(/closeDatePicker\(\)/.test(detailSource), '关闭任务详情应收尾日期选择浮层，避免浮层残留在界面上');
+/* 回归：AI 面板与其 .summary-overlay 必须同生共死。
+ * 只隐藏面板（dismissPanel）会把这层模糊遮罩留在界面上，
+ * 弹窗没了、界面却永久停在模糊状态且点不动。 */
+{
+  const aiSource = readFileSync(path.join(__dirname, '../src/aiSummary.js'), 'utf8');
+  const appSource = readFileSync(path.join(__dirname, '../src/app.js'), 'utf8');
+  const settingsSource = readFileSync(path.join(__dirname, '../src/settings.js'), 'utf8');
+  assert.ok(/export function closeSummary/.test(aiSource), 'aiSummary 应导出整体关闭入口 closeSummary');
+  assert.ok(!/getElementById\('summary-panel'\)/.test(detailSource),
+    'detail.js 不应再单独收起 AI 面板，避免只藏面板留下 .summary-overlay');
+  assert.ok(/closeSummary\(\)/.test(appSource), 'app.js 打开任务详情时应先整体收起 AI 面板');
+  assert.ok(/closeSummary\(\)/.test(settingsSource), 'settings.js 打开设置时应先整体收起 AI 面板');
+  assert.ok(!/dismissPanel\(/.test(settingsSource), 'settings.js 不应再直接 dismissPanel，避免只藏面板留下遮罩');
+  /* 面板已隐藏时的兜底必须无条件摘掉遮罩：残留遮罩会拦截全部点击，
+   * 而后续 closeDetail 都会走这条提前返回 */
+  assert.ok(/getDetailOverlay\(\)\?\.remove\(\);\s*\n\s*return;/.test(detailSource),
+    'closeDetail 的面板已隐藏分支应无条件移除遮罩，不应被关闭动画状态挡掉');
+}
 /* 报告流式链路：flush 尾行、DONE 终结外层、整包兜底、自动滚动、流式态清理 */
 {
   const aiSource = readFileSync(path.join(__dirname, '../src/aiSummary.js'), 'utf8');

@@ -224,9 +224,6 @@ export function initDetailEditor(callbacks) {
 export function openDetail(todo, triggerEl) {
   if (!todo) return;
 
-  /* 打开详情时顺带收起 AI 面板：走统一收尾，动画事件只认面板自身 */
-  dismissPanel(document.getElementById('summary-panel'));
-
   const detailPanel = document.getElementById('detail-panel');
 
   /* 重开前撤销上一次关闭的收尾，避免遗留的 animationend/定时器
@@ -381,9 +378,10 @@ export function closeDetail() {
   closeDatePicker();
   const panel = document.getElementById('detail-panel');
   if (!panel || panel.classList.contains('hidden')) {
-    /* 面板已隐藏但遮罩仍在时立即收尾：残留遮罩会永久拦截全部点击，
-     * 而后续 closeDetail 都会走上面的提前返回，只能在这里兜底 */
-    if (!detailCloseState) getDetailOverlay()?.remove();
+    /* 面板已隐藏时无条件摘掉遮罩：残留遮罩会永久拦截全部点击，
+     * 而后续 closeDetail 都会走这里的提前返回，只能在这兜底。
+     * remove() 本身幂等，关闭动画在途时重复摘除没有副作用。 */
+    getDetailOverlay()?.remove();
     return;
   }
   const releaseFocus = detailReleaseFocus;

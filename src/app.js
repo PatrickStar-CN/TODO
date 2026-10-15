@@ -17,7 +17,7 @@ import { initReminders } from './reminder.js';
 import { initMiniMode } from './miniMode.js';
 import { initQuickAddPopups, closeAllPopups } from './quickAddPopup.js';
 import { initDatePicker, closeDatePicker } from './datePicker.js';
-import { refreshSummaryLanguage } from './aiSummary.js';
+import { refreshSummaryLanguage, closeSummary } from './aiSummary.js';
 import { initSettings } from './settings.js';
 import { createUpdater } from './updater.js';
 import { createRuntimeIndex } from './runtimeIndex.js';
@@ -1451,7 +1451,11 @@ function showMonthPicker(currentMonth, onConfirm) {
 }
 
 // --- Detail Panel ---
+/* 弹层互斥在这里编排：详情与 AI 总结只允许同时存在一个，
+ * 由各自的模块提供"整体关闭"入口（面板 + 模糊遮罩一起收尾），
+ * 只藏面板会把 .summary-overlay 留在界面上形成关不掉的遮罩。 */
 function openDetail(id, triggerEl) {
+  closeSummary();
   const todo = getTodoById(id);
   _openDetail(todo, triggerEl);
 }

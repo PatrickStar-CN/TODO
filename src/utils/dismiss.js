@@ -1,24 +1,47 @@
 /* 弹层关闭动画的统一收尾句柄。
  *
- * 各弹层普遍用 animationend + 定时器双保险收尾，但有两个固有坑：
+ * 各弹层普遍用 animationend + 定时器双保险收尾，但有三个固有坑：
  * 1. animationend 会从子元素冒泡，按钮涟漪、下拉展开等无关动画结束
  *    都会误触发收尾，把面板或遮罩提前撤掉；
  * 2. 关闭动画途中重新打开时浏览器只发 animationcancel，旧监听与旧定时器
  *    会残留到新打开的界面上——展开动画一结束就把面板再次隐藏，
- *    或把刚创建的遮罩提前移除，界面因此卡在一层无法关闭的模糊遮罩上。
+ *    或把刚创建的遮罩提前移除，界面因此卡在一层无法关闭的模糊遮罩上；
+ * 3. 动画事件先于兜底定时器到达时，兜底定时器并不会自己消失，
+ *    会残留到稍后再次执行：面板此时已被隐藏、收尾登记也被注销，
+ *    cancelPanelDismiss 找不回它，重新打开就拦不住这次过期隐藏，
+ *    结果是弹窗刚打开又被瞬间收走，而模糊遮罩仍留在屏幕上。
  *
- * 统一用本句柄登记回调，重新打开时 cancel() 整体撤销。 */
+ * 统一用本句柄登记回调：先到者收尾并清掉其余回调，重新打开时 cancel() 整体撤销。 */
 import { getUiMotionDuration } from '../uiPreferences.js';
 
 export function createDismissal() {
   let timers = [];
   let listeners = [];
+  let settled = false;
 
   function detach() {
+    settled = true;
     timers.forEach(id => clearTimeout(id));
     listeners.forEach(([el, handler]) => el.removeEventListener('animationend', handler));
     timers = [];
     listeners = [];
+  }
+
+  /* 动画事件与兜底定时器只允许其中一个生效：
+   * 谁先到谁收尾，同时拆掉另一路，避免残留回调作用在之后的状态上 */
+  function settleOnce(handler) {
+    return (...args) => {
+      if (settled) return;
+      const clearOthers = () => {
+        timers.forEach(id => clearTimeout(id));
+        listeners.forEach(([el, fn]) => el.removeEventListener('animationend', fn));
+        timers = [];
+        listeners = [];
+      };
+      clearOthers();
+      settled = true;
+      handler(...args);
+    };
   }
 
   return {
@@ -26,14 +49,14 @@ export function createDismissal() {
     onEnd(el, handler) {
       const guarded = (event) => {
         if (event.target !== el) return;
-        handler();
+        settleOnce(handler)();
       };
       el.addEventListener('animationend', guarded, { once: true });
       listeners.push([el, guarded]);
     },
     /* 动画事件不触发时的兜底（零时长动效、快速连点、窗口隐藏时节流等） */
     after(fn, delay) {
-      timers.push(setTimeout(fn, delay));
+      timers.push(setTimeout(() => settleOnce(fn)(), delay));
     },
     /* 重新打开/重复触发时撤销全部收尾，防止过期回调作用在新状态上 */
     cancel: detach

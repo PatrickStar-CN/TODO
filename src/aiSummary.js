@@ -13,10 +13,19 @@ export function getMonthlyReportRange(baseDate) {
 }
 
 let refreshSummaryLangFn = null;
+let closeSummaryFn = null;
 
 /* 语言切换时刷新已开 AI 面板：占位文案、日期范围与生成按钮，不动已生成的报告正文 */
 export function refreshSummaryLanguage() {
   if (typeof refreshSummaryLangFn === 'function') refreshSummaryLangFn();
+}
+
+/* 任务详情、设置等弹层打开时会顺带收起 AI 面板：
+ * 必须走 AI 面板自己的关闭入口（面板 + 遮罩 + 流式请求一起收尾），
+ * 只隐藏面板会把 .summary-overlay 留在界面上，形成关不掉的模糊遮罩。
+ * 焦点不归还——随后打开的弹层会自己接管焦点。 */
+export function closeSummary() {
+  closeSummaryFn?.({ restoreFocus: false });
 }
 
 export function initAiSummary({ data, saveData, showToast }) {
@@ -132,7 +141,13 @@ export function initAiSummary({ data, saveData, showToast }) {
     });
   });
 
-  document.getElementById('close-summary').addEventListener('click', () => {
+  /* AI 面板的统一关闭入口：面板、遮罩、流式请求、焦点一起收尾。
+   * restoreFocus=false 用于「打开别的弹层顺带收起 AI」的场景，
+   * 避免延迟归还的焦点把刚打开的弹层焦点抢走。 */
+  const closeSummaryPanel = ({ restoreFocus = true } = {}) => {
+    const panelVisible = !summaryPanel.classList.contains('hidden');
+    if (!panelVisible && !summaryOverlay) return;
+
     /* 关闭即取消流式请求，避免后台继续累积 fullText 耗 CPU/内存 */
     reportAborter?.abort();
     reportAborter = null;
@@ -157,15 +172,20 @@ export function initAiSummary({ data, saveData, showToast }) {
     /* 面板收起与遮罩移除同一套收尾：动画不触发时由定时器兜底 */
     dismissPanel(summaryPanel);
     dismissal.after(removeOverlay, duration + 50);
-    dismissal.after(() => {
-      if (typeof releaseFocus === 'function') releaseFocus();
-    }, duration + 60);
-  });
+    if (restoreFocus) {
+      dismissal.after(() => {
+        if (typeof releaseFocus === 'function') releaseFocus();
+      }, duration + 60);
+    }
+  };
+  closeSummaryFn = closeSummaryPanel;
+
+  document.getElementById('close-summary').addEventListener('click', () => closeSummaryPanel());
 
   summaryPanel.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && !summaryPanel.classList.contains('hidden')) {
       event.preventDefault();
-      document.getElementById('close-summary').click();
+      closeSummaryPanel();
     }
   });
 

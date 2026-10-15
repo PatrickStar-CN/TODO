@@ -3,9 +3,10 @@ import { applyTheme } from './theme.js';
 import { closeDetail } from './detail.js';
 import { closeDatePicker } from './datePicker.js';
 import { showConfirmDialog } from './overlay.js';
+import { closeSummary } from './aiSummary.js';
 import { exportData, EXPORT_FORMATS } from './dataExport.js';
 import { DEFAULT_UI_STYLE, applyUiStyle, getUiMotionDuration, normalizeUiStyle } from './uiPreferences.js';
-import { createDismissal, dismissPanel } from './utils/dismiss.js';
+import { createDismissal } from './utils/dismiss.js';
 import { createFocusTrap, enableRovingTablist } from './utils/focus.js';
 import { iconSvg } from './icons.js';
 import { normalizeTimelineSettings } from './timeline.js';
@@ -70,8 +71,8 @@ function closePanel() {
 function openPanel(opts = {}) {
   if (settingsOverlay) return;
 
-  // 关闭详情面板和 AI 总结面板
-  dismissPanel(document.getElementById('summary-panel'));
+  // 关闭详情面板和 AI 总结面板（各自的遮罩一起收尾，避免残留模糊层）
+  closeSummary();
   closeDetail();
 
   // 创建弹窗
