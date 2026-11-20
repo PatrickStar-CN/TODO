@@ -1646,6 +1646,15 @@ assert.ok(/btn-cancel-update/.test(settingsSource), '设置页应提供取消下
 /* 模式切换：容器尺寸驱动 + 双布局层交错过渡（切换路径零窗口 API） */
 {
   const miniSource = readFileSync(path.join(__dirname, '../src/miniMode.js'), 'utf8');
+  /* 标记结构必须真的落盘：CSS 与 JS 都按这两个挂载点工作，缺一个就只剩侧边栏 */
+  const frameHtml = readFileSync(path.join(__dirname, '../index.html'), 'utf8').replace(/\r\n/g, '\n');
+  const frameOpen = frameHtml.indexOf('<div id="app-frame">');
+  const mainMount = frameHtml.indexOf('<div class="mode-mount mode-mount--main">');
+  const miniLayer = frameHtml.indexOf('<div class="mini-layer" id="mini-layer">');
+  const miniPanel = frameHtml.indexOf('id="mini-panel"');
+  assert.ok(frameOpen > 0 && mainMount > frameOpen, 'index.html 应有 #app-frame > .mode-mount--main 主布局容器');
+  assert.ok(miniLayer > mainMount && miniPanel > miniLayer, 'index.html 的 #mini-panel 应位于 .mini-layer 内');
+  assert.ok(!/<div class="app">/.test(frameHtml), '旧的 .app 容器应已被 #app-frame 取代');
   assert.ok(/#app-frame/.test(styleSource), 'style.css 应提供 #app-frame 模式容器');
   assert.ok(/#app-frame\[data-mode='mini'\]\s*\.mini-layer/.test(styleSource), 'mini 模式应由 #app-frame[data-mode] 驱动 .mini-layer 显示');
   assert.ok(/#app-frame\[data-mode='mini'\]\s*\.mode-mount--main/.test(styleSource), 'mini 模式应隐藏 .mode-mount--main 并跳过绘制');
@@ -1682,7 +1691,12 @@ assert.ok(/btn-cancel-update/.test(settingsSource), '设置页应提供取消下
   assert.ok(/html\s*\{[^}]*height:\s*100%/.test(styleSource), 'html 应设定高度基准');
   assert.ok(/body\s*\{[^}]*height:\s*100%/.test(styleSource), 'body 应继承高度基准');
   assert.ok(/height:\s*var\(--mode-h,\s*100%\)/.test(styleSource), '#app-frame 应默认铺满视口高度');
-  assert.ok(/#app-frame\[data-mode='mini'\]\s*\{[^}]*transition:\s*width/.test(styleSource), '宽高过渡只在迷你布局层在场时启用');
+  /* 容器尺寸过渡会把拖拽缩放和退出恢复拖成慢半拍：切换手感只由布局层透明度交错提供 */
+  assert.ok(/#app-frame\[data-mode='mini'\]\s*\{[^}]*transition:\s*none/.test(styleSource), '容器不应带尺寸过渡，缩放窗口时内部元素须逐帧跟随');
+  assert.ok(
+    /if \(size\) requestAnimationFrame\(\(\) => setModeFrameSize\(null\)\)/.test(miniSource),
+    'px 兜底只保留一帧，随后回到 100% 跟随视口，否则迷你窗口缩放后元素不跟随',
+  );
   /* 原生窗框：扩展样式清除后必须再强制重算一次非客户区，标题栏按钮才会立刻恢复 */
   /* 样式位改写与非客户区重算必须同一次调用完成，否则窗框晚半拍才恢复 */
   const toggleBuilder = miniSource.slice(miniSource.indexOf('function buildTaskbarToggleCommand'), miniSource.indexOf('let taskbarHidden'));

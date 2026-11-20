@@ -69,11 +69,11 @@ export function initMiniMode({ data, saveData, render, showToast, showContextMen
      只在没有窗口 API 的 Web 端切换迷你布局时用 px 兜底一次 */
   function applyFrameMode(mode, size) {
     if (!appFrame) return;
+    /* 容器一律铺满视口：px 兜底只在窗口 API 落地前用一帧，
+       落地（或 Web 端）后立刻清掉，否则用户缩放迷你窗口时容器仍按旧 px 渲染 */
     setModeFrameSize(size || null);
     appFrame.dataset.mode = mode;
-    /* 容器高度交给视口：写入 data-mode 后清掉可能残留的 px 兜底，
-       保证任何路径下 #app-frame 都是 100%（Web 端迷你切换除外） */
-    if (mode !== 'mini') setModeFrameSize(null);
+    if (size) requestAnimationFrame(() => setModeFrameSize(null));
   }
 
   /* 当前窗口所在显示器：位置读窗口矩形，取代旧的 displays[0]，多显示器下才落在同一块屏 */
@@ -597,12 +597,14 @@ if (([TbToggle]::IsWindow($hwnd)) -and ($hwnd -ne [IntPtr]::Zero)) { $GWL_EXSTYL
     const h = Math.max(miniMinHeight, Math.round(height));
     miniWidth = w;
     miniHeight = h;
-    /* 容器跟随视口即可（缺省尺寸只在没有窗口 API 时兜底），
+    /* 容器由 --mode-w/--mode-h 钉回 100% 后自动跟随视口，
        缩放后的矩形记进 appliedGeometry 与矩形记忆，下次进入按这个尺寸还原 */
     appliedGeometry = `mini:${w}x${h}`;
     const mem = geometryMemory.mini || (geometryMemory.mini = { x: null, y: null });
     mem.width = w;
     mem.height = h;
+    /* resizable 必须每帧都带上：Windows 在无边框窗口上会重算 WS_THICKFRAME，
+       漏掉就会把迷你窗口变成不可缩放，退出时窗框也回不到原生样式 */
     Neutralino.window.setSize({ width: w, height: h, minWidth: miniMinWidth, minHeight: miniMinHeight, resizable: false })
       .catch(e => console.warn('mini resize error:', e));
   }

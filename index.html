@@ -7,350 +7,354 @@
   <title>待办事项</title>
 </head>
 <body>
-  <div class="app">
-    <!-- 左侧边栏 -->
-    <aside class="sidebar">
-      <div class="sidebar-header">
-        <h2>待办事项</h2>
-        <div class="header-actions">
-          <button class="btn-header-action" id="btn-settings" title="设置" aria-label="设置"><span data-icon="settings"></span></button>
+  <div id="app-frame">
+    <div class="mode-mount mode-mount--main">
+      <!-- 左侧边栏 -->
+      <aside class="sidebar">
+        <div class="sidebar-header">
+          <h2>待办事项</h2>
+          <div class="header-actions">
+            <button class="btn-header-action" id="btn-settings" title="设置" aria-label="设置"><span data-icon="settings"></span></button>
+          </div>
+          <span class="date" id="today-date"></span>
         </div>
-        <span class="date" id="today-date"></span>
-      </div>
-      <nav class="sidebar-nav">
-        <a href="#" class="nav-item active" data-list="todo" title="TODO" draggable="false">
-          <span class="nav-icon" data-icon="sun"></span>
-          <span class="nav-text">TODO</span>
-          <span class="nav-count" id="count-todo">0</span>
-        </a>
-        <a href="#" class="nav-item" data-list="important" title="重要" draggable="false">
-          <span class="nav-icon" data-icon="star-filled"></span>
-          <span class="nav-text">重要</span>
-          <span class="nav-count" id="count-important">0</span>
-        </a>
-        <a href="#" class="nav-item" data-list="all" title="所有" draggable="false">
-          <span class="nav-icon" data-icon="inbox"></span>
-          <span class="nav-text">所有</span>
-          <span class="nav-count" id="count-all">0</span>
-        </a>
-        <a href="#" class="nav-item" data-list="archived" title="归档" draggable="false">
-          <span class="nav-icon" data-icon="archive"></span>
-          <span class="nav-text">归档</span>
-          <span class="nav-count" id="count-archived">0</span>
-        </a>
-        <a href="#" class="nav-item" data-list="calendar" title="日历" draggable="false">
-          <span class="nav-icon" data-icon="calendar"></span>
-          <span class="nav-text">日历</span>
-          <span class="nav-count"></span>
-        </a>
-      </nav>
-      <div class="sidebar-section">
-        <div class="section-title">标签</div>
-        <div id="tag-list" class="tag-list"></div>
-      </div>
-      <div class="sidebar-footer">
-        <button id="btn-mini-mode-footer" class="btn-mini-mode-footer" title="迷你模式" aria-label="迷你模式"><span class="btn-icon" data-icon="pin"></span><span class="btn-text">迷你模式</span></button>
-        <button id="btn-toggle-sidebar" class="btn-toggle-sidebar" title="折叠侧栏" aria-label="折叠侧栏"><span class="btn-icon" data-icon="chevron-left"></span><span class="btn-text">折叠侧栏</span></button>
-      </div>
-    </aside>
+        <nav class="sidebar-nav">
+          <a href="#" class="nav-item active" data-list="todo" title="TODO" draggable="false">
+            <span class="nav-icon" data-icon="sun"></span>
+            <span class="nav-text">TODO</span>
+            <span class="nav-count" id="count-todo">0</span>
+          </a>
+          <a href="#" class="nav-item" data-list="important" title="重要" draggable="false">
+            <span class="nav-icon" data-icon="star-filled"></span>
+            <span class="nav-text">重要</span>
+            <span class="nav-count" id="count-important">0</span>
+          </a>
+          <a href="#" class="nav-item" data-list="all" title="所有" draggable="false">
+            <span class="nav-icon" data-icon="inbox"></span>
+            <span class="nav-text">所有</span>
+            <span class="nav-count" id="count-all">0</span>
+          </a>
+          <a href="#" class="nav-item" data-list="archived" title="归档" draggable="false">
+            <span class="nav-icon" data-icon="archive"></span>
+            <span class="nav-text">归档</span>
+            <span class="nav-count" id="count-archived">0</span>
+          </a>
+          <a href="#" class="nav-item" data-list="calendar" title="日历" draggable="false">
+            <span class="nav-icon" data-icon="calendar"></span>
+            <span class="nav-text">日历</span>
+            <span class="nav-count"></span>
+          </a>
+        </nav>
+        <div class="sidebar-section">
+          <div class="section-title">标签</div>
+          <div id="tag-list" class="tag-list"></div>
+        </div>
+        <div class="sidebar-footer">
+          <button id="btn-mini-mode-footer" class="btn-mini-mode-footer" title="迷你模式" aria-label="迷你模式"><span class="btn-icon" data-icon="pin"></span><span class="btn-text">迷你模式</span></button>
+          <button id="btn-toggle-sidebar" class="btn-toggle-sidebar" title="折叠侧栏" aria-label="折叠侧栏"><span class="btn-icon" data-icon="chevron-left"></span><span class="btn-text">折叠侧栏</span></button>
+        </div>
+      </aside>
 
-    <!-- 主内容区 -->
-    <main class="main-content">
-      <!-- 列表视图 -->
-      <div id="view-list" class="view active">
-        <div class="main-header">
-          <div>
-            <h1 id="list-title">TODO</h1>
-            <span class="task-summary" id="task-summary"></span>
-          </div>
-          <div class="view-header-actions">
-            <button class="btn-glass view-header-action" id="btn-search" title="搜索">
-              <span class="view-header-action-icon" data-icon="search" data-icon-class="view-header-action-icon" aria-hidden="true"></span>
-              <span>搜索</span>
-            </button>
-          </div>
-        </div>
-        <div class="search-bar hidden" id="search-bar">
-          <label class="sr-only" for="search-input">搜索任务</label>
-          <input type="text" id="search-input" placeholder="搜索任务..." autocomplete="off" aria-label="搜索任务">
-          <button class="icon-btn" id="btn-search-close" title="关闭搜索" aria-label="关闭搜索"><span data-icon="x"></span></button>
-        </div>
-        <div class="task-scroll-area">
-          <!-- 添加任务 -->
-          <div class="add-task-bar">
-            <span class="add-icon" data-icon="plus"></span>
-            <input type="text" id="quick-add" placeholder="添加新任务..." autocomplete="off">
-            <div class="add-task-actions">
-              <button class="icon-btn" id="btn-set-date" title="设置日期" aria-label="设置日期"><span data-icon="calendar"></span></button>
-              <button class="icon-btn" id="btn-set-priority" title="设置优先级" aria-label="设置优先级"><span data-icon="flag"></span></button>
-              <button class="icon-btn" id="btn-set-tag" title="设置标签" aria-label="设置标签"><span data-icon="tag"></span></button>
+      <!-- 主内容区 -->
+      <main class="main-content">
+        <!-- 列表视图 -->
+        <div id="view-list" class="view active">
+          <div class="main-header">
+            <div>
+              <h1 id="list-title">TODO</h1>
+              <span class="task-summary" id="task-summary"></span>
             </div>
-          </div>
-          <!-- 任务列表 -->
-          <div id="todo-list" class="todo-list"></div>
-        </div>
-        <!-- 已完成悬浮面板 -->
-        <div id="done-section" class="done-section">
-          <div id="done-resize-handle" class="done-resize-handle" role="separator" aria-orientation="vertical" tabindex="0" aria-label="拖拽调整已完成面板高度" aria-valuemin="120" aria-valuemax="600" aria-valuenow="280" title="拖拽调整高度，双击恢复默认"><span class="done-resize-grip" aria-hidden="true"></span></div>
-          <div class="done-header" id="done-toggle">
-            <span>已完成 (<span id="done-count">0</span>)</span>
-            <div class="done-header-actions">
-              <button class="btn-archive-all" id="btn-archive-done" type="button" title="归档已完成" aria-label="归档已完成"><span data-icon="archive"></span></button>
-              <button class="btn-archive-all btn-clear-done" id="btn-clear-done" type="button" title="清空已完成" aria-label="清空已完成"><span data-icon="trash"></span></button>
-              <span class="arrow" data-icon="chevron-down"></span>
-            </div>
-          </div>
-          <div id="done-list-wrapper" class="done-list-wrapper">
-            <div id="done-list" class="todo-list"></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 日历视图 -->
-      <div id="view-calendar" class="view">
-        <div class="main-header">
-          <div>
-            <h1>日历</h1>
-          </div>
-          <div class="view-header-actions">
-            <button class="btn-glass view-header-action" id="btn-open-summary" title="AI 总结">
-              <span class="view-header-action-icon" data-icon="document" data-icon-class="view-header-action-icon" aria-hidden="true"></span>
-              <span>AI 总结</span>
-            </button>
-          </div>
-        </div>
-        <div class="calendar-container">
-          <div class="calendar-toolbar">
-            <div class="calendar-mode-switch" role="tablist" aria-label="日历视图模式">
-              <button class="calendar-mode-btn active" type="button" role="tab" aria-selected="true" tabindex="0" aria-controls="calendar-chart-body calendar-detail" data-calendar-mode="month">月历</button>
-              <button class="calendar-mode-btn" type="button" role="tab" aria-selected="false" tabindex="-1" aria-controls="calendar-chart-body calendar-detail" data-calendar-mode="tasks">任务量</button>
-              <button class="calendar-mode-btn" type="button" role="tab" aria-selected="false" tabindex="-1" aria-controls="calendar-chart-body calendar-detail" data-calendar-mode="completed">完成量</button>
-            </div>
-            <div class="calendar-nav">
-              <button class="icon-btn" id="prev-month" aria-label="上一个月"><span data-icon="chevron-left"></span></button>
-              <button class="calendar-title-btn" id="calendar-title" title="点击选择年月"></button>
-              <button class="icon-btn" id="next-month" aria-label="下一个月"><span data-icon="chevron-right"></span></button>
-              <button class="icon-btn today-jump-btn" id="btn-today" title="回到今天" aria-label="回到今天"><span data-icon="today"></span></button>
-            </div>
-            <div class="calendar-toolbar-actions">
-              <button class="btn-glass calendar-collapse-btn" id="toggle-calendar-chart" type="button" aria-expanded="true" aria-controls="calendar-chart-body">
-                <svg class="calendar-collapse-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 15 12 9 18 15"></polyline></svg>
-                <span class="calendar-collapse-label">收起图表</span>
+            <div class="view-header-actions">
+              <button class="btn-glass view-header-action" id="btn-search" title="搜索">
+                <span class="view-header-action-icon" data-icon="search" data-icon-class="view-header-action-icon" aria-hidden="true"></span>
+                <span>搜索</span>
               </button>
             </div>
           </div>
-          <div class="calendar-layout" id="calendar-layout">
-            <div class="calendar-chart-body" id="calendar-chart-body">
-              <div class="calendar-grid">
-                <div class="calendar-month-labels" id="calendar-month-labels" aria-hidden="true"></div>
-                <div class="calendar-weekdays">
-                  <span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span>
-                </div>
-                <div id="calendar-days" class="calendar-days"></div>
-              </div>
-              <div class="calendar-heat-legend" aria-label="日期活动热力图图例">
-                <span><i class="heat-swatch heat-metric"></i><span id="calendar-legend-label">任务量</span></span>
-                <span class="heat-scale" aria-hidden="true"><small>少</small><i></i><i></i><i></i><i></i><small>多</small></span>
+          <div class="search-bar hidden" id="search-bar">
+            <label class="sr-only" for="search-input">搜索任务</label>
+            <input type="text" id="search-input" placeholder="搜索任务..." autocomplete="off" aria-label="搜索任务">
+            <button class="icon-btn" id="btn-search-close" title="关闭搜索" aria-label="关闭搜索"><span data-icon="x"></span></button>
+          </div>
+          <div class="task-scroll-area">
+            <!-- 添加任务 -->
+            <div class="add-task-bar">
+              <span class="add-icon" data-icon="plus"></span>
+              <input type="text" id="quick-add" placeholder="添加新任务..." autocomplete="off">
+              <div class="add-task-actions">
+                <button class="icon-btn" id="btn-set-date" title="设置日期" aria-label="设置日期"><span data-icon="calendar"></span></button>
+                <button class="icon-btn" id="btn-set-priority" title="设置优先级" aria-label="设置优先级"><span data-icon="flag"></span></button>
+                <button class="icon-btn" id="btn-set-tag" title="设置标签" aria-label="设置标签"><span data-icon="tag"></span></button>
               </div>
             </div>
-            <div id="calendar-detail" class="calendar-detail"></div>
+            <!-- 任务列表 -->
+            <div id="todo-list" class="todo-list"></div>
+          </div>
+          <!-- 已完成悬浮面板 -->
+          <div id="done-section" class="done-section">
+            <div id="done-resize-handle" class="done-resize-handle" role="separator" aria-orientation="vertical" tabindex="0" aria-label="拖拽调整已完成面板高度" aria-valuemin="120" aria-valuemax="600" aria-valuenow="280" title="拖拽调整高度，双击恢复默认"><span class="done-resize-grip" aria-hidden="true"></span></div>
+            <div class="done-header" id="done-toggle">
+              <span>已完成 (<span id="done-count">0</span>)</span>
+              <div class="done-header-actions">
+                <button class="btn-archive-all" id="btn-archive-done" type="button" title="归档已完成" aria-label="归档已完成"><span data-icon="archive"></span></button>
+                <button class="btn-archive-all btn-clear-done" id="btn-clear-done" type="button" title="清空已完成" aria-label="清空已完成"><span data-icon="trash"></span></button>
+                <span class="arrow" data-icon="chevron-down"></span>
+              </div>
+            </div>
+            <div id="done-list-wrapper" class="done-list-wrapper">
+              <div id="done-list" class="todo-list"></div>
+            </div>
           </div>
         </div>
-      </div>
 
-    </main>
-  </div>
+        <!-- 日历视图 -->
+        <div id="view-calendar" class="view">
+          <div class="main-header">
+            <div>
+              <h1>日历</h1>
+            </div>
+            <div class="view-header-actions">
+              <button class="btn-glass view-header-action" id="btn-open-summary" title="AI 总结">
+                <span class="view-header-action-icon" data-icon="document" data-icon-class="view-header-action-icon" aria-hidden="true"></span>
+                <span>AI 总结</span>
+              </button>
+            </div>
+          </div>
+          <div class="calendar-container">
+            <div class="calendar-toolbar">
+              <div class="calendar-mode-switch" role="tablist" aria-label="日历视图模式">
+                <button class="calendar-mode-btn active" type="button" role="tab" aria-selected="true" tabindex="0" aria-controls="calendar-chart-body calendar-detail" data-calendar-mode="month">月历</button>
+                <button class="calendar-mode-btn" type="button" role="tab" aria-selected="false" tabindex="-1" aria-controls="calendar-chart-body calendar-detail" data-calendar-mode="tasks">任务量</button>
+                <button class="calendar-mode-btn" type="button" role="tab" aria-selected="false" tabindex="-1" aria-controls="calendar-chart-body calendar-detail" data-calendar-mode="completed">完成量</button>
+              </div>
+              <div class="calendar-nav">
+                <button class="icon-btn" id="prev-month" aria-label="上一个月"><span data-icon="chevron-left"></span></button>
+                <button class="calendar-title-btn" id="calendar-title" title="点击选择年月"></button>
+                <button class="icon-btn" id="next-month" aria-label="下一个月"><span data-icon="chevron-right"></span></button>
+                <button class="icon-btn today-jump-btn" id="btn-today" title="回到今天" aria-label="回到今天"><span data-icon="today"></span></button>
+              </div>
+              <div class="calendar-toolbar-actions">
+                <button class="btn-glass calendar-collapse-btn" id="toggle-calendar-chart" type="button" aria-expanded="true" aria-controls="calendar-chart-body">
+                  <svg class="calendar-collapse-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 15 12 9 18 15"></polyline></svg>
+                  <span class="calendar-collapse-label">收起图表</span>
+                </button>
+              </div>
+            </div>
+            <div class="calendar-layout" id="calendar-layout">
+              <div class="calendar-chart-body" id="calendar-chart-body">
+                <div class="calendar-grid">
+                  <div class="calendar-month-labels" id="calendar-month-labels" aria-hidden="true"></div>
+                  <div class="calendar-weekdays">
+                    <span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span>
+                  </div>
+                  <div id="calendar-days" class="calendar-days"></div>
+                </div>
+                <div class="calendar-heat-legend" aria-label="日期活动热力图图例">
+                  <span><i class="heat-swatch heat-metric"></i><span id="calendar-legend-label">任务量</span></span>
+                  <span class="heat-scale" aria-hidden="true"><small>少</small><i></i><i></i><i></i><i></i><small>多</small></span>
+                </div>
+              </div>
+              <div id="calendar-detail" class="calendar-detail"></div>
+            </div>
+          </div>
+        </div>
 
-  <!-- 任务详情面板 -->
-  <div id="detail-panel" class="detail-panel hidden" role="dialog" aria-modal="true" aria-label="编辑任务">
-    <div class="detail-header">
-      <h3>编辑任务</h3>
-      <button class="icon-btn" id="close-detail" aria-label="关闭任务详情"><span data-icon="x"></span></button>
+      </main>
     </div>
-    <form id="detail-form">
-      <input type="hidden" id="detail-id">
-      <div class="detail-row">
-        <label>标题</label>
-        <input type="text" id="detail-title" required>
-      </div>
-      <div class="detail-row">
-        <label>备注</label>
-        <textarea id="detail-desc" placeholder="添加备注..."></textarea>
-      </div>
-      <div class="detail-row-inline">
-        <div class="detail-row">
-          <label>优先级</label>
-          <div class="detail-select" id="detail-priority" data-value="" role="combobox" tabindex="0" aria-label="选择优先级" aria-haspopup="listbox" aria-expanded="false">
-            <span class="detail-select-trigger">无</span>
-            <svg class="detail-select-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-          </div>
-        </div>
-        <div class="detail-row">
-          <label>标签</label>
-          <div class="detail-select" id="detail-tag" data-value="" role="combobox" tabindex="0" aria-label="选择标签" aria-haspopup="listbox" aria-expanded="false">
-            <span class="detail-select-trigger">未设置</span>
-            <svg class="detail-select-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-          </div>
-        </div>
-      </div>
-      <div class="detail-row-inline">
-        <div class="detail-row">
-          <label>开始时间</label>
-          <input type="text" id="detail-start" data-dp-mode="datetime">
-        </div>
-        <div class="detail-row">
-          <label>截止时间</label>
-          <input type="text" id="detail-end" data-dp-mode="datetime">
-        </div>
-      </div>
-      <div class="detail-row-inline">
-        <div class="detail-row">
-          <label>提醒时间</label>
-          <input type="text" id="detail-reminder" data-dp-mode="datetime">
-        </div>
-        <div class="detail-row">
-          <label>重复提醒</label>
-          <div class="detail-select" id="detail-reminder-repeat" data-value="" role="combobox" tabindex="0" aria-label="选择重复提醒" aria-haspopup="listbox" aria-expanded="false">
-            <span class="detail-select-trigger">不重复</span>
-            <svg class="detail-select-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-          </div>
-        </div>
-      </div>
-      <div class="detail-row-inline detail-toggle-grid">
-        <div class="detail-row checkbox-row">
-          <label for="detail-todo">
-            <span class="detail-toggle-copy">
-              <span class="detail-toggle-title">添加到 TODO</span>
-              <span class="detail-toggle-hint" id="detail-todo-hint">在 TODO 清单中显示</span>
-            </span>
-            <input type="checkbox" id="detail-todo" aria-label="添加到 TODO" aria-describedby="detail-todo-hint">
-            <span class="detail-toggle-control" aria-hidden="true"></span>
-          </label>
-        </div>
-        <div class="detail-row checkbox-row">
-          <label for="detail-important">
-            <span class="detail-toggle-copy">
-              <span class="detail-toggle-title">标记为重要</span>
-              <span class="detail-toggle-hint" id="detail-important-hint">显示在重要视图中</span>
-            </span>
-            <input type="checkbox" id="detail-important" aria-label="标记为重要" aria-describedby="detail-important-hint">
-            <span class="detail-toggle-control" aria-hidden="true"></span>
-          </label>
-        </div>
-      </div>
-      <div class="detail-meta-grid">
-        <div class="detail-row detail-meta-card detail-done-time hidden" id="detail-done-row">
-          <span class="detail-meta-icon detail-meta-icon-done" data-icon="check" aria-hidden="true"></span>
-          <div class="detail-meta-content">
-            <label>完成时间</label>
-            <span id="detail-done-time" class="detail-done-value"></span>
-          </div>
-        </div>
-        <div class="detail-row detail-meta-card detail-created-time" id="detail-created-row">
-          <span class="detail-meta-icon" data-icon="clock" aria-hidden="true"></span>
-          <div class="detail-meta-content">
-            <label>创建时间</label>
-            <span id="detail-created-time" class="detail-created-value"></span>
-          </div>
-        </div>
-      </div>
-      <div class="detail-actions">
-        <button type="submit" class="btn-primary">保存</button>
-        <button type="button" class="btn-danger" id="btn-delete-task">删除</button>
-      </div>
-    </form>
-  </div>
 
-  <!-- AI 总结面板 -->
-  <div id="summary-panel" class="summary-panel hidden" role="dialog" aria-modal="true" aria-label="AI 总结">
-    <div class="summary-header">
-      <div class="summary-heading">
-        <span class="summary-heading-icon" data-icon="document" aria-hidden="true"></span>
-        <div>
-          <h3>AI 总结</h3>
-          <p>将日历任务整理为清晰的工作报告</p>
-        </div>
+    <!-- 任务详情面板 -->
+    <div id="detail-panel" class="detail-panel hidden" role="dialog" aria-modal="true" aria-label="编辑任务">
+      <div class="detail-header">
+        <h3>编辑任务</h3>
+        <button class="icon-btn" id="close-detail" aria-label="关闭任务详情"><span data-icon="x"></span></button>
       </div>
-      <div class="summary-header-actions">
-        <button class="icon-btn" id="close-summary" type="button" aria-label="关闭 AI 总结"><span data-icon="x"></span></button>
-      </div>
-    </div>
-    <div class="summary-controls">
-      <div class="summary-config-card">
-        <div class="summary-type-tabs" role="tablist" aria-label="报告类型">
-          <button class="summary-tab active" type="button" role="tab" aria-selected="true" tabindex="0" aria-controls="summary-output" data-type="daily">日报</button>
-          <button class="summary-tab" type="button" role="tab" aria-selected="false" tabindex="-1" aria-controls="summary-output" data-type="weekly">周报</button>
-          <button class="summary-tab" type="button" role="tab" aria-selected="false" tabindex="-1" aria-controls="summary-output" data-type="monthly">月报</button>
+      <form id="detail-form">
+        <input type="hidden" id="detail-id">
+        <div class="detail-row">
+          <label>标题</label>
+          <input type="text" id="detail-title" required>
         </div>
-        <div class="summary-date-row">
-          <label for="summary-date">报告日期</label>
-          <div class="summary-date-control">
-            <input type="text" id="summary-date" data-dp-mode="date">
-            <span id="summary-date-range" class="summary-date-range"></span>
+        <div class="detail-row">
+          <label>备注</label>
+          <textarea id="detail-desc" placeholder="添加备注..."></textarea>
+        </div>
+        <div class="detail-row-inline">
+          <div class="detail-row">
+            <label>优先级</label>
+            <div class="detail-select" id="detail-priority" data-value="" role="combobox" tabindex="0" aria-label="选择优先级" aria-haspopup="listbox" aria-expanded="false">
+              <span class="detail-select-trigger">无</span>
+              <svg class="detail-select-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </div>
+          </div>
+          <div class="detail-row">
+            <label>标签</label>
+            <div class="detail-select" id="detail-tag" data-value="" role="combobox" tabindex="0" aria-label="选择标签" aria-haspopup="listbox" aria-expanded="false">
+              <span class="detail-select-trigger">未设置</span>
+              <svg class="detail-select-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </div>
           </div>
         </div>
-        <button class="btn-primary" id="btn-generate-report" type="button">
-          <span data-icon="document" aria-hidden="true"></span>
-          <span class="summary-generate-label">生成报告</span>
-        </button>
-      </div>
+        <div class="detail-row-inline">
+          <div class="detail-row">
+            <label>开始时间</label>
+            <input type="text" id="detail-start" data-dp-mode="datetime">
+          </div>
+          <div class="detail-row">
+            <label>截止时间</label>
+            <input type="text" id="detail-end" data-dp-mode="datetime">
+          </div>
+        </div>
+        <div class="detail-row-inline">
+          <div class="detail-row">
+            <label>提醒时间</label>
+            <input type="text" id="detail-reminder" data-dp-mode="datetime">
+          </div>
+          <div class="detail-row">
+            <label>重复提醒</label>
+            <div class="detail-select" id="detail-reminder-repeat" data-value="" role="combobox" tabindex="0" aria-label="选择重复提醒" aria-haspopup="listbox" aria-expanded="false">
+              <span class="detail-select-trigger">不重复</span>
+              <svg class="detail-select-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </div>
+          </div>
+        </div>
+        <div class="detail-row-inline detail-toggle-grid">
+          <div class="detail-row checkbox-row">
+            <label for="detail-todo">
+              <span class="detail-toggle-copy">
+                <span class="detail-toggle-title">添加到 TODO</span>
+                <span class="detail-toggle-hint" id="detail-todo-hint">在 TODO 清单中显示</span>
+              </span>
+              <input type="checkbox" id="detail-todo" aria-label="添加到 TODO" aria-describedby="detail-todo-hint">
+              <span class="detail-toggle-control" aria-hidden="true"></span>
+            </label>
+          </div>
+          <div class="detail-row checkbox-row">
+            <label for="detail-important">
+              <span class="detail-toggle-copy">
+                <span class="detail-toggle-title">标记为重要</span>
+                <span class="detail-toggle-hint" id="detail-important-hint">显示在重要视图中</span>
+              </span>
+              <input type="checkbox" id="detail-important" aria-label="标记为重要" aria-describedby="detail-important-hint">
+              <span class="detail-toggle-control" aria-hidden="true"></span>
+            </label>
+          </div>
+        </div>
+        <div class="detail-meta-grid">
+          <div class="detail-row detail-meta-card detail-done-time hidden" id="detail-done-row">
+            <span class="detail-meta-icon detail-meta-icon-done" data-icon="check" aria-hidden="true"></span>
+            <div class="detail-meta-content">
+              <label>完成时间</label>
+              <span id="detail-done-time" class="detail-done-value"></span>
+            </div>
+          </div>
+          <div class="detail-row detail-meta-card detail-created-time" id="detail-created-row">
+            <span class="detail-meta-icon" data-icon="clock" aria-hidden="true"></span>
+            <div class="detail-meta-content">
+              <label>创建时间</label>
+              <span id="detail-created-time" class="detail-created-value"></span>
+            </div>
+          </div>
+        </div>
+        <div class="detail-actions">
+          <button type="submit" class="btn-primary">保存</button>
+          <button type="button" class="btn-danger" id="btn-delete-task">删除</button>
+        </div>
+      </form>
     </div>
-    <div class="summary-output" id="summary-output" role="status" aria-live="polite" aria-busy="false" aria-atomic="false">
-      <div class="summary-placeholder">
-        <span class="summary-placeholder-icon" data-icon="document" aria-hidden="true"></span>
-        <strong>准备生成总结</strong>
-        <span>选择报告类型和日期，AI 将为你整理任务进度</span>
-      </div>
-    </div>
-    <div class="summary-footer hidden" id="summary-footer">
-      <button class="btn-copy" id="btn-copy-report" type="button"><span data-icon="clipboard" aria-hidden="true"></span><span>复制内容</span></button>
-    </div>
-  </div>
 
-  <div id="mini-panel" class="mini-panel hidden">
-    <div class="mini-header">
-      <div class="mini-brand" id="mini-drag-region">
-        <span class="mini-brand-icon" data-icon="inbox" aria-hidden="true"></span>
-        <div class="mini-brand-copy">
-          <strong class="mini-title">待办事项</strong>
-          <span class="mini-caption">快速处理</span>
-        </div>
-      </div>
-      <div class="mini-actions">
-        <button class="mini-btn" id="btn-mini-add" type="button" title="快速添加" aria-label="快速添加"><span data-icon="plus"></span></button>
-        <button class="mini-btn" id="btn-exit-mini" type="button" title="恢复窗口" aria-label="恢复窗口"><span data-icon="window"></span></button>
-      </div>
-    </div>
-    <div class="mini-stats">
-      <span class="mini-stat-item mini-stat-pending"><span class="mini-stat-dot" aria-hidden="true"></span><strong id="mini-pending-count">0</strong><span>待办</span></span>
-      <span class="mini-stat-item mini-stat-done"><span class="mini-stat-dot" aria-hidden="true"></span><strong id="mini-done-count">0</strong><span>已完成</span></span>
-    </div>
-    <div class="mini-list" id="mini-list"></div>
-    <div class="mini-input-row hidden" id="mini-input-row">
-      <span class="mini-input-icon" data-icon="plus" aria-hidden="true"></span>
-      <input type="text" id="mini-quick-add" placeholder="添加任务..." aria-label="快速添加任务">
-    </div>
-    <div class="mini-detail-card hidden" id="mini-detail-card" role="dialog" aria-label="任务详情">
-      <div class="mini-detail-header">
-        <div class="mini-detail-heading">
-          <span class="mini-detail-heading-icon" data-icon="document" aria-hidden="true"></span>
-          <div class="mini-detail-heading-copy">
-            <strong id="mini-detail-title">任务详情</strong>
-            <span id="mini-detail-subtitle">点击任务查看完整信息</span>
+    <!-- AI 总结面板 -->
+    <div id="summary-panel" class="summary-panel hidden" role="dialog" aria-modal="true" aria-label="AI 总结">
+      <div class="summary-header">
+        <div class="summary-heading">
+          <span class="summary-heading-icon" data-icon="document" aria-hidden="true"></span>
+          <div>
+            <h3>AI 总结</h3>
+            <p>将日历任务整理为清晰的工作报告</p>
           </div>
         </div>
-        <div class="mini-detail-header-actions">
-          <button class="mini-btn" id="btn-mini-detail-close" type="button" title="关闭详情" aria-label="关闭详情"><span data-icon="x"></span></button>
+        <div class="summary-header-actions">
+          <button class="icon-btn" id="close-summary" type="button" aria-label="关闭 AI 总结"><span data-icon="x"></span></button>
         </div>
       </div>
-      <div class="mini-detail-body" id="mini-detail-body"></div>
-      <div class="mini-detail-footer">
-        <button class="mini-detail-primary" id="btn-mini-detail-toggle" type="button"><span data-icon="check" aria-hidden="true"></span><span id="mini-detail-toggle-label">标记完成</span></button>
+      <div class="summary-controls">
+        <div class="summary-config-card">
+          <div class="summary-type-tabs" role="tablist" aria-label="报告类型">
+            <button class="summary-tab active" type="button" role="tab" aria-selected="true" tabindex="0" aria-controls="summary-output" data-type="daily">日报</button>
+            <button class="summary-tab" type="button" role="tab" aria-selected="false" tabindex="-1" aria-controls="summary-output" data-type="weekly">周报</button>
+            <button class="summary-tab" type="button" role="tab" aria-selected="false" tabindex="-1" aria-controls="summary-output" data-type="monthly">月报</button>
+          </div>
+          <div class="summary-date-row">
+            <label for="summary-date">报告日期</label>
+            <div class="summary-date-control">
+              <input type="text" id="summary-date" data-dp-mode="date">
+              <span id="summary-date-range" class="summary-date-range"></span>
+            </div>
+          </div>
+          <button class="btn-primary" id="btn-generate-report" type="button">
+            <span data-icon="document" aria-hidden="true"></span>
+            <span class="summary-generate-label">生成报告</span>
+          </button>
+        </div>
+      </div>
+      <div class="summary-output" id="summary-output" role="status" aria-live="polite" aria-busy="false" aria-atomic="false">
+        <div class="summary-placeholder">
+          <span class="summary-placeholder-icon" data-icon="document" aria-hidden="true"></span>
+          <strong>准备生成总结</strong>
+          <span>选择报告类型和日期，AI 将为你整理任务进度</span>
+        </div>
+      </div>
+      <div class="summary-footer hidden" id="summary-footer">
+        <button class="btn-copy" id="btn-copy-report" type="button"><span data-icon="clipboard" aria-hidden="true"></span><span>复制内容</span></button>
       </div>
     </div>
-    <span class="mini-resize-handle" id="mini-resize-handle"></span>
-    <div class="mini-snap-bar" id="mini-snap-bar" aria-hidden="true"></div>
-    <div class="mini-tooltip hidden" id="mini-tooltip"></div>
+
+    <div class="mini-layer" id="mini-layer">
+      <div id="mini-panel" class="mini-panel hidden">
+        <div class="mini-header">
+          <div class="mini-brand" id="mini-drag-region">
+            <span class="mini-brand-icon" data-icon="inbox" aria-hidden="true"></span>
+            <div class="mini-brand-copy">
+              <strong class="mini-title">待办事项</strong>
+              <span class="mini-caption">快速处理</span>
+            </div>
+          </div>
+          <div class="mini-actions">
+            <button class="mini-btn" id="btn-mini-add" type="button" title="快速添加" aria-label="快速添加"><span data-icon="plus"></span></button>
+            <button class="mini-btn" id="btn-exit-mini" type="button" title="恢复窗口" aria-label="恢复窗口"><span data-icon="window"></span></button>
+          </div>
+        </div>
+        <div class="mini-stats">
+          <span class="mini-stat-item mini-stat-pending"><span class="mini-stat-dot" aria-hidden="true"></span><strong id="mini-pending-count">0</strong><span>待办</span></span>
+          <span class="mini-stat-item mini-stat-done"><span class="mini-stat-dot" aria-hidden="true"></span><strong id="mini-done-count">0</strong><span>已完成</span></span>
+        </div>
+        <div class="mini-list" id="mini-list"></div>
+        <div class="mini-input-row hidden" id="mini-input-row">
+          <span class="mini-input-icon" data-icon="plus" aria-hidden="true"></span>
+          <input type="text" id="mini-quick-add" placeholder="添加任务..." aria-label="快速添加任务">
+        </div>
+        <div class="mini-detail-card hidden" id="mini-detail-card" role="dialog" aria-label="任务详情">
+          <div class="mini-detail-header">
+            <div class="mini-detail-heading">
+              <span class="mini-detail-heading-icon" data-icon="document" aria-hidden="true"></span>
+              <div class="mini-detail-heading-copy">
+                <strong id="mini-detail-title">任务详情</strong>
+                <span id="mini-detail-subtitle">点击任务查看完整信息</span>
+              </div>
+            </div>
+            <div class="mini-detail-header-actions">
+              <button class="mini-btn" id="btn-mini-detail-close" type="button" title="关闭详情" aria-label="关闭详情"><span data-icon="x"></span></button>
+            </div>
+          </div>
+          <div class="mini-detail-body" id="mini-detail-body"></div>
+          <div class="mini-detail-footer">
+            <button class="mini-detail-primary" id="btn-mini-detail-toggle" type="button"><span data-icon="check" aria-hidden="true"></span><span id="mini-detail-toggle-label">标记完成</span></button>
+          </div>
+        </div>
+        <span class="mini-resize-handle" id="mini-resize-handle"></span>
+        <div class="mini-snap-bar" id="mini-snap-bar" aria-hidden="true"></div>
+        <div class="mini-tooltip hidden" id="mini-tooltip"></div>
+      </div>
+    </div>
   </div>
 
   <script type="module" src="/src/main.js"></script>

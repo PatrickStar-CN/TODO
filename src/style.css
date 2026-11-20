@@ -4413,10 +4413,11 @@ body::before {
   border-radius: var(--radius-window, 12px);
 }
 
-/* 只有迷你布局层在场时才给容器加宽高过渡：回到普通模式后容器必须
-   瞬时跟随窗口，否则拖动窗口会被过渡曲线拖住 */
+/* 容器不加尺寸过渡：回到普通模式后拖动窗口必须瞬时跟随，
+   迷你模式拖右下角手柄缩放时也不能被过渡曲线拖成慢半拍。
+   切换的手感由 .mini-layer / .mode-mount--main 的透明度交错提供 */
 #app-frame[data-mode='mini'] {
-  transition: width var(--motion-panel), height var(--motion-panel);
+  transition: none;
 }
 
 .mini-layer {
