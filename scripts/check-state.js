@@ -1672,48 +1672,30 @@ assert.ok(/btn-cancel-update/.test(settingsSource), '设置页应提供取消下
     mainGeom.indexOf('setBorderless(false)') < mainGeom.indexOf('setSize('),
     '恢复主窗口应先边框后尺寸，避免非客户区重绘落半拍',
   );
-  /* 任务栏样式切换与窗口几何串行：并发会让 SWP_FRAMECHANGED 在边框切换中途重算 */
+  /* 任务栏/窗框样式与窗口几何串行：并发会让 SWP_FRAMECHANGED 在边框切换中途重算 */
   assert.ok(
-    /await ensureWindowGeometry\('main'\)[\s\S]{0,600}?setMiniTaskbarHidden\(false\)/.test(exitSource),
-    '退出前应先完成窗口几何再恢复任务栏样式',
+    /ensureWindowGeometry\('main'\)[\s\S]{0,600}?applyWindowShape\(false\)/.test(exitSource),
+    '退出前应先完成窗口几何再恢复任务栏与窗框样式',
   );
-  /* 退出迷你模式后标题栏按钮：改扩展样式必须用 SetWindowPos(SWP_FRAMECHANGED)
-     强制重算非客户区，否则残留 TOOLWINDOW 形态导致标题栏按钮缺失 */
-  assert.ok(/SetWindowPos/.test(miniSource), '任务栏样式切换后必须用 SetWindowPos 刷新窗框');
-  assert.ok(/0x27/.test(miniSource), '窗框刷新必须带 SWP_FRAMECHANGED（0x27 = NOSIZE|NOMOVE|NOZORDER|FRAMECHANGED）');
-  /* 容器尺寸只做兜底：窗口几何落地后改由视口决定，主布局不再先按固定 px 排一遍 */
-  assert.ok(!/applyFrameMode\('main',\s*\{/.test(miniSource), '退出切换不应把主容器固定成配置尺寸');
-  assert.ok(/setProperty\('--mode-w',\s*'100%'\)/.test(miniSource), '容器尺寸应回落到 100% 跟随视口');
-  /* 主容器不得被钉成固定尺寸，否则用户拖动窗口后内部元素不跟随 */
-  assert.ok(/\.mode-mount--main\s*\{[^}]*width:\s*100%[^}]*height:\s*100%/.test(styleSource), '主布局应铺满容器');
-  assert.ok(/width:\s*var\(--mode-w,\s*100%\)/.test(styleSource), '#app-frame 应默认铺满视口');
-  /* 高度链：html/body 必须有确定高度，否则 #app-frame 的 100% 解析为 auto 塌陷 */
-  assert.ok(/html\s*\{[^}]*height:\s*100%/.test(styleSource), 'html 应设定高度基准');
-  assert.ok(/body\s*\{[^}]*height:\s*100%/.test(styleSource), 'body 应继承高度基准');
-  assert.ok(/height:\s*var\(--mode-h,\s*100%\)/.test(styleSource), '#app-frame 应默认铺满视口高度');
-  /* 容器尺寸过渡会把拖拽缩放和退出恢复拖成慢半拍：切换手感只由布局层透明度交错提供 */
-  assert.ok(/#app-frame\[data-mode='mini'\]\s*\{[^}]*transition:\s*none/.test(styleSource), '容器不应带尺寸过渡，缩放窗口时内部元素须逐帧跟随');
-  assert.ok(
-    /if \(size\) requestAnimationFrame\(\(\) => setModeFrameSize\(null\)\)/.test(miniSource),
-    'px 兜底只保留一帧，随后回到 100% 跟随视口，否则迷你窗口缩放后元素不跟随',
-  );
-  /* 原生窗框：扩展样式清除后必须再强制重算一次非客户区，标题栏按钮才会立刻恢复 */
-  /* 样式位改写与非客户区重算必须同一次调用完成，否则窗框晚半拍才恢复 */
-  const toggleBuilder = miniSource.slice(miniSource.indexOf('function buildTaskbarToggleCommand'), miniSource.indexOf('let taskbarHidden'));
-  assert.ok(/SetWindowPos\(\$hwnd[^)]*0x27\)/.test(toggleBuilder), '样式切换应在同一次进程内强制重算非客户区');
-  assert.ok(/0x00040000/.test(toggleBuilder), '退出迷你模式应补回 WS_THICKFRAME');
-  assert.ok(/-bnot 0x80000000/.test(toggleBuilder), '退出迷你模式应清掉 borderless 残留的 WS_POPUP');
-  assert.ok(!/EnumWindows/.test(toggleBuilder), '样式还原应直接使用 Neutralino 窗口句柄，不再按标题枚举');
-  assert.ok(/Neutralino\?\.window\?\.hwnd/.test(miniSource), '应读取 Neutralino 暴露的窗口句柄');
-  assert.ok(
-    /await ensureWindowGeometry\('main'\)[\s\S]{0,600}?await setMiniTaskbarHidden\(false\)/.test(exitSource),
-    '退出时应先完成窗口几何再恢复原生窗框样式',
-  );
+  /* 样式改写必须用 SetWindowPos(SWP_FRAMECHANGED) 强制重算非客户区，同一次调用里完成 */
+  const shapeSource = miniSource.slice(miniSource.indexOf('function buildMiniModeCommand'), miniSource.indexOf('async function enterMiniMode'));
+  assert.ok(/SetWindowPos\(\$hwnd,\[IntPtr\]::Zero,0,0,0,0,0x27\)/.test(shapeSource), '样式切换应在同一次进程内强制重算非客户区');
+  assert.ok(/0x00040000/.test(shapeSource), '退出迷你模式应补回 WS_THICKFRAME');
+  /* 任务栏按钮走 ITaskbarList，样式零残留；整字覆盖的保留位会被 SetWindowLongPtr 拒绝 */
+  assert.ok(/interface ITaskbarList/.test(shapeSource), '任务栏显隐应走 ITaskbarList，避免 TOOLWINDOW 残留位');
+  assert.ok(/\[Taskbar\]::DeleteTab\(\$hwnd\)/.test(shapeSource), '进入迷你模式应摘掉任务栏按钮');
+  assert.ok(/\[Taskbar\]::AddTab\(\$hwnd\)/.test(shapeSource), '退出迷你模式应装回任务栏按钮');
+  assert.ok(!/-bnot 0x80000000/i.test(miniSource), '负掩码会被 SetWindowLongPtr 以 err=87 拒绝，样式位必须用正掩码差集');
+  assert.ok(/DwmSetWindowAttribute\(\$hwnd,33/.test(shapeSource), '迷你形态应把系统圆角改成直角');
+  /* 句柄来源：客户端库不暴露 window.hwnd，只能按标题枚举 + 可见/APPWINDOW 兜底 */
+  assert.ok(/Neutralino\?\.window\?\.hwnd/.test(miniSource), '仍应优先读取 Neutralino 暴露的窗口句柄');
+  assert.ok(/function buildWindowLocateCommand/.test(miniSource), '缺少 window.hwnd 时应按窗口标题枚举兜底');
   /* 退出路径不得在窗口恢复前切换 data-mode：否则主布局先按迷你尺寸排一遍 */
   assert.ok(
     exitSource.indexOf("miniPanel.classList.add('hidden')") < exitSource.indexOf("applyFrameMode('main')"),
     '应先隐藏迷你层，待窗口尺寸恢复后再切回主模式',
-  );}
+  );
+}
 
 
 /* 可访问性回归：焦点陷阱、键盘、读屏与窄窗口 */

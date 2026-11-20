@@ -2191,8 +2191,8 @@ export async function initApp() {
 
   // --- Mini Mode ---
   const mini = initMiniMode({ data, saveData, render, showToast, showContextMenu, closeWindow, reminders, appConfig, todoStore: runtimeIndex });
-  /* 窗口仍是隐藏状态时预先设置 DWM 圆角（EnumWindows 可枚举隐藏窗口），
-     避免进入迷你模式时先闪现直角外框再变圆角 */
+  /* 窗口仍是隐藏状态时预热：枚举并缓存窗口句柄、装好 DWM 圆角，
+     进入迷你模式时少一次 PowerShell 进程启动，也不会先闪现直角外框 */
   mini.applyRoundedCorners();
   document.addEventListener('todo-tools:restore-main-window', () => {
     if (mini.isMiniMode()) {

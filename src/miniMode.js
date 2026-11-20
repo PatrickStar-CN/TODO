@@ -375,78 +375,67 @@ export function initMiniMode({ data, saveData, render, showToast, showContextMen
     return btoa(bin);
   }
 
-  const roundCornerCommand = 'powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand ' +
-    encodeUtf16LeBase64(
-      `Add-Type -TypeDefinition 'using System;using System.Text;using System.Runtime.InteropServices;public class DwmRounder{[DllImport("dwmapi.dll")]public static extern int DwmSetWindowAttribute(IntPtr hwnd,int attr,ref int value,int size);[DllImport("user32.dll")]public static extern bool EnumWindows(EnumWindowsProc cb,IntPtr lParam);[DllImport("user32.dll",CharSet=CharSet.Unicode)]public static extern int GetWindowText(IntPtr hwnd,StringBuilder sb,int max);public delegate bool EnumWindowsProc(IntPtr hwnd,IntPtr lParam);}'
-$script:hwnd = [IntPtr]::Zero
-$cb = [DwmRounder+EnumWindowsProc]{ param($h,$l) $sb = New-Object System.Text.StringBuilder 256; [DwmRounder]::GetWindowText($h,$sb,256) | Out-Null; if ($sb.ToString() -eq 'TODO') { $script:hwnd = $h; return $false }; return $true }
-[DwmRounder]::EnumWindows($cb,[IntPtr]::Zero) | Out-Null
-if ($script:hwnd -ne [IntPtr]::Zero) { $v = 2; [DwmRounder]::DwmSetWindowAttribute($script:hwnd, 33, [ref]$v, 4) | Out-Null; 'OK' } else { 'NO_WINDOW' }`
-    );
-
-  let cornerRoundApplied = false;
-
-  /* 设置窗口 DWM 圆角（幂等）：成功一次后置位，避免重复启动 PowerShell；
-     stdOut 不是 OK 说明未找到目标窗口，记入控制台便于排查 */
-  function applyRoundedCorners() {
-    if (!isNeutralinoEnv() || cornerRoundApplied) return;
-    Neutralino.os.execCommand(roundCornerCommand).then(r => {
-      if (r?.stdOut?.trim() === 'OK') {
-        cornerRoundApplied = true;
-      } else {
-        console.warn('mini corner round: window not found,', r?.stdOut?.trim() || r?.stdErr || r?.exitCode);
-      }
-    }).catch(e => console.warn('mini corner round error:', e));
+  /* 期望标题以 UTF-8 base64 下发：命令行参数不是 UTF-8 文本，中文标题内联会变成问号，
+     在脚本里解码后比较，任何语言的标题都能精确匹配。 */
+  function encodeUtf8Base64(str) {
+    let bin = '';
+    for (const b of new TextEncoder().encode(String(str))) bin += String.fromCharCode(b);
+    return btoa(bin);
   }
 
-  /* 迷你模式窗口隐藏任务栏：给窗口加 WS_EX_TOOLWINDOW，只保留系统托盘入口；
-     退出时清掉它，并把 borderless 残留的 WS_POPUP 换回 WS_THICKFRAME，
-     让原生边框或标题栏当场重算，不必等用户下次手动缩放。
-     两处样式位必须同一次调用内改完：分两次进程时，前一次已经下发、
-     后一次的非客户区重算还没到，标题栏就会晚半拍才正确。
-     句柄取自 Neutralino 的 window.hwnd，省掉按标题 EnumWindows 的过程启动开销。 */
-  function buildTaskbarToggleCommand(hideFromTaskbar, hwnd) {
+  /* 目标窗口定位：WG_MINI 必然有标题栏按钮，用来确认句柄合法（防止改到桌面/浏览器窗口）；
+     标题与配置的 windowTitle 不一致时退化为只认 WG_MINI，因为标题随语言/文档变化。
+     只取 Z 序前 8 个可见的其他进程窗口，尽量让任务栏、托盘这些非目标窗口落选。 */
+  /* 一次调用同时定位窗口、恢复 DWM 圆角并切换到目标形态：隐藏任务栏要求把扩展样式
+     换成 WS_EX_TOOLWINDOW + WS_EX_ACCEPTFILES + 0x80000（任务栏不再列出该窗口，
+     拖拽文件也仍然可用），因此普通模式的圆角和 DWM 边框必须在这里按普通形态一起装回，
+     不能只加一位样式。圆角属性与样式在同一次进程内下发，窗框只重算一遍。 */
+  function buildMiniModeCommand(hwnd, hideFromTaskbar) {
+    /* 只改目标位的差集写法，而不是整字覆盖：WS_EX_STATICEDGE 之类窗口自带的位原样保留，
+       退出迷你模式时样式才能被系统接受（整字覆盖里的 0x00180000 保留位会被
+       SetWindowLongPtr 拒绝，err=87）。
+       迷你态：清 TOOLWINDOW，补 APPWINDOW | LAYERED | NOACTIVATE；
+       普通态：清 LAYERED / NOACTIVATE，补 APPWINDOW 与 TOOLWINDOW。 */
     const styleExpr = hideFromTaskbar
-      ? '($style -bor 0x80)'
-      : '($style -band (-bnot 0x80))';
-    const frameExpr = hideFromTaskbar
-      ? '$style'
-      : '($style -band (-bnot 0x80000000)) -bor 0x00040000';
+      ? '$newEx = ($ex -band (-bnot 0x00080000)) -bor 0x000B0088'
+      : '$newEx = ($ex -band (-bnot 0x00180000)) -bor 0x00080008';
+    const cornerAttr = hideFromTaskbar ? 1 : 2;
+    /* ITaskbarList 只影响任务栏投影：DeleteTab 摘掉按钮，AddTab 装回来。
+       它不改窗口样式，退出时不会像 WS_EX_TOOLWINDOW 那样留下残留位 */
+    const shellExpr = hideFromTaskbar ? '[Taskbar]::DeleteTab($hwnd)' : '[Taskbar]::AddTab($hwnd)';
     return 'powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand ' +
       encodeUtf16LeBase64(
-        `Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public class TbToggle{[DllImport("user32.dll",SetLastError=true)]public static extern IntPtr GetWindowLongPtr(IntPtr hWnd,int nIndex);[DllImport("user32.dll",SetLastError=true)]public static extern IntPtr SetWindowLongPtr(IntPtr hWnd,int nIndex,IntPtr dwNewLong);[DllImport("user32.dll",SetLastError=true)]public static extern bool SetWindowPos(IntPtr hWnd,IntPtr hWndInsertAfter,int X,int Y,int cx,int cy,uint uFlags);[DllImport("user32.dll")]public static extern bool IsWindow(IntPtr hWnd);}'
-$hwnd = [IntPtr][int64]${hwnd}
-if (([TbToggle]::IsWindow($hwnd)) -and ($hwnd -ne [IntPtr]::Zero)) { $GWL_EXSTYLE = -20; $GWL_STYLE = -16; $style = ([TbToggle]::GetWindowLongPtr($hwnd,$GWL_EXSTYLE)).ToInt64(); $new = ${styleExpr}; [TbToggle]::SetWindowLongPtr($hwnd,$GWL_EXSTYLE,[IntPtr]$new) | Out-Null; $frame = ([TbToggle]::GetWindowLongPtr($hwnd,$GWL_STYLE)).ToInt64(); $frameNew = ${frameExpr}; [TbToggle]::SetWindowLongPtr($hwnd,$GWL_STYLE,[IntPtr]$frameNew) | Out-Null; [TbToggle]::SetWindowPos($hwnd,[IntPtr]::Zero,0,0,0,0,0x27) | Out-Null; 'OK' } else { 'NO_WINDOW' }`
+        `Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public static class Taskbar{[ComImport, Guid("56FDF342-FD6D-11d0-958A-006097C9A090"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)] public interface ITaskbarList{[PreserveSig] int HrInit();[PreserveSig] int AddTab(IntPtr hwnd);[PreserveSig] int DeleteTab(IntPtr hwnd);[PreserveSig] int ActivateTab(IntPtr hwnd);[PreserveSig] int SetActiveAlt(IntPtr hwnd);}[ComImport, Guid("56FDF344-FD6D-11d0-958A-006097C9A090")] public class CoTaskbarList{} public static void DeleteTab(IntPtr h){var t=(ITaskbarList)new CoTaskbarList();t.HrInit();t.DeleteTab(h);} public static void AddTab(IntPtr h){var t=(ITaskbarList)new CoTaskbarList();t.HrInit();t.AddTab(h);} } public class TbToggle{[DllImport("user32.dll",SetLastError=true)]public static extern IntPtr GetWindowLongPtr(IntPtr hWnd,int nIndex);[DllImport("user32.dll",SetLastError=true)]public static extern IntPtr SetWindowLongPtr(IntPtr hWnd,int nIndex,IntPtr dwNewLong);[DllImport("user32.dll",SetLastError=true)]public static extern bool SetWindowPos(IntPtr hWnd,IntPtr hWndInsertAfter,int X,int Y,int cx,int cy,uint uFlags);[DllImport("user32.dll")]public static extern bool IsWindow(IntPtr hWnd);[DllImport("dwmapi.dll")]public static extern int DwmSetWindowAttribute(IntPtr hWnd,int attr,ref int v,int size);}'
+ $GWL_EXSTYLE = -20; $GWL_STYLE = -16
+ $hwnd = [IntPtr][int64]${hwnd}
+ if ((-not [TbToggle]::IsWindow($hwnd)) -or ($hwnd -eq [IntPtr]::Zero)) { 'NO_WINDOW' } else {
+   $frame = ([TbToggle]::GetWindowLongPtr($hwnd,$GWL_STYLE)).ToInt64()
+   $ex = ([TbToggle]::GetWindowLongPtr($hwnd,$GWL_EXSTYLE)).ToInt64()
+   ${styleExpr}
+   [TbToggle]::SetWindowLongPtr($hwnd,$GWL_EXSTYLE,[IntPtr]$newEx) | Out-Null
+   /* 有 WS_POPUP 说明是 borderless 形态：原位保留 frame 样式位，只补 WS_THICKFRAME，绝不写负掩码 */
+   if ($newEx -band 0x08) { $newFrame = $frame -bor 0x00040000 } else { $newFrame = $frame }
+   [TbToggle]::SetWindowLongPtr($hwnd,$GWL_STYLE,[IntPtr]$newFrame) | Out-Null
+   $v = ${cornerAttr}
+   [TbToggle]::DwmSetWindowAttribute($hwnd,33,[ref]$v,4) | Out-Null
+   ${shellExpr}
+   [TbToggle]::SetWindowPos($hwnd,[IntPtr]::Zero,0,0,0,0,0x27) | Out-Null
+   'OK' }`
       );
   }
 
-  /* window.hwnd 在 Neutralino 里是窗口句柄的字符串形式；读不到时返回 null，
-     调用方据此跳过样式还原（宁可不改，也不要误改别的窗口） */
-  function nativeWindowHandle() {
-    const hwnd = Neutralino?.window?.hwnd;
-    if (hwnd === undefined || hwnd === null || hwnd === '') return null;
-    const n = typeof hwnd === 'number' ? hwnd : Number(String(hwnd));
-    return Number.isFinite(n) && n > 0 ? Math.trunc(n) : null;
-  }
-
-  let taskbarHidden = false;
-
-  async function setMiniTaskbarHidden(hideFromTaskbar) {
-    if (!isNeutralinoEnv() || taskbarHidden === hideFromTaskbar) return;
-    /* 样式位改写一旦下发就无法中途撤回：先按目标状态记账，
-       避免异常时 taskbarHidden 与实际样式长期不一致 */
-    taskbarHidden = hideFromTaskbar;
-    const hwnd = nativeWindowHandle();
-    if (hwnd === null) {
-      console.warn('mini taskbar toggle: window handle unavailable');
-      return;
-    }
+  /* DWM 圆角：迷你形态用直角（2px 面板圆角由 CSS 画），普通形态装回 Win11 平滑圆角。
+     与样式位在同一次进程内下发，窗框只重算一遍 */
+  async function applyWindowShape(hideFromTaskbar) {
+    if (!isNeutralinoEnv()) return;
+    const hwnd = await resolveWindowHandle();
+    if (hwnd === null) return;
     try {
-      const r = await Neutralino.os.execCommand(buildTaskbarToggleCommand(hideFromTaskbar, hwnd));
+      const r = await Neutralino.os.execCommand(buildMiniModeCommand(hwnd, hideFromTaskbar));
       if (r?.stdOut?.trim() !== 'OK') {
-        console.warn('mini taskbar toggle: window not found,', r?.stdOut?.trim() || r?.stderr || r?.exitCode);
+        console.warn('mini window shape: window not found,', r?.stdOut?.trim() || r?.stdErr || r?.exitCode);
       }
-    } catch (e) { console.warn('mini taskbar toggle error:', e); }
+    } catch (e) { console.warn('mini window shape error:', e); }
   }
 
   async function enterMiniMode() {
@@ -471,11 +460,8 @@ if (([TbToggle]::IsWindow($hwnd)) -and ($hwnd -ne [IntPtr]::Zero)) { $GWL_EXSTYL
           await ensureWindowGeometry('mini');
           await Neutralino.window.setDraggableRegion('mini-drag-region');
           miniSnap.attach();
-          /* DWM 圆角在应用启动时已设置（applyRoundedCorners），这里仅在启动设置
-             失败时兜底重试一次；已成功则跳过，避免反复启动 PowerShell */
-          if (!cornerRoundApplied) applyRoundedCorners();
-          /* 迷你模式窗口不占用任务栏，只保留系统托盘入口 */
-          await setMiniTaskbarHidden(true);
+          /* 迷你形态：隐藏任务栏、直角，与几何串行，窗口落定前不动窗框 */
+          await applyWindowShape(true);
         } catch (e) { console.warn('enterMiniMode error:', e); }
       }
     } finally {
@@ -517,12 +503,12 @@ if (([TbToggle]::IsWindow($hwnd)) -and ($hwnd -ne [IntPtr]::Zero)) { $GWL_EXSTYL
       try { render(); } catch (e) { console.warn('exitMiniMode render error:', e); }
       /* 窗口尺寸已恢复，再把容器切回主模式：容器默认 100%，视口一变就跟随 */
       applyFrameMode('main');
-      /* 几何落定后再恢复原生窗框：一次进程内清 WS_EX_TOOLWINDOW、清 WS_POPUP、
-         补回 WS_THICKFRAME 并 SWP_FRAMECHANGED 重算非客户区。串行执行是必要的，
-         否则重算会落在边框切换中途，标题栏要等下一次拖动才正确 */
+      /* 几何落定后再恢复原生窗框：一次进程内换回普通扩展样式、清 WS_POPUP、
+         补回 WS_THICKFRAME、装回 DWM 圆角并 SWP_FRAMECHANGED 重算非客户区。
+         串行执行是必要的，否则重算会落在边框切换中途，标题栏要等下一次拖动才正确 */
       /* 样式还原失败也不能把 switching 永久锁死：否则之后再也切不回迷你模式 */
       try {
-        await setMiniTaskbarHidden(false);
+        await applyWindowShape(false);
       } catch (e) { console.warn('exitMiniMode frame restore error:', e); }
     } finally {
       switching = false;
@@ -718,5 +704,87 @@ if (([TbToggle]::IsWindow($hwnd)) -and ($hwnd -ne [IntPtr]::Zero)) { $GWL_EXSTYL
     ensureDisplayHz();
   } catch {}
 
-  return { enterMiniMode, exitMiniMode, renderMiniPanel, isMiniMode: () => isMiniMode, applyRoundedCorners };
+  /* 目标窗口定位：优先按配置里的 windowTitle 精确匹配；标题法可能因语言包或多文档
+     页面失配，再用“扩展样式非零 + 可见 + 有任务栏按钮（WS_EX_APPWINDOW）”兜底。
+     扩展样式为 0 的窗口是 WS_EX_NOACTIVATE 的幽灵窗口（EnumWindows 也会返回它们），
+     改它们的样式对标题栏和任务栏毫无影响，而错误命中会让真正的窗口被跳过。 */
+  function buildWindowLocateCommand(title) {
+    const want = encodeUtf8Base64(String(title));
+    return 'powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand ' +
+      encodeUtf16LeBase64(
+        `Add-Type -TypeDefinition 'using System;using System.Text;using System.Runtime.InteropServices;public class WindowLocator{[DllImport("user32.dll")]public static extern bool EnumWindows(EnumWindowsProc cb,IntPtr lParam);[DllImport("user32.dll")]public static extern int GetWindowThreadProcessId(IntPtr hwnd,out int pid);[DllImport("user32.dll")]public static extern IntPtr GetWindowLongPtr(IntPtr hwnd,int nIndex);[DllImport("user32.dll")]public static extern bool IsWindowVisible(IntPtr hwnd);[DllImport("user32.dll",CharSet=CharSet.Unicode)]public static extern int GetWindowText(IntPtr hwnd,StringBuilder sb,int max);public delegate bool EnumWindowsProc(IntPtr hwnd,IntPtr lParam);}'
+ $GWL_EXSTYLE = -20; $WS_EX_APPWINDOW = 0x40000
+ $script:exact = [IntPtr]::Zero; $script:fallback = [IntPtr]::Zero
+ $cb = [WindowLocator+EnumWindowsProc]{ param($h,$l)
+   $pid2 = 0
+   [WindowLocator]::GetWindowThreadProcessId($h,[ref]$pid2) | Out-Null
+   if ($pid2 -eq $PID) { return $true }
+   $ex = ([WindowLocator]::GetWindowLongPtr($h,$GWL_EXSTYLE)).ToInt64()
+   if (($ex -eq 0) -or (-not [WindowLocator]::IsWindowVisible($h))) { return $true }
+   $want = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${want}'))
+   $sb = New-Object System.Text.StringBuilder 256
+   [WindowLocator]::GetWindowText($h,$sb,256) | Out-Null
+   if ($sb.ToString() -eq $want) { $script:exact = $h; return $false }
+   if (((($ex -band $WS_EX_APPWINDOW) -ne 0)) -and ($script:fallback -eq [IntPtr]::Zero)) { $script:fallback = $h }
+   return $true }
+ [WindowLocator]::EnumWindows($cb,[IntPtr]::Zero) | Out-Null
+ $found = $script:exact
+ if ($found -eq [IntPtr]::Zero) { $found = $script:fallback }
+ if ($found -ne [IntPtr]::Zero) { 'OK:' + $found.ToInt64() } else { 'NO_WINDOW' }`
+      );
+  }
+
+  /* 窗口句柄缓存：Neutralino 的客户端库不暴露窗口句柄，只能靠 PowerShell 枚举拿到。
+     枚举要起一个进程（约 100-300ms），所以结果缓存起来；但普通模式启动时窗口可能还没
+     显示，缓存会拿到空的兜底结果，因此只缓存能通过 IsWindow 校验的句柄 */
+  let cachedWindowHandle = null;
+
+  async function resolveWindowHandle() {
+    /* 客户端库 6.7.0 不暴露 window.hwnd（grep hwnd 为 0），句柄优先取运行时值，缺失时退回按标题枚举 */
+    const exposed = Number(Neutralino?.window?.hwnd);
+    if (Number.isFinite(exposed) && exposed > 0) return Math.trunc(exposed);
+    const target = windowTitle();
+    try {
+      if (cachedWindowHandle !== null) {
+        const check = await Neutralino.os.execCommand(buildWindowVerifyCommand(cachedWindowHandle, target));
+        if (String(check?.stdOut || '').trim() === 'OK') return cachedWindowHandle;
+        cachedWindowHandle = null;
+      }
+      const r = await Neutralino.os.execCommand(buildWindowLocateCommand(target));
+      const m = /^OK:(\d+)$/.exec(String(r?.stdOut || '').trim());
+      if (!m) {
+        console.warn('mini window handle: window not found,', String(r?.stdOut || '').trim() || r?.stdErr || r?.exitCode);
+        return null;
+      }
+      cachedWindowHandle = Number(m[1]);
+      return cachedWindowHandle;
+    } catch (e) {
+      console.warn('mini window handle error:', e);
+      return null;
+    }
+  }
+
+  /* 缓存句柄每次使用前先校验：句柄可能属于已经退出的上一轮窗口，Windows 还会把
+     同一个数值复用给新窗口，命中别人的窗口比找不到更糟 */
+  function buildWindowVerifyCommand(hwnd, title) {
+    const want = encodeUtf8Base64(String(title));
+    return 'powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand ' +
+      encodeUtf16LeBase64(
+        `Add-Type -TypeDefinition 'using System;using System.Text;using System.Runtime.InteropServices;public class WindowVerify{[DllImport("user32.dll")]public static extern bool IsWindow(IntPtr hWnd);[DllImport("user32.dll",CharSet=CharSet.Unicode)]public static extern int GetWindowText(IntPtr hWnd,StringBuilder sb,int max);}'
+ $hwnd = [IntPtr][int64]${hwnd}
+ if ((-not [WindowVerify]::IsWindow($hwnd)) -or ($hwnd -eq [IntPtr]::Zero)) { 'STALE' } else {
+   $want = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${want}'))
+   $sb = New-Object System.Text.StringBuilder 512
+   [WindowVerify]::GetWindowText($hwnd,$sb,512) | Out-Null
+   if ($sb.ToString() -eq $want) { 'OK' } else { 'STALE' } }`
+      );
+  }
+
+  /* 标题取配置项 windowTitle；appConfig 是首屏之后异步加载的，读不到时退回文档标题 */
+  function windowTitle() {
+    return appConfig?.windowTitle || appConfig?.window?.title || document.title || 'TODO';
+  }
+
+  /* applyRoundedCorners 保留给启动时预热：预先枚举并缓存窗口句柄，进入迷你模式时少一次进程启动 */
+  return { enterMiniMode, exitMiniMode, renderMiniPanel, isMiniMode: () => isMiniMode, applyRoundedCorners: () => applyWindowShape(false) };
 }
