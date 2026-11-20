@@ -3,7 +3,7 @@ import { formatDateTime } from './utils/date.js';
 import { genId } from './utils/id.js';
 import { sortByPriority, splitPendingDone } from './selectors.js';
 import { iconSvg } from './icons.js';
-import { animateWindowRect, cancelWindowRectAnimation, centerRect, ensureDisplayHz, initMiniSnap } from './miniSnap.js';
+import { ensureDisplayHz, initMiniSnap } from './miniSnap.js';
 import { getUiMotionDuration } from './uiPreferences.js';
 import { getTagDotStyle, getTagBadgeStyle, isNeutralinoEnv } from './shared.js';
 import { t, getPriorityLabel, getRepeatLabel } from './i18n/index.js';
@@ -20,6 +20,7 @@ export function initMiniMode({ data, saveData, render, showToast, showContextMen
   const miniDetailCard = document.getElementById('mini-detail-card');
   const miniDetailBody = document.getElementById('mini-detail-body');
   const miniDetailTitle = document.getElementById('mini-detail-title');
+  const miniDetailSubtitle = document.getElementById('mini-detail-subtitle');
   const miniDetailToggleLabel = document.getElementById('mini-detail-toggle-label');
 
   const miniCfg = appConfig?.miniMode || {};
@@ -38,75 +39,157 @@ export function initMiniMode({ data, saveData, render, showToast, showContextMen
     collapseDelay: snapCfg.delay
   });
 
-  /* ---- 模式切换过渡：内容淡入淡出 + 原生窗口矩形插值联动 ----
-     display 互换会杀死 CSS 过渡，因此按"淡出→换 display→淡入"分帧编排；
-     时长跟随全局动画速度，reduce-motion 或速度为 0 时瞬间切换。 */
-  const SWAP_OUT_CLS = 'mode-swap-out';
-  const DISPLAY_CACHE_MS = 5 * 60 * 1000;
-  const appEl = document.querySelector('.app');
+  /* ---- 模式切换：只改 #app-frame 容器尺寸（data-mode + --mode-w/--mode-h） ----
+     两种布局常驻 DOM，切换由 CSS 变量过渡完成，不重建主视图、不动窗口几何；
+     窗口尺寸/位置交给幂等的 ensureWindowGeometry(mode)，仅在真正变化时下发一次。 */
+  const appFrame = document.getElementById('app-frame');
   let switching = false;
-  let cachedDisplay = null;
-  let cachedDisplayAt = 0;
+  let appliedGeometry = '';
+  /* 主窗口矩形记忆：会话内按模式记住位置与尺寸，退出再进入时还原上次矩形 */
+  const geometryMemory = Object.create(null);
 
-  function swapMs() {
-    try {
-      if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return 0;
-    } catch {}
-    if (document.documentElement.dataset.motion === 'off') return 0;
-    try {
-      return getUiMotionDuration('panel');
-    } catch {
-      return 280;
+  /* 容器尺寸的 px 值只在 CSS 变量缺失时兜底；窗口几何落定后统一改写成 100%，
+     让 C 区尺寸跟随真实视口，避免 setSize 生效前的短暂不匹配被呈现出来 */
+  let inlineModeFrameSize = false;
+
+  function setModeFrameSize(size) {
+    if (!appFrame) return;
+    if (size) {
+      inlineModeFrameSize = true;
+      appFrame.style.setProperty('--mode-w', `${size.width}px`);
+      appFrame.style.setProperty('--mode-h', `${size.height}px`);
+    } else if (inlineModeFrameSize) {
+      inlineModeFrameSize = false;
+      appFrame.style.setProperty('--mode-w', '100%');
+      appFrame.style.setProperty('--mode-h', '100%');
     }
   }
 
-  const nextFrame = () => new Promise(r => requestAnimationFrame(r));
-
-  async function fadeOutEl(el) {
-    const ms = swapMs();
-    if (ms <= 0 || !el) return;
-    el.classList.add(SWAP_OUT_CLS);
-    await new Promise(r => setTimeout(r, ms));
+  /* 应用模式：data-mode 驱动布局层显示。容器默认铺满视口，
+     只在没有窗口 API 的 Web 端切换迷你布局时用 px 兜底一次 */
+  function applyFrameMode(mode, size) {
+    if (!appFrame) return;
+    setModeFrameSize(size || null);
+    appFrame.dataset.mode = mode;
+    /* 容器高度交给视口：写入 data-mode 后清掉可能残留的 px 兜底，
+       保证任何路径下 #app-frame 都是 100%（Web 端迷你切换除外） */
+    if (mode !== 'mini') setModeFrameSize(null);
   }
 
-  /* 元素已参与布局（刚去除 display:none）：先以透明态渲染一帧，再释放过渡到可见；
-     前面已强制回流，单帧后释放即可 */
-  async function fadeInEl(el) {
-    if (!el) return;
-    el.classList.add(SWAP_OUT_CLS);
-    void el.offsetWidth;
-    if (swapMs() <= 0) {
-      el.classList.remove(SWAP_OUT_CLS);
+  /* 当前窗口所在显示器：位置读窗口矩形，取代旧的 displays[0]，多显示器下才落在同一块屏 */
+  async function getCurrentWorkArea() {
+    try {
+      const [displays, pos, size] = await Promise.all([
+        Neutralino.computer.getDisplays(),
+        Neutralino.window.getPosition(),
+        Neutralino.window.getSize()
+      ]);
+      if (!displays?.length) return null;
+      const cx = pos.x + Math.round(size.width / 2);
+      const cy = pos.y + Math.round(size.height / 2);
+      const hit = displays.find((d) => {
+        const r = d.workArea || d.resolution;
+        return r && cx >= r.x && cx <= r.x + r.width && cy >= r.y && cy <= r.y + r.height;
+      }) || displays[0];
+      return hit?.workArea || hit?.resolution || null;
+    } catch {
+      return null;
+    }
+  }
+
+  /* 幂等：同一 mode + 同一尺寸重复调用不下发任何窗口 API。
+     先去掉边框再 setSize（回填 WS_THICKFRAME 会在顶部留横条，neutralinojs #948/#1328），
+     并把 C 区尺寸与容器同步，避免 webview 视口尺度不一致产生白边。 */
+  async function ensureWindowGeometry(mode) {
+    if (!isNeutralinoEnv()) {
+      applyFrameMode(mode);
       return;
     }
-    await nextFrame();
-    el.classList.remove(SWAP_OUT_CLS);
-  }
-
-  /* 主显示器几何缓存：切换只读缓存，避免每次串行等待 getDisplays；
-     启动时预热一次；超期或失败时回退实时获取/默认行为 */
-  async function getPrimaryDisplay() {
-    if (!isNeutralinoEnv()) return cachedDisplay;
-    const now = Date.now();
-    if (cachedDisplay && now - cachedDisplayAt < DISPLAY_CACHE_MS) return cachedDisplay;
+    const mini = mode === 'mini';
+    /* 先记住当前矩形（位置 + 尺寸），供下次回到该模式时还原 */
     try {
-      const displays = await Neutralino.computer.getDisplays();
-      if (displays?.[0]) {
-        cachedDisplay = displays[0];
-        cachedDisplayAt = now;
-      }
+      const [prevPos, prevSize] = await Promise.all([
+        Neutralino.window.getPosition(),
+        Neutralino.window.getSize()
+      ]);
+      geometryMemory[mini ? 'main' : 'mini'] = {
+        x: prevPos.x,
+        y: prevPos.y,
+        width: Math.round(prevSize.width / (window.devicePixelRatio || 1)),
+        height: Math.round(prevSize.height / (window.devicePixelRatio || 1))
+      };
     } catch {}
-    return cachedDisplay;
-  }
-
-  function refreshDisplayCache() {
-    getPrimaryDisplay().catch(() => {});
+    /* 主窗口沿用用户上次手动缩放后的尺寸，回不到配置里的固定 px */
+    const mainRect = geometryMemory.main;
+    const width = mini ? miniWidth : (mainRect?.width || appConfig?.windowWidth || 1100);
+    const height = mini ? miniHeight : (mainRect?.height || appConfig?.windowHeight || 700);
+    const key = `${mode}:${width}x${height}`;
+    const size = { width, height };
+    if (appliedGeometry === key) {
+      applyFrameMode(mode, mini ? size : null);
+      return;
+    }
+    const area = await getCurrentWorkArea();
+    if (mini) {
+      const remembered = geometryMemory.mini;
+      const position = remembered || {
+        x: area ? Math.round(area.x + area.width - width - 20) : null,
+        y: area ? Math.round(area.y + 20) : null
+      };
+      try {
+        await Neutralino.window.setAlwaysOnTop(true);
+        await Neutralino.window.setBorderless(true);
+        /* 定位与伸缩一次下发：setSize 的 position 字段同时完成移动与 RECT 写入，
+           少一次 IPC 往返，窗口也不在中途位置闪一下 */
+        await Neutralino.window.setSize({
+          width,
+          height,
+          minWidth: miniMinWidth,
+          minHeight: miniMinHeight,
+          resizable: false,
+          ...(position.x != null ? { position: { x: position.x, y: position.y } } : {})
+        });
+      } catch (e) { console.warn('ensureWindowGeometry(mini) error:', e); }
+    } else {
+      const remembered = geometryMemory.main;
+      const target = remembered || (area ? {
+        x: Math.round(area.x + (area.width - width) / 2),
+        y: Math.round(area.y + (area.height - height) / 2)
+      } : null);
+      const sizeArgs = {
+        width,
+        height,
+        minWidth: appConfig?.minWidth || 800,
+        minHeight: appConfig?.minHeight || 500,
+        /* resizable 必须与冷启动一致：false 会留下不可缩放的窗口；
+           true 时 Windows 会回填 WS_THICKFRAME，属于普通窗口的既定期望 */
+        resizable: true
+      };
+      try {
+        /* 顺序固定为 边框 → 置顶 → 尺寸+位置。边框下发会跨到 win32 SetWindowLong 并触发
+           WM_NCCALCSIZE，紧随其后的 setSize 会与它重叠，导致原生窗框晚半拍才重绘；
+           定位并入同一次 setSize，少一次往返。 */
+        await Neutralino.window.setBorderless(false);
+        await Neutralino.window.setAlwaysOnTop(false);
+        await Neutralino.window.setSize({
+          ...sizeArgs,
+          ...(target ? { position: { x: target.x, y: target.y } } : {})
+        });
+      } catch (e) { console.warn('ensureWindowGeometry(main) error:', e); }
+      /* resizable:true 会让 Windows 在 setSize 之后才回填 WS_THICKFRAME 并再触发一次
+         非客户区重算；补一次尺寸不变的 setSize 把这次迟到的重算吃掉 */
+      Promise.resolve()
+        .then(() => Neutralino.window.setSize(sizeArgs))
+        .catch((e) => console.warn('ensureWindowGeometry(main) settle error:', e));
+    }
+    appliedGeometry = key;
+    /* 迷你容器按目标尺寸兜底，主容器一律交给视口，避免窗口与容器尺寸错位 */
+    applyFrameMode(mode, mini ? size : null);
   }
 
   function renderMiniPanel() {
-    const { pending, done } = splitPendingDone(data.todos);
+    const { pending } = splitPendingDone(data.todos);
     document.getElementById('mini-pending-count').textContent = pending.length;
-    document.getElementById('mini-done-count').textContent = done.length;
 
     const sorted = sortByPriority(pending);
     const items = sorted.slice(0, 8);
@@ -225,15 +308,23 @@ export function initMiniMode({ data, saveData, render, showToast, showContextMen
   function renderMiniDetail(todo) {
     if (!todo) return;
     currentMiniDetailId = todo.id;
-    miniDetailTitle.textContent = todo.title;
-    miniDetailTitle.title = todo.title;
+    /* 头部保持固定标题，任务标题完整展示在可滚动正文里：
+       超长标题不会撑开/挤占头部，也不会被省略号截断 */
+    const summary = [t('mini.pending')];
+    if (todo.priority && todo.priority !== 'none') summary.push(getMiniPriorityLabel(todo));
+    if (todo.tag) summary.push(todo.tag);
+    miniDetailTitle.textContent = t('mini.detail');
+    miniDetailTitle.title = t('mini.detail');
+    miniDetailSubtitle.textContent = summary.join(' · ');
+    miniDetailCard.setAttribute('aria-label', todo.title || t('mini.detail'));
     miniDetailToggleLabel.textContent = todo.done ? t('mini.unDone') : t('mini.markDone');
-    let html = '';
+    let html = `<div class="mini-detail-task-title">${escapeHtml(todo.title || '')}</div>`;
     if (todo.desc) {
       html += `<div class="mini-detail-desc">${escapeHtml(todo.desc)}</div>`;
     }
     html += `<div class="mini-detail-meta">${buildMiniDetailRows(todo)}</div>`;
     miniDetailBody.innerHTML = html;
+    miniDetailBody.scrollTop = 0;
   }
 
   function openMiniDetail(todoId) {
@@ -308,218 +399,133 @@ if ($script:hwnd -ne [IntPtr]::Zero) { $v = 2; [DwmRounder]::DwmSetWindowAttribu
     }).catch(e => console.warn('mini corner round error:', e));
   }
 
-  /* 迷你模式窗口隐藏任务栏：通过 WS_EX_TOOLWINDOW 让窗口不出现在任务栏，
-     仅保留系统托盘入口。进入迷你模式设置该样式，退出时恢复普通窗口样式。
-     与 DWM 圆角一致，用 EnumWindows 按窗口标题定位（标题来自 config 的 window.title），
-     隐藏窗口也能枚举到。
-     注意：改完扩展样式必须用 SetWindowPos(..., SWP_FRAMECHANGED) 强制重算
-     非客户区，否则标题栏残留在 TOOLWINDOW 形态——退出迷你模式后最小化/
-     最大化/关闭按钮缺失或显示异常，直到下一次手动缩放才恢复。 */
-  function buildTaskbarToggleCommand(hideFromTaskbar) {
+  /* 迷你模式窗口隐藏任务栏：给窗口加 WS_EX_TOOLWINDOW，只保留系统托盘入口；
+     退出时清掉它，并把 borderless 残留的 WS_POPUP 换回 WS_THICKFRAME，
+     让原生边框或标题栏当场重算，不必等用户下次手动缩放。
+     两处样式位必须同一次调用内改完：分两次进程时，前一次已经下发、
+     后一次的非客户区重算还没到，标题栏就会晚半拍才正确。
+     句柄取自 Neutralino 的 window.hwnd，省掉按标题 EnumWindows 的过程启动开销。 */
+  function buildTaskbarToggleCommand(hideFromTaskbar, hwnd) {
     const styleExpr = hideFromTaskbar
       ? '($style -bor 0x80)'
       : '($style -band (-bnot 0x80))';
+    const frameExpr = hideFromTaskbar
+      ? '$style'
+      : '($style -band (-bnot 0x80000000)) -bor 0x00040000';
     return 'powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand ' +
       encodeUtf16LeBase64(
-        `Add-Type -TypeDefinition 'using System;using System.Text;using System.Runtime.InteropServices;public class TbToggle{[DllImport("user32.dll")]public static extern bool EnumWindows(EnumWindowsProc cb,IntPtr lParam);[DllImport("user32.dll",CharSet=CharSet.Unicode)]public static extern int GetWindowText(IntPtr hwnd,StringBuilder sb,int max);[DllImport("user32.dll")]public static extern IntPtr GetWindowLongPtr(IntPtr hWnd,int nIndex);[DllImport("user32.dll")]public static extern IntPtr SetWindowLongPtr(IntPtr hWnd,int nIndex,IntPtr dwNewLong);[DllImport("user32.dll")]public static extern bool SetWindowPos(IntPtr hWnd,IntPtr hWndInsertAfter,int X,int Y,int cx,int cy,uint uFlags);public delegate bool EnumWindowsProc(IntPtr hwnd,IntPtr lParam);}'
-$script:hwnd = [IntPtr]::Zero
-$cb = [TbToggle+EnumWindowsProc]{ param($h,$l) $sb = New-Object System.Text.StringBuilder 256; [TbToggle]::GetWindowText($h,$sb,256) | Out-Null; if ($sb.ToString() -eq 'TODO') { $script:hwnd = $h; return $false }; return $true }
-[TbToggle]::EnumWindows($cb,[IntPtr]::Zero) | Out-Null
-if ($script:hwnd -ne [IntPtr]::Zero) { $GWL_EXSTYLE = -20; $style = ([TbToggle]::GetWindowLongPtr($script:hwnd,$GWL_EXSTYLE)).ToInt64(); $new = ${styleExpr}; [TbToggle]::SetWindowLongPtr($script:hwnd,$GWL_EXSTYLE,[IntPtr]$new) | Out-Null; [TbToggle]::SetWindowPos($script:hwnd,[IntPtr]::Zero,0,0,0,0,0x27) | Out-Null; 'OK' } else { 'NO_WINDOW' }`
+        `Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public class TbToggle{[DllImport("user32.dll",SetLastError=true)]public static extern IntPtr GetWindowLongPtr(IntPtr hWnd,int nIndex);[DllImport("user32.dll",SetLastError=true)]public static extern IntPtr SetWindowLongPtr(IntPtr hWnd,int nIndex,IntPtr dwNewLong);[DllImport("user32.dll",SetLastError=true)]public static extern bool SetWindowPos(IntPtr hWnd,IntPtr hWndInsertAfter,int X,int Y,int cx,int cy,uint uFlags);[DllImport("user32.dll")]public static extern bool IsWindow(IntPtr hWnd);}'
+$hwnd = [IntPtr][int64]${hwnd}
+if (([TbToggle]::IsWindow($hwnd)) -and ($hwnd -ne [IntPtr]::Zero)) { $GWL_EXSTYLE = -20; $GWL_STYLE = -16; $style = ([TbToggle]::GetWindowLongPtr($hwnd,$GWL_EXSTYLE)).ToInt64(); $new = ${styleExpr}; [TbToggle]::SetWindowLongPtr($hwnd,$GWL_EXSTYLE,[IntPtr]$new) | Out-Null; $frame = ([TbToggle]::GetWindowLongPtr($hwnd,$GWL_STYLE)).ToInt64(); $frameNew = ${frameExpr}; [TbToggle]::SetWindowLongPtr($hwnd,$GWL_STYLE,[IntPtr]$frameNew) | Out-Null; [TbToggle]::SetWindowPos($hwnd,[IntPtr]::Zero,0,0,0,0,0x27) | Out-Null; 'OK' } else { 'NO_WINDOW' }`
       );
+  }
+
+  /* window.hwnd 在 Neutralino 里是窗口句柄的字符串形式；读不到时返回 null，
+     调用方据此跳过样式还原（宁可不改，也不要误改别的窗口） */
+  function nativeWindowHandle() {
+    const hwnd = Neutralino?.window?.hwnd;
+    if (hwnd === undefined || hwnd === null || hwnd === '') return null;
+    const n = typeof hwnd === 'number' ? hwnd : Number(String(hwnd));
+    return Number.isFinite(n) && n > 0 ? Math.trunc(n) : null;
   }
 
   let taskbarHidden = false;
 
-  function setMiniTaskbarHidden(hideFromTaskbar) {
+  async function setMiniTaskbarHidden(hideFromTaskbar) {
     if (!isNeutralinoEnv() || taskbarHidden === hideFromTaskbar) return;
-    Neutralino.os.execCommand(buildTaskbarToggleCommand(hideFromTaskbar)).then(r => {
-      if (r?.stdOut?.trim() === 'OK') {
-        taskbarHidden = hideFromTaskbar;
-      } else {
-        console.warn('mini taskbar toggle: window not found,', r?.stdOut?.trim() || r?.stdErr || r?.exitCode);
+    /* 样式位改写一旦下发就无法中途撤回：先按目标状态记账，
+       避免异常时 taskbarHidden 与实际样式长期不一致 */
+    taskbarHidden = hideFromTaskbar;
+    const hwnd = nativeWindowHandle();
+    if (hwnd === null) {
+      console.warn('mini taskbar toggle: window handle unavailable');
+      return;
+    }
+    try {
+      const r = await Neutralino.os.execCommand(buildTaskbarToggleCommand(hideFromTaskbar, hwnd));
+      if (r?.stdOut?.trim() !== 'OK') {
+        console.warn('mini taskbar toggle: window not found,', r?.stdOut?.trim() || r?.stderr || r?.exitCode);
       }
-}).catch(e => console.warn('mini taskbar toggle error:', e));
+    } catch (e) { console.warn('mini taskbar toggle error:', e); }
   }
 
   async function enterMiniMode() {
     if (switching || isMiniMode) return;
     switching = true;
-    /* 打断可能残留的窗口动画，避免与本次切换重叠 */
-    cancelWindowRectAnimation();
     try {
       isMiniMode = true;
       closeMiniDetail();
       reminders.pause();
-      /* 后台刷新显示器缓存供下次切换使用；本次使用已有缓存 */
-      refreshDisplayCache();
       document.documentElement.classList.add('mini-mode-active');
-      await fadeOutEl(appEl);
-      appEl.style.display = 'none';
-      appEl.classList.remove(SWAP_OUT_CLS);
       /* 与 .mini-panel 的 96% 玻璃背景保持一致，避免窗口边缘露出纯白底色 */
       document.body.style.background = 'color-mix(in srgb, var(--bg-surface) 96%, transparent)';
+      /* 先按目标尺寸布好容器（窗口 API 落地前第一帧就有正确比例），
+         再由 ensureWindowGeometry 一次性下发窗口几何 */
+      applyFrameMode('mini', { width: miniWidth, height: miniHeight });
       miniPanel.classList.remove('hidden');
-      /* 按住隐藏：新内容在窗口动画期间不绘制，落定后再淡入 */
-      miniPanel.classList.add(SWAP_OUT_CLS);
-      void miniPanel.offsetWidth;
+      miniInputRow.classList.add('hidden');
       renderMiniPanel();
       if (isNeutralinoEnv()) {
         try {
-          await Neutralino.window.setAlwaysOnTop(true);
-          /* 先移除边框再调整尺寸：
-             1) setSize 必须带 resizable: false，否则 webview 会重新加回 WS_THICKFRAME，
-                在 Windows 顶部重绘出一条残留横条（neutralinojs #948/#1328）；
-             2) 先移除边框会触发客户区变化，让 WebView2 视口先同步到完整窗口，
-                再缩小到 mini 尺寸时视口跟随真实尺寸，避免右侧/底部残留旧视口的白边 */
-          await Neutralino.window.setBorderless(true);
-          const [pos, size] = await Promise.all([
-            Neutralino.window.getPosition(),
-            Neutralino.window.getSize()
-          ]);
-          const resolution = cachedDisplay?.resolution;
-          const to = {
-            x: resolution ? Math.round(resolution.width - miniWidth - 20) : pos.x,
-            y: resolution ? 20 : pos.y,
-            width: miniWidth,
-            height: miniHeight
-          };
-          const ms = swapMs();
-          if (ms > 0) {
-            /* 窗口动画期间新内容保持隐藏（visibility 翻转后跳过绘制），落定后再淡入；
-               尺寸与位置联动插值：收缩与右上移动一次完成，避免"先变小再瞬移" */
-            await animateWindowRect({
-              from: { x: pos.x, y: pos.y, width: size.width, height: size.height },
-              to,
-              duration: ms,
-              apply: (rect) => {
-                Neutralino.window.setSize({
-                  width: rect.width,
-                  height: rect.height,
-                  minWidth: miniMinWidth,
-                  minHeight: miniMinHeight,
-                  resizable: false
-                }).catch(() => {});
-                Neutralino.window.move(rect.x, rect.y).catch(() => {});
-              }
-            });
-          } else {
-            await Neutralino.window.setSize({
-              width: miniWidth,
-              height: miniHeight,
-              minWidth: miniMinWidth,
-              minHeight: miniMinHeight,
-              resizable: false
-            });
-            await Neutralino.window.move(to.x, to.y);
-          }
+          /* 贴边吸附关闭时把收起偏移归零，避免上次收起状态残留 */
+          await ensureWindowGeometry('mini');
           await Neutralino.window.setDraggableRegion('mini-drag-region');
-          /* 贴边吸附 + 收起交互：拖拽结束判定吸附，移出窗口后自动收起 */
           miniSnap.attach();
           /* DWM 圆角在应用启动时已设置（applyRoundedCorners），这里仅在启动设置
              失败时兜底重试一次；已成功则跳过，避免反复启动 PowerShell */
           if (!cornerRoundApplied) applyRoundedCorners();
           /* 迷你模式窗口不占用任务栏，只保留系统托盘入口 */
-          setMiniTaskbarHidden(true);
+          await setMiniTaskbarHidden(true);
         } catch (e) { console.warn('enterMiniMode error:', e); }
       }
-      /* 窗口落定后淡入新内容（动画路径全程隐藏，非动画路径在此释放） */
-      if (miniPanel.classList.contains(SWAP_OUT_CLS)) await fadeInEl(miniPanel);
     } finally {
       switching = false;
-      /* 兜底：任何异常路径都不允许界面卡在隐藏态 */
-      miniPanel.classList.remove(SWAP_OUT_CLS);
-      appEl.classList.remove(SWAP_OUT_CLS);
     }
   }
 
   async function exitMiniMode() {
     if (switching || !isMiniMode) return;
     switching = true;
-    cancelWindowRectAnimation();
     try {
       isMiniMode = false;
       clearTimeout(miniTooltipTimer);
       closeMiniDetail();
       reminders.resume();
-      refreshDisplayCache();
       if (isNeutralinoEnv()) {
         /* 退出前停用贴边吸附：清理计时器与监听，防止残留状态影响主窗口 */
         miniSnap.detach();
-      }
-      await fadeOutEl(miniPanel);
-      miniPanel.classList.add('hidden');
-      miniPanel.classList.remove(SWAP_OUT_CLS);
-      miniInputRow.classList.add('hidden');
-      document.documentElement.classList.remove('mini-mode-active');
-      document.body.style.background = '';
-      appEl.style.display = '';
-      /* 按住隐藏并提前渲染：主界面 DOM 在窗口动画期间不绘制，落定后再淡入 */
-      appEl.classList.add(SWAP_OUT_CLS);
-      void appEl.offsetWidth;
-      render();
-      if (isNeutralinoEnv()) {
         try {
           await Neutralino.window.unsetDraggableRegion('mini-drag-region');
         } catch (e) {}
-        try {
-          await Neutralino.window.setAlwaysOnTop(false);
-          await Neutralino.window.setBorderless(false);
-        } catch (e) {}
-        /* 尽早恢复普通任务栏样式（含 SetWindowPos 强制窗框重绘），让标题栏
-           按钮刷新与下面的尺寸动画并发进行，而不是落在淡入之后 */
-        setMiniTaskbarHidden(false);
-        try {
-          const mainWidth = appConfig?.windowWidth || 1100;
-          const mainHeight = appConfig?.windowHeight || 700;
-          const mainMinWidth = appConfig?.minWidth || 800;
-          const mainMinHeight = appConfig?.minHeight || 500;
-          const resolution = (await getPrimaryDisplay())?.resolution;
-          const ms = swapMs();
-          if (resolution && ms > 0) {
-            /* 从迷你矩形插值回居中的主窗口矩形：放大与居中一次完成，
-               取代之前的"恢复边框→硬等待 100ms→改尺寸→居中"三段跳变 */
-            const [pos, size] = await Promise.all([
-              Neutralino.window.getPosition(),
-              Neutralino.window.getSize()
-            ]);
-            /* 窗口动画期间主界面保持隐藏（visibility 翻转后跳过绘制），落定后再淡入 */
-            await animateWindowRect({
-              from: { x: pos.x, y: pos.y, width: size.width, height: size.height },
-              to: centerRect(resolution.width, resolution.height, mainWidth, mainHeight),
-              duration: ms,
-              apply: (rect) => {
-                Neutralino.window.setSize({
-                  width: rect.width,
-                  height: rect.height,
-                  minWidth: mainMinWidth,
-                  minHeight: mainMinHeight,
-                  resizable: false
-                }).catch(() => {});
-                Neutralino.window.move(rect.x, rect.y).catch(() => {});
-              }
-            });
-          }
-          /* 落定：恢复可缩放；无动画路径（Web/极简动效/取不到显示器）沿用居中 */
-          await Neutralino.window.setSize({
-            width: mainWidth,
-            height: mainHeight,
-            minWidth: mainMinWidth,
-            minHeight: mainMinHeight,
-            resizable: true
-          });
-          if (!resolution || ms <= 0) {
-            await Neutralino.window.center();
-          }
-        } catch (e) { console.warn('exitMiniMode resize error:', e); }
       }
-      /* 窗口落定后淡入主界面（动画路径全程隐藏，非动画路径在此释放） */
-      if (appEl.classList.contains(SWAP_OUT_CLS)) await fadeInEl(appEl);
+      miniInputRow.classList.add('hidden');
+      document.documentElement.classList.remove('mini-mode-active');
+      document.body.style.background = '';
+      /* 容器继续保持迷你尺寸（main 挂载点本来就铺满 #app-frame）：
+         提前把 data-mode 切成主模式会让主布局先按迷你窗口排一遍，
+         窗口恢复前既闪一下也会白白重排一次大列表 */
+      miniPanel.classList.add('hidden');
+      if (isNeutralinoEnv()) {
+        /* 边框、置顶、尺寸、位置全部由 ensureWindowGeometry 一次下发：
+           这里不再重复调 setBorderless/setAlwaysOnTop，避免同一个原生窗框
+           被重算两遍（第一遍还是无边框形态），也少一次等待 IPC 的卡顿 */
+        try {
+          await ensureWindowGeometry('main');
+        } catch (e) { console.warn('exitMiniMode geometry error:', e); }
+      }
+      /* 只刷新状态栏这类轻量信息：主视图 DOM 全程保留，切换不重建列表 */
+      try { render(); } catch (e) { console.warn('exitMiniMode render error:', e); }
+      /* 窗口尺寸已恢复，再把容器切回主模式：容器默认 100%，视口一变就跟随 */
+      applyFrameMode('main');
+      /* 几何落定后再恢复原生窗框：一次进程内清 WS_EX_TOOLWINDOW、清 WS_POPUP、
+         补回 WS_THICKFRAME 并 SWP_FRAMECHANGED 重算非客户区。串行执行是必要的，
+         否则重算会落在边框切换中途，标题栏要等下一次拖动才正确 */
+      /* 样式还原失败也不能把 switching 永久锁死：否则之后再也切不回迷你模式 */
+      try {
+        await setMiniTaskbarHidden(false);
+      } catch (e) { console.warn('exitMiniMode frame restore error:', e); }
     } finally {
       switching = false;
-      /* 兜底：任何异常路径都不允许界面卡在隐藏态 */
-      miniPanel.classList.remove(SWAP_OUT_CLS);
-      appEl.classList.remove(SWAP_OUT_CLS);
     }
   }
 
@@ -591,6 +597,12 @@ if ($script:hwnd -ne [IntPtr]::Zero) { $GWL_EXSTYLE = -20; $style = ([TbToggle]:
     const h = Math.max(miniMinHeight, Math.round(height));
     miniWidth = w;
     miniHeight = h;
+    /* 容器跟随视口即可（缺省尺寸只在没有窗口 API 时兜底），
+       缩放后的矩形记进 appliedGeometry 与矩形记忆，下次进入按这个尺寸还原 */
+    appliedGeometry = `mini:${w}x${h}`;
+    const mem = geometryMemory.mini || (geometryMemory.mini = { x: null, y: null });
+    mem.width = w;
+    mem.height = h;
     Neutralino.window.setSize({ width: w, height: h, minWidth: miniMinWidth, minHeight: miniMinHeight, resizable: false })
       .catch(e => console.warn('mini resize error:', e));
   }
@@ -699,8 +711,7 @@ if ($script:hwnd -ne [IntPtr]::Zero) { $GWL_EXSTYLE = -20; $style = ([TbToggle]:
     ], { className: 'context-menu--mini' });
   });
 
-  /* 启动时预热显示器缓存与刷新率实测，首次进入迷你模式即可命中，无需串行等待 */
-  refreshDisplayCache();
+  /* 启动时实测刷新率，贴边收起的时长据此换算，首次交互即可命中缓存 */
   try {
     ensureDisplayHz();
   } catch {}

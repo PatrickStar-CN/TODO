@@ -382,7 +382,6 @@ export const en = {
   'mini.quickAdd': 'Quick add',
   'mini.restore': 'Restore window',
   'mini.pending': 'Pending',
-  'mini.done': 'Done',
   'mini.addPlaceholder': 'Add a task...',
   'mini.quickAddAria': 'Quick add task',
   'mini.detail': 'Task details',

@@ -1643,62 +1643,64 @@ assert.ok(/btn-cancel-update/.test(settingsSource), '设置页应提供取消下
   });
 }
 
-/* 模式切换窗口矩形插值：端点、四舍五入、单调收缩、居中与 IPC 步数预算 */
+/* 模式切换：容器尺寸驱动 + 双布局层交错过渡（切换路径零窗口 API） */
 {
-  const from = { x: 390, y: 190, width: 1100, height: 700 };
-  const to = { x: 1660, y: 20, width: 240, height: 288 };
-  const start = rectAt(from, to, 0, 280);
-  assert.deepEqual(start.rect, from);
-  assert.equal(start.done, false);
-  const end = rectAt(from, to, 280, 280);
-  assert.deepEqual(end.rect, to);
-  assert.equal(end.done, true);
-  const over = rectAt(from, to, 9999, 280);
-  assert.deepEqual(over.rect, to);
-  assert.equal(over.done, true);
-  /* 收缩过程宽高单调非增、坐标取整 */
-  let prev = null;
-  for (const t of [0, 40, 80, 120, 160, 200, 240]) {
-    const cur = rectAt(from, to, t, 280).rect;
-    assert.ok(Number.isInteger(cur.x) && Number.isInteger(cur.y));
-    assert.ok(Number.isInteger(cur.width) && Number.isInteger(cur.height));
-    if (prev) {
-      assert.ok(cur.width <= prev.width && cur.height <= prev.height);
-    }
-    prev = cur;
-  }
-  assert.deepEqual(centerRect(1920, 1080, 1100, 700), { x: 410, y: 190, width: 1100, height: 700 });
-  /* 采样间隔有界：60Hz 屏逐帧下发，高刷屏跳帧，IPC 频率封顶 */
-  assert.equal(WINDOW_ANIM_MAX_HZ, 72);
-  assert.equal(framesPerApply(60), 1);
-  assert.equal(framesPerApply(120), 2);
-  assert.equal(framesPerApply(144), 2);
-  assert.equal(framesPerApply(0), 1);
-  /* 280ms 动画下发次数：60Hz 屏约 18 次、144Hz 屏约 22 次 */
-  const appliesAt = (hz) => Math.ceil((280 / (1000 / hz)) / framesPerApply(hz)) + 1;
-  assert.ok(appliesAt(60) <= 20);
-  assert.ok(appliesAt(144) <= 24);
-  assert.equal(typeof animateWindowRect, 'function');
-  assert.equal(typeof cancelWindowRectAnimation, 'function');
-  assert.equal(typeof ensureDisplayHz, 'function');
-  /* 内容交叉淡入淡出：过渡跟随全局动效，隐藏态用 opacity 表达 */
-  assert.ok(/\.app\.mode-swap-out,\s*\.mini-panel\.mode-swap-out\s*\{[^}]*opacity:\s*0/.test(styleSource), '模式切换应提供 mode-swap-out 淡出态');
-  assert.ok(/\.app,\s*\.mini-panel\s*\{[^}]*var\(--motion-panel\)/.test(styleSource), '模式切换过渡应跟随全局动效');
-  /* 切换编排：窗口插值联动、显示器缓存、无硬等待 */
   const miniSource = readFileSync(path.join(__dirname, '../src/miniMode.js'), 'utf8');
-  assert.ok(/animateWindowRect/.test(miniSource), 'miniMode.js 切换应使用窗口矩形插值动画');
-  assert.ok(!/setTimeout\(r,\s*100\)/.test(miniSource), '退出切换不得再硬等待 100ms');
-  assert.ok(/getPrimaryDisplay|cachedDisplay/.test(miniSource), '显示器几何应缓存复用而非每次串行获取');
-  /* 切换编排：窗口动画期间内容保持隐藏（落定后淡入），避免边动画边淡入加重绘制 */
-  assert.ok(!/const unveil = fadeInEl/.test(miniSource), '窗口动画期间内容应保持隐藏（落定后淡入），不得并发淡入');
-  assert.ok(/await animateWindowRect\(\{[\s\S]{0,3000}?await fadeInEl/.test(miniSource), '应窗口动画完成后再淡入内容');
-  /* 隐藏态必须带 visibility 跳过绘制，否则尺寸动画每帧重绘玻璃界面导致卡顿 */
-  assert.ok(/\.app\.mode-swap-out,\s*\.mini-panel\.mode-swap-out\s*\{[^}]*visibility:\s*hidden/.test(styleSource), 'mode-swap-out 应含 visibility 跳过绘制');
-  /* 退出迷你模式后标题栏按钮：改扩展样式必须带 SWP_FRAMECHANGED 强制窗框重绘，
-     否则残留 TOOLWINDOW 形态（最小化/最大化按钮缺失）；恢复调用应先于尺寸动画 */
+  assert.ok(/#app-frame/.test(styleSource), 'style.css 应提供 #app-frame 模式容器');
+  assert.ok(/#app-frame\[data-mode='mini'\]\s*\.mini-layer/.test(styleSource), 'mini 模式应由 #app-frame[data-mode] 驱动 .mini-layer 显示');
+  assert.ok(/#app-frame\[data-mode='mini'\]\s*\.mode-mount--main/.test(styleSource), 'mini 模式应隐藏 .mode-mount--main 并跳过绘制');
+  /* 退出路径：边框/置顶/尺寸/位置只在 ensureWindowGeometry 下发一次，
+     重复调用会让原生窗框被重算两遍，窗口样式回不到冷启动形态 */
+  const exitStart = miniSource.indexOf('async function exitMiniMode');
+  const exitSource = miniSource.slice(exitStart, miniSource.indexOf('btn-mini-mode-footer', exitStart));
+  /* ensureWindowGeometry 的定义（含内部的 setBorderless/setSize）属于编排细节，先剔除再检查调用点 */
+  const exitOrchestration = exitSource.replace(/async function ensureWindowGeometry[\s\S]*?\n  }\n/, '');
+  assert.ok(!/Neutralino\.window\.setBorderless/.test(exitOrchestration), '退出迷你模式不得在 ensureWindowGeometry 之外重复切换边框');
+  assert.ok(!/Neutralino\.window\.setAlwaysOnTop/.test(exitOrchestration), '退出迷你模式不得在 ensureWindowGeometry 之外重复切换置顶');
+  assert.ok(!/animateWindowRect|cancelWindowRectAnimation/.test(miniSource), '模式切换不应再逐帧插值窗口矩形');
+  const mainGeom = miniSource.slice(miniSource.indexOf('const sizeArgs = {'));
+  assert.ok(
+    mainGeom.indexOf('setBorderless(false)') < mainGeom.indexOf('setSize('),
+    '恢复主窗口应先边框后尺寸，避免非客户区重绘落半拍',
+  );
+  /* 任务栏样式切换与窗口几何串行：并发会让 SWP_FRAMECHANGED 在边框切换中途重算 */
+  assert.ok(
+    /await ensureWindowGeometry\('main'\)[\s\S]{0,600}?setMiniTaskbarHidden\(false\)/.test(exitSource),
+    '退出前应先完成窗口几何再恢复任务栏样式',
+  );
+  /* 退出迷你模式后标题栏按钮：改扩展样式必须用 SetWindowPos(SWP_FRAMECHANGED)
+     强制重算非客户区，否则残留 TOOLWINDOW 形态导致标题栏按钮缺失 */
   assert.ok(/SetWindowPos/.test(miniSource), '任务栏样式切换后必须用 SetWindowPos 刷新窗框');
   assert.ok(/0x27/.test(miniSource), '窗框刷新必须带 SWP_FRAMECHANGED（0x27 = NOSIZE|NOMOVE|NOZORDER|FRAMECHANGED）');
-}
+  /* 容器尺寸只做兜底：窗口几何落地后改由视口决定，主布局不再先按固定 px 排一遍 */
+  assert.ok(!/applyFrameMode\('main',\s*\{/.test(miniSource), '退出切换不应把主容器固定成配置尺寸');
+  assert.ok(/setProperty\('--mode-w',\s*'100%'\)/.test(miniSource), '容器尺寸应回落到 100% 跟随视口');
+  /* 主容器不得被钉成固定尺寸，否则用户拖动窗口后内部元素不跟随 */
+  assert.ok(/\.mode-mount--main\s*\{[^}]*width:\s*100%[^}]*height:\s*100%/.test(styleSource), '主布局应铺满容器');
+  assert.ok(/width:\s*var\(--mode-w,\s*100%\)/.test(styleSource), '#app-frame 应默认铺满视口');
+  /* 高度链：html/body 必须有确定高度，否则 #app-frame 的 100% 解析为 auto 塌陷 */
+  assert.ok(/html\s*\{[^}]*height:\s*100%/.test(styleSource), 'html 应设定高度基准');
+  assert.ok(/body\s*\{[^}]*height:\s*100%/.test(styleSource), 'body 应继承高度基准');
+  assert.ok(/height:\s*var\(--mode-h,\s*100%\)/.test(styleSource), '#app-frame 应默认铺满视口高度');
+  assert.ok(/#app-frame\[data-mode='mini'\]\s*\{[^}]*transition:\s*width/.test(styleSource), '宽高过渡只在迷你布局层在场时启用');
+  /* 原生窗框：扩展样式清除后必须再强制重算一次非客户区，标题栏按钮才会立刻恢复 */
+  /* 样式位改写与非客户区重算必须同一次调用完成，否则窗框晚半拍才恢复 */
+  const toggleBuilder = miniSource.slice(miniSource.indexOf('function buildTaskbarToggleCommand'), miniSource.indexOf('let taskbarHidden'));
+  assert.ok(/SetWindowPos\(\$hwnd[^)]*0x27\)/.test(toggleBuilder), '样式切换应在同一次进程内强制重算非客户区');
+  assert.ok(/0x00040000/.test(toggleBuilder), '退出迷你模式应补回 WS_THICKFRAME');
+  assert.ok(/-bnot 0x80000000/.test(toggleBuilder), '退出迷你模式应清掉 borderless 残留的 WS_POPUP');
+  assert.ok(!/EnumWindows/.test(toggleBuilder), '样式还原应直接使用 Neutralino 窗口句柄，不再按标题枚举');
+  assert.ok(/Neutralino\?\.window\?\.hwnd/.test(miniSource), '应读取 Neutralino 暴露的窗口句柄');
+  assert.ok(
+    /await ensureWindowGeometry\('main'\)[\s\S]{0,600}?await setMiniTaskbarHidden\(false\)/.test(exitSource),
+    '退出时应先完成窗口几何再恢复原生窗框样式',
+  );
+  /* 退出路径不得在窗口恢复前切换 data-mode：否则主布局先按迷你尺寸排一遍 */
+  assert.ok(
+    exitSource.indexOf("miniPanel.classList.add('hidden')") < exitSource.indexOf("applyFrameMode('main')"),
+    '应先隐藏迷你层，待窗口尺寸恢复后再切回主模式',
+  );}
+
 
 /* 可访问性回归：焦点陷阱、键盘、读屏与窄窗口 */
 {

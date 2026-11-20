@@ -396,15 +396,22 @@ body {
   background: var(--bg-base);
   color: var(--text-primary);
   min-height: 100vh;
+  height: 100%;
+  margin: 0;
   overflow: hidden;
   position: relative;
   line-height: 1.5;
+  box-sizing: border-box;
 }
 
 /* 限制光标：非输入区域一律箭头，仅真正的可编辑控件显示文本光标 */
 body,
 html {
   cursor: default;
+  /* 视口尺寸基准：#app-frame 用 100% 跟随窗口，需要 html/body 有确定高度，
+     否则百分比高度解析为 auto，容器塌陷、内部元素移出窗口 */
+  width: 100%;
+  height: 100%;
 }
 
 input[type="text"],
@@ -432,10 +439,13 @@ body::before {
   background: var(--bg-base);
 }
 
-.app {
+/* 主布局：尺寸由 #app-frame 的尺寸变量驱动，不再依赖 100vh（窗口缩小时 vh 不会跟随容器） */
+.mode-mount--main {
   display: flex;
-  height: 100vh;
+  width: 100%;
+  height: 100%;
   background: transparent;
+  overflow: hidden;
 }
 
 /* Sidebar */
@@ -4371,9 +4381,9 @@ body::before {
   will-change: opacity, translate;
 }
 
-/* Mini Panel */
+/* Mini Panel：绝对定位于 .mini-layer 内，随容器尺寸一起过渡，不再脱离文档流 */
 .mini-panel {
-  position: fixed;
+  position: absolute;
   inset: 0;
   background: var(--glass-bg-strong);
   backdrop-filter: var(--glass-blur-strong);
@@ -4389,24 +4399,69 @@ body::before {
   display: none !important;
 }
 
-/* 模式切换交叉淡入淡出：display 互换由 JS 按过渡时长分帧编排，
-   此处只负责透明度与位移，时长跟随全局动画速度设置 */
-.app,
-.mini-panel {
-  transition: opacity var(--motion-panel), transform var(--motion-panel);
+/* ===== 模式切换：容器尺寸 + 双布局层交错过渡 =====
+   迷你/普通布局常驻 DOM，切换只改 #app-frame 的尺寸变量与 data-mode；
+   全程不调用窗口 API、不重建主视图，因此没有逐帧 IPC 与大范围重排。 */
+#app-frame {
+  position: relative;
+  box-sizing: border-box;
+  /* 容器始终跟随视口；--mode-w/--mode-h 只给没有窗口 API 的 Web 端做兜底。
+     尺寸一旦按模式钉死，用户拖动窗口改变大小后内部元素就不会跟随 */
+  width: var(--mode-w, 100%);
+  height: var(--mode-h, 100%);
+  overflow: hidden;
+  border-radius: var(--radius-window, 12px);
 }
 
-.app.mode-swap-out,
-.mini-panel.mode-swap-out {
+/* 只有迷你布局层在场时才给容器加宽高过渡：回到普通模式后容器必须
+   瞬时跟随窗口，否则拖动窗口会被过渡曲线拖住 */
+#app-frame[data-mode='mini'] {
+  transition: width var(--motion-panel), height var(--motion-panel);
+}
+
+.mini-layer {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
   opacity: 0;
   transform: scale(0.985);
-  visibility: hidden;
-  /* visibility 延迟到淡出结束才翻转：淡出动画不受影响，翻转后浏览器跳过绘制，
-     窗口尺寸动画期间不再每帧重绘玻璃界面；移除类时立即恢复可见再淡入 */
   transition:
     opacity var(--motion-panel),
     transform var(--motion-panel),
     visibility 0s linear var(--motion-panel);
+  visibility: hidden;
+}
+
+#app-frame[data-mode='mini'] .mini-layer {
+  pointer-events: auto;
+  opacity: 1;
+  transform: none;
+  visibility: visible;
+  transition:
+    opacity var(--motion-panel),
+    transform var(--motion-panel),
+    visibility 0s linear 0s;
+}
+
+/* 主布局在迷你模式下淡出并停止参与命中测试；visibility 延迟到淡出结束才翻转，
+   翻转后浏览器跳过绘制，切换期间不再重绘玻璃界面 */
+.mode-mount--main {
+  width: 100%;
+  height: 100%;
+  transform-origin: center top;
+  transition:
+    opacity var(--motion-panel),
+    transform var(--motion-panel),
+    visibility 0s linear var(--motion-panel);
+}
+
+#app-frame[data-mode='mini'] .mode-mount--main {
+  opacity: 0;
+  transform: scale(0.985);
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .mini-header {
@@ -9422,10 +9477,15 @@ html.mini-mode-active .mini-panel {
   border-radius: 8px;
 }
 
+/* 迷你布局层铺满容器：面板本身 absolute inset:0，不再依赖窗口视口单位 */
+.mini-layer {
+  border-radius: inherit;
+}
+
 .mini-panel {
   box-sizing: border-box;
-  width: 100vw;
-  height: 100dvh;
+  width: 100%;
+  height: 100%;
   color: var(--text-primary);
   background: color-mix(in srgb, var(--bg-surface) 96%, transparent);
   border: 1px solid color-mix(in srgb, var(--glass-stroke-strong) 38%, transparent);
@@ -9524,6 +9584,7 @@ html.mini-mode-active .mini-panel {
 }
 
 .mini-stats {
+  justify-content: flex-start;
   gap: 4px;
   padding: 4px 8px;
   background: transparent;
@@ -9535,7 +9596,7 @@ html.mini-mode-active .mini-panel {
   align-items: center;
   justify-content: center;
   min-width: 0;
-  flex: 1;
+  flex: 0 0 auto;
   gap: 4px;
   min-height: 22px;
   padding: 3px 6px;
@@ -9560,11 +9621,6 @@ html.mini-mode-active .mini-panel {
   border-radius: 50%;
   background: var(--accent);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 12%, transparent);
-}
-
-.mini-stat-done .mini-stat-dot {
-  background: var(--success);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--success) 12%, transparent);
 }
 
 .mini-list {
@@ -9619,6 +9675,7 @@ html.mini-mode-active .mini-panel {
   box-shadow: var(--glass-inset-highlight);
   font-size: calc(11px * var(--ui-font-scale));
   overflow: hidden;
+  cursor: pointer;
   transition:
     color var(--motion-fast),
     background var(--motion-fast),
@@ -9690,12 +9747,19 @@ html.mini-mode-active .mini-panel {
 }
 
 .mini-todo-item .mini-todo-title {
+  display: -webkit-box;
   min-width: 0;
+  max-height: calc(1.35em * 2);
   flex: 1 1 auto;
   font-size: calc(11px * var(--ui-font-scale));
   font-weight: 500;
   line-height: 1.35;
+  overflow: hidden;
   overflow-wrap: anywhere;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 
 /* 标签 chip：进入迷你模式时让标签用主题色呈现，与主界面 badge 一致且不超小窗宽度 */
@@ -9909,6 +9973,7 @@ html.mini-mode-active .mini-panel {
   display: flex;
   gap: 7px;
   align-items: flex-start;
+  flex: 1 1 auto;
   min-width: 0;
 }
 
@@ -9935,6 +10000,7 @@ html.mini-mode-active .mini-panel {
 .mini-detail-heading-copy {
   display: grid;
   min-width: 0;
+  flex: 1 1 auto;
   gap: 1px;
 }
 
@@ -9950,9 +10016,12 @@ html.mini-mode-active .mini-panel {
 }
 
 #mini-detail-subtitle {
+  overflow: hidden;
   color: var(--text-muted);
   font-size: calc(8px * var(--ui-font-scale));
   line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .mini-detail-header-actions .mini-btn {
@@ -10011,6 +10080,18 @@ html.mini-mode-active .mini-panel {
 
 .mini-detail-body:hover::-webkit-scrollbar-thumb {
   background: color-mix(in srgb, var(--accent) 50%, transparent);
+}
+
+/* 完整任务标题：放在可滚动正文顶部，多行标题也不会被头部省略号裁切 */
+.mini-detail-task-title {
+  margin: 0 0 10px;
+  color: var(--text-heading);
+  font-size: calc(13px * var(--ui-font-scale));
+  font-weight: 650;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  user-select: text;
 }
 
 .mini-detail-desc {

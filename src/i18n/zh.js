@@ -382,7 +382,6 @@ export const zh = {
   'mini.quickAdd': '快速添加',
   'mini.restore': '恢复窗口',
   'mini.pending': '待办',
-  'mini.done': '已完成',
   'mini.addPlaceholder': '添加任务...',
   'mini.quickAddAria': '快速添加任务',
   'mini.detail': '任务详情',
