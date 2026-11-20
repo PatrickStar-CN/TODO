@@ -806,6 +806,13 @@ function createStyleSlider(key, label, min, max, unit, step = 1) {
   `;
 }
 
+/* 圆角不只作用于 DOM：窗口本身的 DWM 圆角也要跟着设置走，
+   由 app.js 监听这个事件把新半径下发给系统窗口 */
+function notifyUiStyleChange(key) {
+  if (key !== 'radius') return;
+  document.dispatchEvent(new CustomEvent('todo-tools:ui-style-changed', { detail: { key } }));
+}
+
 function bindUiStyleControls(overlay) {
   const controls = overlay.querySelectorAll('[data-style-key]');
   let previewFrame = null;
@@ -822,6 +829,7 @@ function bindUiStyleControls(overlay) {
     /* 高频 input 只在 rAF 内合并且落盘仍走 change：blur/字号等重排贵属性拖动不抖动 */
     data.uiStyle = normalizeUiStyle({ ...data.uiStyle, [key]: value });
     applyUiStyle(data.uiStyle);
+    notifyUiStyleChange(key);
     updateUiStyleValue(overlay, key);
   };
 
@@ -841,6 +849,7 @@ function bindUiStyleControls(overlay) {
       const key = control.dataset.styleKey;
       data.uiStyle = normalizeUiStyle({ ...data.uiStyle, [key]: control.value });
       applyUiStyle(data.uiStyle);
+      notifyUiStyleChange(key);
       updateUiStyleValue(overlay, key);
       saveData();
     });
@@ -849,6 +858,7 @@ function bindUiStyleControls(overlay) {
   overlay.querySelector('#reset-ui-style').addEventListener('click', () => {
     data.uiStyle = { ...DEFAULT_UI_STYLE };
     applyUiStyle(data.uiStyle);
+    notifyUiStyleChange('radius');
     updateUiStyleControls(overlay);
     saveData();
     showToast(t('toast.uiReset'));

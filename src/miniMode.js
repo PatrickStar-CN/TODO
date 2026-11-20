@@ -386,8 +386,17 @@ export function initMiniMode({ data, saveData, render, showToast, showContextMen
   /* 目标窗口定位：WG_MINI 必然有标题栏按钮，用来确认句柄合法（防止改到桌面/浏览器窗口）；
      标题与配置的 windowTitle 不一致时退化为只认 WG_MINI，因为标题随语言/文档变化。
      只取 Z 序前 8 个可见的其他进程窗口，尽量让任务栏、托盘这些非目标窗口落选。 */
+  /* 窗口圆角与界面圆角取同一个设置值（设置 → 外观 → 圆角，6–20px）：
+     DWM 圆角半径单位是 1/96 英寸，96 DPI 下 1 单位约等于 1px，四角才跟面板严丝合缝 */
+  function currentWindowRadius() {
+    const raw = Number(data?.uiStyle?.radius);
+    const radius = Number.isFinite(raw) ? raw : 12;
+    return Math.min(20, Math.max(6, Math.round(radius)));
+  }
+
   /* 一次调用把目标形态的扩展样式与 DWM 圆角一起写回：两者在同一个进程内下发，
-     窗框只重算一遍。style 取 'mini'（直角、无边框可拖拽）或 'main'（装回 Win11 圆角）。 */
+     窗框只重算一遍。style 取 'mini'（去边框可拖拽）或 'main'（装回原生窗框），
+     圆角半径两种形态一致，都跟随设置里的圆角。 */
   function buildMiniModeCommand(hwnd, style) {
     /* 只改目标位的差集写法，而不是整字覆盖：WS_EX_STATICEDGE 之类窗口自带的位原样保留，
        退出迷你模式时样式才能被系统接受（整字覆盖里的 0x00180000 保留位会被
@@ -395,7 +404,9 @@ export function initMiniMode({ data, saveData, render, showToast, showContextMen
     const styleExpr = style === 'mini'
       ? '$newEx = $ex -band (-bnot 0x00080000)'
       : '$newEx = ($ex -band (-bnot 0x00180000)) -bor 0x00080008';
-    const cornerAttr = style === 'mini' ? 1 : 2;
+    /* DWMWA_WINDOW_CORNER_PREFERENCE(33)=DWMWCP_ROUND，DWM_WINDOW_CORNER_RADIUS(38)=圆角半径；
+       半径要显式写，否则系统只给默认的小圆角，迷你窗口的四角会明显比面板更尖 */
+    const windowRadius = currentWindowRadius();
     return 'powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand ' +
       encodeUtf16LeBase64(
         `Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public class TbToggle{[DllImport("user32.dll",SetLastError=true)]public static extern IntPtr GetWindowLongPtr(IntPtr hWnd,int nIndex);[DllImport("user32.dll",SetLastError=true)]public static extern IntPtr SetWindowLongPtr(IntPtr hWnd,int nIndex,IntPtr dwNewLong);[DllImport("user32.dll",SetLastError=true)]public static extern bool SetWindowPos(IntPtr hWnd,IntPtr hWndInsertAfter,int X,int Y,int cx,int cy,uint uFlags);[DllImport("user32.dll")]public static extern bool IsWindow(IntPtr hWnd);[DllImport("dwmapi.dll")]public static extern int DwmSetWindowAttribute(IntPtr hWnd,int attr,ref int v,int size);}'
@@ -409,26 +420,47 @@ export function initMiniMode({ data, saveData, render, showToast, showContextMen
    /* 有 WS_POPUP 说明是 borderless 形态：原位保留 frame 样式位，只补 WS_THICKFRAME，绝不写负掩码 */
    if ($newEx -band 0x08) { $newFrame = $frame -bor 0x00040000 } else { $newFrame = $frame }
    [TbToggle]::SetWindowLongPtr($hwnd,$GWL_STYLE,[IntPtr]$newFrame) | Out-Null
-   $v = ${cornerAttr}
+   $v = 2
    [TbToggle]::DwmSetWindowAttribute($hwnd,33,[ref]$v,4) | Out-Null
+   $rc = ${windowRadius}
+   [TbToggle]::DwmSetWindowAttribute($hwnd,38,[ref]$rc,4) | Out-Null
    [TbToggle]::SetWindowPos($hwnd,[IntPtr]::Zero,0,0,0,0,0x27) | Out-Null
    'OK' }`
       );
   }
 
-  /* DWM 圆角：迷你形态用直角（2px 面板圆角由 CSS 画），普通形态装回 Win11 平滑圆角。
-     与样式位在同一次进程内下发，窗框只重算一遍 */
-  async function applyWindowShape(style) {
+  /* DWM 圆角两种形态取同一半径，都跟随设置里的圆角；样式位与圆角在同一次进程内下发。
+     单飞 + 脏标记：PowerShell 冷启动是秒级的，用户在设置里拖动滑杆会连续触发，
+     并发重算非客户区只会让窗框反复闪，最后一个半径落下后再补一次即可 */
+  let shapeInFlight = false;
+  let shapeDirty = false;
+
+  async function runWindowShape(style) {
     if (!isNeutralinoEnv()) return;
-    const hwnd = await resolveWindowHandle();
-    if (hwnd === null) return;
+    if (shapeInFlight) {
+      shapeDirty = true;
+      return;
+    }
+    shapeInFlight = true;
     try {
-      const r = await Neutralino.os.execCommand(buildMiniModeCommand(hwnd, style));
-      if (r?.stdOut?.trim() !== 'OK') {
-        console.warn('mini window shape: window not found,', r?.stdOut?.trim() || r?.stdErr || r?.exitCode);
+      const hwnd = await resolveWindowHandle();
+      if (hwnd !== null) {
+        try {
+          const r = await Neutralino.os.execCommand(buildMiniModeCommand(hwnd, style));
+          if (r?.stdOut?.trim() !== 'OK') {
+            console.warn('mini window shape: window not found,', r?.stdOut?.trim() || r?.stdErr || r?.exitCode);
+          }
+        } catch (e) { console.warn('mini window shape error:', e); }
       }
-    } catch (e) { console.warn('mini window shape error:', e); }
+    } finally {
+      shapeInFlight = false;
+    }
+    if (shapeDirty) {
+      shapeDirty = false;
+      await runWindowShape(style);
+    }
   }
+
 
   async function enterMiniMode() {
     if (switching || isMiniMode) return;
@@ -441,9 +473,7 @@ export function initMiniMode({ data, saveData, render, showToast, showContextMen
       /* 与 .mini-panel 的 96% 玻璃背景保持一致，避免窗口边缘露出纯白底色 */
       document.body.style.background = 'color-mix(in srgb, var(--bg-surface) 96%, transparent)';
       /* 先按目标尺寸布好容器（窗口 API 落地前第一帧就有正确比例），
-         再由 ensureWindowGeometry 一次性下发窗口几何。
-         直角标记则留到几何落地后再挂：容器与面板的直角要跟窗口的直角同时出现，
-         否则切换途中会先闪出一圈属于圆角窗口的切角 */
+         再由 ensureWindowGeometry 一次性下发窗口几何 */
       applyFrameMode('mini', { width: miniWidth, height: miniHeight });
       miniPanel.classList.remove('hidden');
       miniInputRow.classList.add('hidden');
@@ -455,12 +485,11 @@ export function initMiniMode({ data, saveData, render, showToast, showContextMen
           await Neutralino.window.setDraggableRegion('mini-drag-region');
           /* 贴边吸附关闭时把收起偏移归零，避免上次收起状态残留 */
           await ensureWindowGeometry('mini');
-          document.documentElement.classList.add('mini-square');
           miniSnap.attach();
         } catch (e) { console.warn('enterMiniMode error:', e); }
         /* 窗框形态（直角/样式位）是纯外观，不进入上面的等待链：PowerShell 冷启动要秒级，
            串进来就会让切换卡住、期间窗口拖不动。失败也不影响切换本身 */
-        applyWindowShape('mini');
+        runWindowShape('mini');
       }
     } finally {
       switching = false;
@@ -484,8 +513,6 @@ export function initMiniMode({ data, saveData, render, showToast, showContextMen
       }
       miniInputRow.classList.add('hidden');
       document.documentElement.classList.remove('mini-mode-active');
-      /* 窗口一恢复成带圆角的原生窗框，容器就得跟着回到圆角，避免多一层直角切角 */
-      document.documentElement.classList.remove('mini-square');
       document.body.style.background = '';
       /* 容器继续保持迷你尺寸（main 挂载点本来就铺满 #app-frame）：
          提前把 data-mode 切成主模式会让主布局先按迷你窗口排一遍，
@@ -508,7 +535,7 @@ export function initMiniMode({ data, saveData, render, showToast, showContextMen
          串行执行是必要的，否则重算会落在边框切换中途，标题栏要等下一次拖动才正确 */
       /* 样式还原失败也不能把 switching 永久锁死：否则之后再也切不回迷你模式 */
       try {
-        await applyWindowShape('main');
+        await runWindowShape('main');
       } catch (e) { console.warn('exitMiniMode frame restore error:', e); }
     } finally {
       switching = false;
@@ -786,5 +813,14 @@ export function initMiniMode({ data, saveData, render, showToast, showContextMen
   }
 
   /* applyRoundedCorners 保留给启动时预热：预先枚举并缓存窗口句柄，进入迷你模式时少一次进程启动 */
-  return { enterMiniMode, exitMiniMode, renderMiniPanel, isMiniMode: () => isMiniMode, applyRoundedCorners: () => applyWindowShape('main') };
+  /* 设置里改了圆角就同步窗口本身的圆角：迷你模式下宿主窗口就是可见的那块面板，
+     不跟设置走的话四角会与面板圆角对不上。切换中的窗口交给切换流程自己收尾，避免并发重算非客户区 */
+  function refreshWindowRadius() {
+    if (switching) return;
+    /* 主模式在窗口不可见时（设置面板打开也可能落在隐藏窗口上）不必重算，
+       但迷你模式一定可见，必须跟着设置立刻变 */
+    runWindowShape(isMiniMode ? 'mini' : 'main').catch(() => {});
+  }
+
+  return { enterMiniMode, exitMiniMode, renderMiniPanel, isMiniMode: () => isMiniMode, applyRoundedCorners: () => runWindowShape('main'), refreshWindowRadius };
 }

@@ -1662,6 +1662,7 @@ assert.ok(/btn-cancel-update/.test(settingsSource), '设置页应提供取消下
 /* 模式切换：容器尺寸驱动 + 双布局层交错过渡（切换路径零窗口 API） */
 {
   const miniSource = readFileSync(path.join(__dirname, '../src/miniMode.js'), 'utf8');
+  const uiPrefsSource = readFileSync(path.join(__dirname, '../src/uiPreferences.js'), 'utf8');
   /* 标记结构必须真的落盘：CSS 与 JS 都按这两个挂载点工作，缺一个就只剩侧边栏 */
   const frameHtml = readFileSync(path.join(__dirname, '../index.html'), 'utf8').replace(/\r\n/g, '\n');
   const frameOpen = frameHtml.indexOf('<div id="app-frame">');
@@ -1690,11 +1691,13 @@ assert.ok(/btn-cancel-update/.test(settingsSource), '设置页应提供取消下
   );
   /* 任务栏/窗框样式与窗口几何串行：并发会让 SWP_FRAMECHANGED 在边框切换中途重算 */
   assert.ok(
-    /ensureWindowGeometry\('main'\)[\s\S]{0,600}?applyWindowShape\('main'\)/.test(exitSource),
+    /ensureWindowGeometry\('main'\)[\s\S]{0,600}?runWindowShape\('main'\)/.test(exitSource),
     '退出前应先完成窗口几何再恢复窗框样式',
   );
   /* 样式改写必须用 SetWindowPos(SWP_FRAMECHANGED) 强制重算非客户区，同一次调用里完成 */
   const shapeSource = miniSource.slice(miniSource.indexOf('function buildMiniModeCommand'), miniSource.indexOf('async function enterMiniMode'));
+  /* 半径取值函数写在 buildMiniModeCommand 之前，单独取一段一起断言 */
+  const radiusSource = miniSource.slice(miniSource.indexOf('function currentWindowRadius'), miniSource.indexOf('function buildMiniModeCommand'));
   assert.ok(/SetWindowPos\(\$hwnd,\[IntPtr\]::Zero,0,0,0,0,0x27\)/.test(shapeSource), '样式切换应在同一次进程内强制重算非客户区');
   assert.ok(/0x00040000/.test(shapeSource), '退出迷你模式应补回 WS_THICKFRAME');
   assert.ok(!/-bnot 0x80000000/i.test(miniSource), '负掩码会被 SetWindowLongPtr 以 err=87 拒绝，样式位必须用正掩码差集');
@@ -1702,7 +1705,7 @@ assert.ok(/btn-cancel-update/.test(settingsSource), '设置页应提供取消下
   /* 任务栏图标按需求保留：运行期不碰 ITaskbarList，也不靠 TOOLWINDOW 位隐藏 */
   assert.ok(!/ITaskbarList|DeleteTab|AddTab/.test(miniSource), '迷你模式不再隐藏任务栏图标，样式脚本不应再操作任务栏');
   /* 窗框形态是纯外观：进入迷你模式不得把它塞进切换等待链，否则 PowerShell 冷启动期间拖不动 */
-  assert.ok(!/await applyWindowShape\('mini'\)/.test(miniSource), '进入迷你模式不应等待窗框形态脚本');
+  assert.ok(!/await runWindowShape\('mini'\)/.test(miniSource), '进入迷你模式不应等待窗框形态脚本');
   const enterSource = miniSource.slice(miniSource.indexOf('async function enterMiniMode'), miniSource.indexOf('async function exitMiniMode'));
   assert.ok(
     enterSource.indexOf("setDraggableRegion('mini-drag-region')") < enterSource.indexOf("ensureWindowGeometry('mini')"),
@@ -1716,28 +1719,42 @@ assert.ok(/btn-cancel-update/.test(settingsSource), '设置页应提供取消下
     exitSource.indexOf("miniPanel.classList.add('hidden')") < exitSource.indexOf("applyFrameMode('main')"),
     '应先隐藏迷你层，待窗口尺寸恢复后再切回主模式',
   );
-  /* 迷你窗口是直角 + 去边框的，容器与面板必须一起变直角，否则四角露出直角底色 */
+  /* 迷你窗口的圆角跟随设置里的圆角（设置 → 外观 → 圆角），窗口与面板取同一个半径 */
   assert.ok(
-    /html\.mini-square #app-frame\s*\{[^}]*border-radius:\s*0/.test(styleSource),
-    '迷你窗口切成直角后，容器圆角也应归零',
+    /root\.style\.setProperty\('--radius-window', `\$\{style\.radius\}px`\)/.test(uiPrefsSource),
+    '窗口圆角变量应由设置里的圆角值驱动',
   );
   assert.ok(
-    /html\.mini-square \.mini-panel\s*\{[^}]*border-radius:\s*0/.test(styleSource),
-    '迷你窗口切成直角后，面板圆角也应归零',
+    /border-radius:\s*var\(--radius-window, 12px\)/.test(styleSource),
+    '#app-frame 圆角应取 --radius-window',
   );
   assert.ok(
-    !/\.mini-panel\s*\{[^}]*border-radius:\s*var\(--ui-radius-lg\)/.test(styleSource)
-      && !/settings-modal,\s*\.mini-panel\s*\{/.test(styleSource),
-    '面板圆角不应被通用圆角分组覆盖回圆角',
+    /html\.mini-mode-active \.mini-panel\s*\{[^}]*border-radius:\s*var\(--radius-window, 12px\)/.test(styleSource),
+    '迷你面板圆角应与窗口圆角一致，四角才严丝合缝',
   );
   assert.ok(
-    enterSource.indexOf("ensureWindowGeometry('mini')") < enterSource.indexOf("classList.add('mini-square')"),
-    '圆角标记应在窗口几何落地后再挂上，避免切换途中闪出圆角切角',
+    !/border-radius:\s*0 0 16px 16px/.test(styleSource),
+    '贴边触发条不应再写死圆角',
   );
   assert.ok(
-    exitSource.indexOf("classList.remove('mini-square')") < exitSource.indexOf("classList.remove('mini-mode-active')")
-      || /classList\.remove\('mini-mode-active'\)[\s\S]{0,400}?classList\.remove\('mini-square'\)/.test(exitSource),
-    '退出迷你模式应摘掉直角标记',
+    /DwmSetWindowAttribute\(\$hwnd,38/.test(shapeSource),
+    '窗口圆角半径应显式下发给 DWM（DWMWA_WINDOW_CORNER_RADIUS=38）',
+  );
+  assert.ok(
+    /function currentWindowRadius\(\)/.test(radiusSource) && /data\?\.uiStyle\?\.radius/.test(radiusSource),
+    'DWM 圆角半径应取用户设置里的圆角值',
+  );
+  assert.ok(
+    !/cornerAttr/.test(shapeSource),
+    '迷你/普通两种形态不应再用不同的圆角属性',
+  );
+  assert.ok(
+    /todo-tools:ui-style-changed/.test(appSource) && /refreshWindowRadius/.test(miniSource),
+    '设置里改圆角后应同步到窗口本身',
+  );
+  assert.ok(
+    /shapeInFlight[\s\S]{0,400}?shapeDirty/.test(shapeSource),
+    '连续拖动圆角滑杆时窗框重算应单飞，避免并发重算非客户区',
   );
 }
 

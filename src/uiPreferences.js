@@ -45,6 +45,9 @@ export function applyUiStyle(value) {
   root.style.setProperty('--ui-radius-sm', `${Math.max(5, Math.round(style.radius * 0.72))}px`);
   root.style.setProperty('--ui-radius-xs', `${Math.max(2, Math.round(style.radius * 0.42))}px`);
   root.style.setProperty('--ui-radius-lg', `${style.radius + 6}px`);
+  /* 窗口本身的圆角（DWM）也要跟设置走：迷你模式下宿主窗口就是可见的面板，
+     半径来源与 --ui-radius 一致，容器与系统窗口的圆角才对得上 */
+  root.style.setProperty('--radius-window', `${style.radius}px`);
   root.style.setProperty('--ui-glass-opacity', `${style.glassOpacity}%`);
   root.style.setProperty('--ui-glass-strong-opacity', `${Math.min(100, style.glassOpacity + 18)}%`);
   root.style.setProperty('--ui-control-opacity', `${Math.min(100, Math.max(48, style.glassOpacity + 10))}%`);

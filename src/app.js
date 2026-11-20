@@ -2194,6 +2194,8 @@ export async function initApp() {
   /* 窗口仍是隐藏状态时预热：枚举并缓存窗口句柄、装好 DWM 圆角，
      进入迷你模式时少一次 PowerShell 进程启动，也不会先闪现直角外框 */
   mini.applyRoundedCorners();
+  /* 设置里的圆角改了要同步给窗口本身：迷你模式下显示的就是系统窗口的四角 */
+  document.addEventListener('todo-tools:ui-style-changed', () => mini.refreshWindowRadius());
   document.addEventListener('todo-tools:restore-main-window', () => {
     if (mini.isMiniMode()) {
       mini.exitMiniMode();
