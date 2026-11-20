@@ -441,7 +441,9 @@ export function initMiniMode({ data, saveData, render, showToast, showContextMen
       /* 与 .mini-panel 的 96% 玻璃背景保持一致，避免窗口边缘露出纯白底色 */
       document.body.style.background = 'color-mix(in srgb, var(--bg-surface) 96%, transparent)';
       /* 先按目标尺寸布好容器（窗口 API 落地前第一帧就有正确比例），
-         再由 ensureWindowGeometry 一次性下发窗口几何 */
+         再由 ensureWindowGeometry 一次性下发窗口几何。
+         直角标记则留到几何落地后再挂：容器与面板的直角要跟窗口的直角同时出现，
+         否则切换途中会先闪出一圈属于圆角窗口的切角 */
       applyFrameMode('mini', { width: miniWidth, height: miniHeight });
       miniPanel.classList.remove('hidden');
       miniInputRow.classList.add('hidden');
@@ -453,6 +455,7 @@ export function initMiniMode({ data, saveData, render, showToast, showContextMen
           await Neutralino.window.setDraggableRegion('mini-drag-region');
           /* 贴边吸附关闭时把收起偏移归零，避免上次收起状态残留 */
           await ensureWindowGeometry('mini');
+          document.documentElement.classList.add('mini-square');
           miniSnap.attach();
         } catch (e) { console.warn('enterMiniMode error:', e); }
         /* 窗框形态（直角/样式位）是纯外观，不进入上面的等待链：PowerShell 冷启动要秒级，
@@ -481,6 +484,8 @@ export function initMiniMode({ data, saveData, render, showToast, showContextMen
       }
       miniInputRow.classList.add('hidden');
       document.documentElement.classList.remove('mini-mode-active');
+      /* 窗口一恢复成带圆角的原生窗框，容器就得跟着回到圆角，避免多一层直角切角 */
+      document.documentElement.classList.remove('mini-square');
       document.body.style.background = '';
       /* 容器继续保持迷你尺寸（main 挂载点本来就铺满 #app-frame）：
          提前把 data-mode 切成主模式会让主布局先按迷你窗口排一遍，

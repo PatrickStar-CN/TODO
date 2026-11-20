@@ -4410,7 +4410,10 @@ body::before {
   width: var(--mode-w, 100%);
   height: var(--mode-h, 100%);
   overflow: hidden;
+  /* 容器自带的圆角必须跟模式一起收放：迷你窗口的 DWM 圆角已被切成直角、边框也已去掉，
+     容器若还留着普通窗口的圆角，四角就会露出一块不透明的直角底色 */
   border-radius: var(--radius-window, 12px);
+  transition: border-radius var(--motion-fast);
 }
 
 /* 容器不加尺寸过渡：回到普通模式后拖动窗口必须瞬时跟随，
@@ -4418,6 +4421,17 @@ body::before {
    切换的手感由 .mini-layer / .mode-mount--main 的透明度交错提供 */
 #app-frame[data-mode='mini'] {
   transition: none;
+}
+
+/* 迷你窗口被切成直角并去掉边框后，容器与面板必须一起变直角，否则四角会露出
+   一块不透明的直角底色（窗口的直角角落 + 容器自己的圆角切角）。
+   标记由 src/miniMode.js 在窗口几何落地后挂上，退出时先摘掉 */
+html.mini-square #app-frame {
+  border-radius: 0;
+}
+
+html.mini-square .mini-panel {
+  border-radius: 0;
 }
 
 .mini-layer {
@@ -4666,7 +4680,7 @@ body::before {
 }
 
 /* Mini mode — 顶部贴边吸附：收起时窗口上移，仅底部触发条可见。
-   条带随窗口移动，圆角与 .mini-panel（16px）保持一致；默认透明不干扰布局 */
+   条带随窗口移动；迷你窗口是直角形态，条带也不带圆角。默认透明不干扰布局 */
 .mini-snap-bar {
   position: absolute;
   left: 0;
@@ -4677,7 +4691,7 @@ body::before {
   opacity: 0;
   transition: opacity var(--motion-normal);
   background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--glass-stroke-strong) 42%, transparent));
-  border-radius: 0 0 16px 16px;
+  border-radius: 0;
 }
 
 html.mini-snap-collapsed .mini-snap-bar {
@@ -5958,8 +5972,7 @@ html.mini-snap-collapsed .mini-resize-handle {
 
 .detail-panel,
 .summary-panel,
-.settings-modal,
-.mini-panel {
+.settings-modal {
   border-radius: var(--ui-radius-lg);
 }
 
@@ -6804,8 +6817,7 @@ html.mini-snap-collapsed .mini-resize-handle {
 
 .detail-panel,
 .summary-panel,
-.settings-modal,
-.mini-panel {
+.settings-modal {
   border-radius: var(--ui-radius-lg);
 }
 
@@ -9473,9 +9485,10 @@ html.mini-mode-active body {
   background: color-mix(in srgb, var(--bg-surface) 96%, transparent) !important;
 }
 
-/* Win11 DWM 圆角约为 8px，面板圆角跟随窗口边缘，边框线才不会偏离直角角落 */
+/* 迷你窗口被切成直角并去掉了边框，面板圆角必须跟着变直角：
+   留着圆角会在四角露出圆形缺口，背后是 96% 不透明的底色，看起来就是一块直角背景 */
 html.mini-mode-active .mini-panel {
-  border-radius: 8px;
+  border-radius: 0;
 }
 
 /* 迷你布局层铺满容器：面板本身 absolute inset:0，不再依赖窗口视口单位 */

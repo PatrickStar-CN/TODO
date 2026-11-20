@@ -1716,6 +1716,29 @@ assert.ok(/btn-cancel-update/.test(settingsSource), '设置页应提供取消下
     exitSource.indexOf("miniPanel.classList.add('hidden')") < exitSource.indexOf("applyFrameMode('main')"),
     '应先隐藏迷你层，待窗口尺寸恢复后再切回主模式',
   );
+  /* 迷你窗口是直角 + 去边框的，容器与面板必须一起变直角，否则四角露出直角底色 */
+  assert.ok(
+    /html\.mini-square #app-frame\s*\{[^}]*border-radius:\s*0/.test(styleSource),
+    '迷你窗口切成直角后，容器圆角也应归零',
+  );
+  assert.ok(
+    /html\.mini-square \.mini-panel\s*\{[^}]*border-radius:\s*0/.test(styleSource),
+    '迷你窗口切成直角后，面板圆角也应归零',
+  );
+  assert.ok(
+    !/\.mini-panel\s*\{[^}]*border-radius:\s*var\(--ui-radius-lg\)/.test(styleSource)
+      && !/settings-modal,\s*\.mini-panel\s*\{/.test(styleSource),
+    '面板圆角不应被通用圆角分组覆盖回圆角',
+  );
+  assert.ok(
+    enterSource.indexOf("ensureWindowGeometry('mini')") < enterSource.indexOf("classList.add('mini-square')"),
+    '圆角标记应在窗口几何落地后再挂上，避免切换途中闪出圆角切角',
+  );
+  assert.ok(
+    exitSource.indexOf("classList.remove('mini-square')") < exitSource.indexOf("classList.remove('mini-mode-active')")
+      || /classList\.remove\('mini-mode-active'\)[\s\S]{0,400}?classList\.remove\('mini-square'\)/.test(exitSource),
+    '退出迷你模式应摘掉直角标记',
+  );
 }
 
 
