@@ -42,10 +42,45 @@ export function buildProbePs(name) {
 }
 
 /* 持有者脚本：$createdNew 为原子 test-and-set 结果；输家 exit 42；
- * 赢家阻塞持有直到进程退出（正常 ReleaseMutex + Dispose，崩溃由 OS 回收）。 */
-export function buildHolderPs(name) {
+ * 赢家阻塞持有直到进程退出（正常 ReleaseMutex + Dispose，崩溃由 OS 回收）。
+ * 阻塞方式：轮询"发起者进程"是否存活，而不是固定超时。
+ * 发起者在命令行里写入自己的 PID；持有者取自己的父进程，再校验父进程的父
+ * 进程就是该 PID（Neutralino 6.7.0 由 webview 层 spawn，父进程可能不是应用
+ * 主进程），不匹配则直接盯该 PID。拿不到父进程时退化为最长 24 天超时——
+ * 主进程异常退出后持有者最迟 24 天内释放，不会永久锁死应用的启动。 */
+export function buildHolderPs(name, ownerPid = 0) {
   const n = quotePs(name);
-  return `$createdNew=$false; try { $m=New-Object System.Threading.Mutex($true,${n},[ref]$createdNew) } catch { exit 1 }; if (-not $createdNew) { exit 42 }; try { Wait-Event -Timeout 2147483 } finally { try { $m.ReleaseMutex() } catch {}; $m.Dispose() }`;
+  const owner = Number.isFinite(Number(ownerPid)) && Number(ownerPid) > 0
+    ? Math.trunc(Number(ownerPid))
+    : 0;
+  return `$createdNew=$false; try { $m=New-Object System.Threading.Mutex($true,${n},[ref]$createdNew) } catch { exit 1 }; if (-not $createdNew) { exit 42 }; try { ${holderWaitPs(owner)} } finally { try { $m.ReleaseMutex() } catch {}; $m.Dispose() }`;
+}
+
+/* 持有者的阻塞段：盯住发起者进程，owner 为 0 时退化为固定超时。 */
+function holderWaitPs(owner) {
+  /* 兜底上限：24 天，仅用于拿不到 PID 的极端情况 */
+  const giveUp = '2147483';
+  if (!owner) return `Wait-Event -Timeout ${giveUp}`;
+  return [
+    `$ownerPid=${owner}`,
+    '$parentPid=0',
+    'try { $parentPid=[int](Get-CimInstance Win32_Process -Filter ("ProcessId=$PID") -ErrorAction SilentlyContinue).ParentProcessId } catch { $parentPid=0 }',
+    'while ($true) {',
+    '  $deadline=(Get-Date).AddSeconds(' + giveUp + ')',
+    '  $grandPid=0',
+    '  try { $grandPid=[int](Get-CimInstance Win32_Process -Filter ("ProcessId=$parentPid") -ErrorAction SilentlyContinue).ParentProcessId } catch { $grandPid=0 }',
+    '  $watchPid=$ownerPid',
+    '  if ($grandPid -eq $ownerPid) { $watchPid=$parentPid }',
+    '  while ((Get-Date) -lt $deadline -and (Get-Process -Id $watchPid -ErrorAction SilentlyContinue)) { Start-Sleep -Milliseconds 500 }',
+    '  break',
+    '}',
+  ].join('; ');
+}
+
+/* 发起者 PID 归一化：非正数/非数字一律视为未知（0），持有者退回固定超时。 */
+export function normalizeOwnerPid(value) {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? Math.trunc(n) : 0;
 }
 
 /* 探测退出码映射：0→存在 / 10→不存在 / 其他（含执行失败）→未知 */
@@ -81,6 +116,19 @@ function toEncodedCommand(ps) {
 
 function powershellHidden(encoded) {
   return `powershell -NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -EncodedCommand ${encoded}`;
+}
+
+/* 本进程 PID：只从运行时能拿到的字段里取，取不到返回 0（持有者退回固定超时）。
+ * Neutralino 6.7.0 的客户端库不含 getProcessId，故不再尝试调用。 */
+async function resolveOwnerPid() {
+  const os = typeof Neutralino !== 'undefined' ? Neutralino.os : null;
+  const own = os && typeof os.getProcessId === 'function' ? os.getProcessId : null;
+  if (!own) return 0;
+  try {
+    return normalizeOwnerPid(await own.call(os));
+  } catch {
+    return 0;
+  }
 }
 
 async function resolveMutexName() {
@@ -126,6 +174,7 @@ let holderId = null;
 export async function acquireSingleInstance() {
   if (!isNeutralinoEnv()) return { primary: true };
   const name = await resolveMutexName();
+  const ownerPid = await resolveOwnerPid();
 
   /* 1. 快捷探测：已存在则直接让路，不启动持有者 */
   let probe = 'unknown';
@@ -144,7 +193,7 @@ export async function acquireSingleInstance() {
   /* 2. 原子抢占：胜负只看自己持有者是否 exit 42 */
   let spawned = null;
   try {
-    spawned = await Neutralino.os.spawnProcess(powershellHidden(toEncodedCommand(buildHolderPs(name))));
+    spawned = await Neutralino.os.spawnProcess(powershellHidden(toEncodedCommand(buildHolderPs(name, ownerPid))));
   } catch (error) {
     console.warn('[single-instance] Mutex 持有者启动失败，继续作为单实例启动:', error);
     return { primary: true };

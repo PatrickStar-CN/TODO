@@ -386,26 +386,19 @@ export function initMiniMode({ data, saveData, render, showToast, showContextMen
   /* 目标窗口定位：WG_MINI 必然有标题栏按钮，用来确认句柄合法（防止改到桌面/浏览器窗口）；
      标题与配置的 windowTitle 不一致时退化为只认 WG_MINI，因为标题随语言/文档变化。
      只取 Z 序前 8 个可见的其他进程窗口，尽量让任务栏、托盘这些非目标窗口落选。 */
-  /* 一次调用同时定位窗口、恢复 DWM 圆角并切换到目标形态：隐藏任务栏要求把扩展样式
-     换成 WS_EX_TOOLWINDOW + WS_EX_ACCEPTFILES + 0x80000（任务栏不再列出该窗口，
-     拖拽文件也仍然可用），因此普通模式的圆角和 DWM 边框必须在这里按普通形态一起装回，
-     不能只加一位样式。圆角属性与样式在同一次进程内下发，窗框只重算一遍。 */
-  function buildMiniModeCommand(hwnd, hideFromTaskbar) {
+  /* 一次调用把目标形态的扩展样式与 DWM 圆角一起写回：两者在同一个进程内下发，
+     窗框只重算一遍。style 取 'mini'（直角、无边框可拖拽）或 'main'（装回 Win11 圆角）。 */
+  function buildMiniModeCommand(hwnd, style) {
     /* 只改目标位的差集写法，而不是整字覆盖：WS_EX_STATICEDGE 之类窗口自带的位原样保留，
        退出迷你模式时样式才能被系统接受（整字覆盖里的 0x00180000 保留位会被
-       SetWindowLongPtr 拒绝，err=87）。
-       迷你态：清 TOOLWINDOW，补 APPWINDOW | LAYERED | NOACTIVATE；
-       普通态：清 LAYERED / NOACTIVATE，补 APPWINDOW 与 TOOLWINDOW。 */
-    const styleExpr = hideFromTaskbar
-      ? '$newEx = ($ex -band (-bnot 0x00080000)) -bor 0x000B0088'
+       SetWindowLongPtr 拒绝，err=87）。迷你态清 LAYERED(0x00080000) 保留静态边与 APPWINDOW。 */
+    const styleExpr = style === 'mini'
+      ? '$newEx = $ex -band (-bnot 0x00080000)'
       : '$newEx = ($ex -band (-bnot 0x00180000)) -bor 0x00080008';
-    const cornerAttr = hideFromTaskbar ? 1 : 2;
-    /* ITaskbarList 只影响任务栏投影：DeleteTab 摘掉按钮，AddTab 装回来。
-       它不改窗口样式，退出时不会像 WS_EX_TOOLWINDOW 那样留下残留位 */
-    const shellExpr = hideFromTaskbar ? '[Taskbar]::DeleteTab($hwnd)' : '[Taskbar]::AddTab($hwnd)';
+    const cornerAttr = style === 'mini' ? 1 : 2;
     return 'powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand ' +
       encodeUtf16LeBase64(
-        `Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public static class Taskbar{[ComImport, Guid("56FDF342-FD6D-11d0-958A-006097C9A090"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)] public interface ITaskbarList{[PreserveSig] int HrInit();[PreserveSig] int AddTab(IntPtr hwnd);[PreserveSig] int DeleteTab(IntPtr hwnd);[PreserveSig] int ActivateTab(IntPtr hwnd);[PreserveSig] int SetActiveAlt(IntPtr hwnd);}[ComImport, Guid("56FDF344-FD6D-11d0-958A-006097C9A090")] public class CoTaskbarList{} public static void DeleteTab(IntPtr h){var t=(ITaskbarList)new CoTaskbarList();t.HrInit();t.DeleteTab(h);} public static void AddTab(IntPtr h){var t=(ITaskbarList)new CoTaskbarList();t.HrInit();t.AddTab(h);} } public class TbToggle{[DllImport("user32.dll",SetLastError=true)]public static extern IntPtr GetWindowLongPtr(IntPtr hWnd,int nIndex);[DllImport("user32.dll",SetLastError=true)]public static extern IntPtr SetWindowLongPtr(IntPtr hWnd,int nIndex,IntPtr dwNewLong);[DllImport("user32.dll",SetLastError=true)]public static extern bool SetWindowPos(IntPtr hWnd,IntPtr hWndInsertAfter,int X,int Y,int cx,int cy,uint uFlags);[DllImport("user32.dll")]public static extern bool IsWindow(IntPtr hWnd);[DllImport("dwmapi.dll")]public static extern int DwmSetWindowAttribute(IntPtr hWnd,int attr,ref int v,int size);}'
+        `Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public class TbToggle{[DllImport("user32.dll",SetLastError=true)]public static extern IntPtr GetWindowLongPtr(IntPtr hWnd,int nIndex);[DllImport("user32.dll",SetLastError=true)]public static extern IntPtr SetWindowLongPtr(IntPtr hWnd,int nIndex,IntPtr dwNewLong);[DllImport("user32.dll",SetLastError=true)]public static extern bool SetWindowPos(IntPtr hWnd,IntPtr hWndInsertAfter,int X,int Y,int cx,int cy,uint uFlags);[DllImport("user32.dll")]public static extern bool IsWindow(IntPtr hWnd);[DllImport("dwmapi.dll")]public static extern int DwmSetWindowAttribute(IntPtr hWnd,int attr,ref int v,int size);}'
  $GWL_EXSTYLE = -20; $GWL_STYLE = -16
  $hwnd = [IntPtr][int64]${hwnd}
  if ((-not [TbToggle]::IsWindow($hwnd)) -or ($hwnd -eq [IntPtr]::Zero)) { 'NO_WINDOW' } else {
@@ -418,7 +411,6 @@ export function initMiniMode({ data, saveData, render, showToast, showContextMen
    [TbToggle]::SetWindowLongPtr($hwnd,$GWL_STYLE,[IntPtr]$newFrame) | Out-Null
    $v = ${cornerAttr}
    [TbToggle]::DwmSetWindowAttribute($hwnd,33,[ref]$v,4) | Out-Null
-   ${shellExpr}
    [TbToggle]::SetWindowPos($hwnd,[IntPtr]::Zero,0,0,0,0,0x27) | Out-Null
    'OK' }`
       );
@@ -426,12 +418,12 @@ export function initMiniMode({ data, saveData, render, showToast, showContextMen
 
   /* DWM 圆角：迷你形态用直角（2px 面板圆角由 CSS 画），普通形态装回 Win11 平滑圆角。
      与样式位在同一次进程内下发，窗框只重算一遍 */
-  async function applyWindowShape(hideFromTaskbar) {
+  async function applyWindowShape(style) {
     if (!isNeutralinoEnv()) return;
     const hwnd = await resolveWindowHandle();
     if (hwnd === null) return;
     try {
-      const r = await Neutralino.os.execCommand(buildMiniModeCommand(hwnd, hideFromTaskbar));
+      const r = await Neutralino.os.execCommand(buildMiniModeCommand(hwnd, style));
       if (r?.stdOut?.trim() !== 'OK') {
         console.warn('mini window shape: window not found,', r?.stdOut?.trim() || r?.stdErr || r?.exitCode);
       }
@@ -456,13 +448,16 @@ export function initMiniMode({ data, saveData, render, showToast, showContextMen
       renderMiniPanel();
       if (isNeutralinoEnv()) {
         try {
+          /* 拖拽区先于窗口几何注册：几何与窗框重算都要等进程/IPC，先挂上拖拽区，
+             迷你窗口一出现就能拖动，不必等后面几步走完 */
+          await Neutralino.window.setDraggableRegion('mini-drag-region');
           /* 贴边吸附关闭时把收起偏移归零，避免上次收起状态残留 */
           await ensureWindowGeometry('mini');
-          await Neutralino.window.setDraggableRegion('mini-drag-region');
           miniSnap.attach();
-          /* 迷你形态：隐藏任务栏、直角，与几何串行，窗口落定前不动窗框 */
-          await applyWindowShape(true);
         } catch (e) { console.warn('enterMiniMode error:', e); }
+        /* 窗框形态（直角/样式位）是纯外观，不进入上面的等待链：PowerShell 冷启动要秒级，
+           串进来就会让切换卡住、期间窗口拖不动。失败也不影响切换本身 */
+        applyWindowShape('mini');
       }
     } finally {
       switching = false;
@@ -508,7 +503,7 @@ export function initMiniMode({ data, saveData, render, showToast, showContextMen
          串行执行是必要的，否则重算会落在边框切换中途，标题栏要等下一次拖动才正确 */
       /* 样式还原失败也不能把 switching 永久锁死：否则之后再也切不回迷你模式 */
       try {
-        await applyWindowShape(false);
+        await applyWindowShape('main');
       } catch (e) { console.warn('exitMiniMode frame restore error:', e); }
     } finally {
       switching = false;
@@ -786,5 +781,5 @@ export function initMiniMode({ data, saveData, render, showToast, showContextMen
   }
 
   /* applyRoundedCorners 保留给启动时预热：预先枚举并缓存窗口句柄，进入迷你模式时少一次进程启动 */
-  return { enterMiniMode, exitMiniMode, renderMiniPanel, isMiniMode: () => isMiniMode, applyRoundedCorners: () => applyWindowShape(false) };
+  return { enterMiniMode, exitMiniMode, renderMiniPanel, isMiniMode: () => isMiniMode, applyRoundedCorners: () => applyWindowShape('main') };
 }

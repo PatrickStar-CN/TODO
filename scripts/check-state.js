@@ -11,7 +11,7 @@ import { parseLocalDateInput, toLocalDateInput, toLocalDatetime, isToday, getMon
 import { animateWindowRect, cancelWindowRectAnimation, centerRect, computeCollapsedY, easeOutCubic, ensureDisplayHz, framesPerApply, isNearScreenTop, rectAt, WINDOW_ANIM_MAX_HZ } from '../src/miniSnap.js';
 import { buildCurlProxyPs, buildDownloadCurlPs, buildDownloadStreamPs, buildDownloadWebRequestPs, buildFetchCurlPs, buildFetchWebRequestPs, buildProxyAssignPs, buildTlsPs, buildUpdateLauncherVbs, buildUpdateTaskRun, buildUpdateTaskRunVbs, compareVersions, createUpdater, normalizeTargetDir, parseProgressLine, psQuote, sanitizeNetDetail, toEncodedCommand } from '../src/updater.js';
 import { getNextTagDotStyle, getTagTaskCount } from '../src/shared.js';
-import { HOLDER_LOST_EXIT_CODE, SINGLE_INSTANCE_MUTEX, acquireSingleInstance, buildHolderPs, buildMutexName, buildProbePs, decideProbe, releaseSingleInstance } from '../src/singleInstance.js';
+import { HOLDER_LOST_EXIT_CODE, SINGLE_INSTANCE_MUTEX, acquireSingleInstance, buildHolderPs, buildMutexName, buildProbePs, decideProbe, normalizeOwnerPid, releaseSingleInstance } from '../src/singleInstance.js';
 import { extractCompleteContent, normalizeStreamText, parseSseLine, resolveAiApiUrl } from '../src/utils/aiApi.js';
 import { DEFAULT_TIMELINE_SETTINGS, formatTimelineTime, getTimelineDateParts, normalizeTimelineSettings, sortTimelineTodos } from '../src/timeline.js';
 import { clampDonePanelHeight, computeDonePanelHeightFromPointer, computeDonePanelMaxHeightFromRects } from '../src/donePanelResize.js';
@@ -1035,6 +1035,22 @@ assert.ok(/btn-cancel-update/.test(settingsSource), '设置页应提供取消下
   assert.ok(/OpenExisting/.test(probePs) && /exit 10/.test(probePs), '探测脚本应区分存在/不存在退出码');
   const holderPs = buildHolderPs(SINGLE_INSTANCE_MUTEX);
   assert.ok(/createdNew/.test(holderPs) && /exit 42/.test(holderPs), '持有者脚本应以 createdNew 原子仲裁，输家 exit 42');
+  /* 持有者不得靠固定超时占住 Mutex：主进程崩溃后必须能自行释放，
+   * 否则孤儿持有者会让之后每次启动都判自己为输家，应用再也打不开 */
+  assert.ok(/Wait-Event -Timeout/.test(holderPs), '拿不到发起者 PID 时应退化为固定超时，而不是立即释放 Mutex');
+  const ownerHolderPs = buildHolderPs(SINGLE_INSTANCE_MUTEX, 4242);
+  assert.ok(/\$ownerPid=4242/.test(ownerHolderPs), '持有者脚本应携带发起者 PID 用于存活轮询');
+  assert.ok(/Get-Process -Id \$watchPid/.test(ownerHolderPs), '持有者应轮询发起者进程存活状态');
+  assert.ok(/ParentProcessId/.test(ownerHolderPs), '持有者应通过父进程校验发起者，避免 PID 复用误判');
+  assert.ok(!/Wait-Event/.test(ownerHolderPs), '带 PID 的持有者脚本不得再用固定超时阻塞');
+  assert.equal(normalizeOwnerPid('4242'), 4242);
+  assert.equal(normalizeOwnerPid(4242.9), 4242);
+  assert.equal(normalizeOwnerPid(0), 0);
+  assert.equal(normalizeOwnerPid(-1), 0);
+  assert.equal(normalizeOwnerPid('abc'), 0);
+  assert.equal(normalizeOwnerPid(undefined), 0);
+  const singleSource = readFileSync(path.join(__dirname, '../src/singleInstance.js'), 'utf8');
+  assert.ok(/buildHolderPs\(name, ownerPid\)/.test(singleSource), 'acquireSingleInstance 应把发起者 PID 传给持有者脚本');
   const mainSource = readFileSync(path.join(__dirname, '../src/main.js'), 'utf8');
   assert.ok(/from '\.\/singleInstance\.js'/.test(mainSource) && /acquireSingleInstance/.test(mainSource), '单实例仲裁应由 singleInstance.js 统一提供，main.js 不得自立副本');
   assert.ok(!/INSTANCE_LOCK_DIR|createLockDirectory|LOCK_HEARTBEAT_MS|LOCK_STALE_MS/.test(mainSource), '文件锁心跳逻辑应已彻底删除');
@@ -1674,19 +1690,24 @@ assert.ok(/btn-cancel-update/.test(settingsSource), '设置页应提供取消下
   );
   /* 任务栏/窗框样式与窗口几何串行：并发会让 SWP_FRAMECHANGED 在边框切换中途重算 */
   assert.ok(
-    /ensureWindowGeometry\('main'\)[\s\S]{0,600}?applyWindowShape\(false\)/.test(exitSource),
-    '退出前应先完成窗口几何再恢复任务栏与窗框样式',
+    /ensureWindowGeometry\('main'\)[\s\S]{0,600}?applyWindowShape\('main'\)/.test(exitSource),
+    '退出前应先完成窗口几何再恢复窗框样式',
   );
   /* 样式改写必须用 SetWindowPos(SWP_FRAMECHANGED) 强制重算非客户区，同一次调用里完成 */
   const shapeSource = miniSource.slice(miniSource.indexOf('function buildMiniModeCommand'), miniSource.indexOf('async function enterMiniMode'));
   assert.ok(/SetWindowPos\(\$hwnd,\[IntPtr\]::Zero,0,0,0,0,0x27\)/.test(shapeSource), '样式切换应在同一次进程内强制重算非客户区');
   assert.ok(/0x00040000/.test(shapeSource), '退出迷你模式应补回 WS_THICKFRAME');
-  /* 任务栏按钮走 ITaskbarList，样式零残留；整字覆盖的保留位会被 SetWindowLongPtr 拒绝 */
-  assert.ok(/interface ITaskbarList/.test(shapeSource), '任务栏显隐应走 ITaskbarList，避免 TOOLWINDOW 残留位');
-  assert.ok(/\[Taskbar\]::DeleteTab\(\$hwnd\)/.test(shapeSource), '进入迷你模式应摘掉任务栏按钮');
-  assert.ok(/\[Taskbar\]::AddTab\(\$hwnd\)/.test(shapeSource), '退出迷你模式应装回任务栏按钮');
   assert.ok(!/-bnot 0x80000000/i.test(miniSource), '负掩码会被 SetWindowLongPtr 以 err=87 拒绝，样式位必须用正掩码差集');
   assert.ok(/DwmSetWindowAttribute\(\$hwnd,33/.test(shapeSource), '迷你形态应把系统圆角改成直角');
+  /* 任务栏图标按需求保留：运行期不碰 ITaskbarList，也不靠 TOOLWINDOW 位隐藏 */
+  assert.ok(!/ITaskbarList|DeleteTab|AddTab/.test(miniSource), '迷你模式不再隐藏任务栏图标，样式脚本不应再操作任务栏');
+  /* 窗框形态是纯外观：进入迷你模式不得把它塞进切换等待链，否则 PowerShell 冷启动期间拖不动 */
+  assert.ok(!/await applyWindowShape\('mini'\)/.test(miniSource), '进入迷你模式不应等待窗框形态脚本');
+  const enterSource = miniSource.slice(miniSource.indexOf('async function enterMiniMode'), miniSource.indexOf('async function exitMiniMode'));
+  assert.ok(
+    enterSource.indexOf("setDraggableRegion('mini-drag-region')") < enterSource.indexOf("ensureWindowGeometry('mini')"),
+    '进入迷你模式应先注册拖拽区，几何下发期间窗口就能拖动',
+  );
   /* 句柄来源：客户端库不暴露 window.hwnd，只能按标题枚举 + 可见/APPWINDOW 兜底 */
   assert.ok(/Neutralino\?\.window\?\.hwnd/.test(miniSource), '仍应优先读取 Neutralino 暴露的窗口句柄');
   assert.ok(/function buildWindowLocateCommand/.test(miniSource), '缺少 window.hwnd 时应按窗口标题枚举兜底');
